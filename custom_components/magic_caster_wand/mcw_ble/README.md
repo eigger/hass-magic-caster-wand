@@ -1,166 +1,176 @@
 # 🪄 Magic Wand BLE Protocol (Unofficial)
 
+---
+
 ## 📡 1. Connection Specifications
 
-The device uses **Custom 128-bit UUIDs**. Standard 16-bit UUIDs will **not** work.
+The devices use **128-bit Custom UUIDs**. Standard 16-bit UUIDs will not work.
 
-| Type | Name / Value | Description |
-| :--- | :--- | :--- |
-| **Device Name** | `MCW` | Used for filtering during scan |
-| **Service UUID** | `64A70012-F691-4B93-A6F4-0968F5B648F8` | Main Control Service |
-| **Char: Command** | `64A70013-F691-4B93-A6F4-0968F5B648F8` | **(CH1)** Read, Write, Notify |
-| **Char: Stream** | `64A70014-F691-4B93-A6F4-0968F5B648F8` | **(CH2)** Notify (Sensors, Buttons, Spells) |
+### 🪄 Magic Wand (Target Name: `MCW`)
 
-### 🔄 Connection Flow
-1. **Scan**: Look for devices starting with name `MCW`.
-2. **Connect**: Connect to the GATT Server.
-3. **Subscribe**: Enable notifications (`start_notify`) on **CH1** and **CH2**.
-4. **Keep-Alive**: Send a keep-alive packet (e.g., `0x00`) to CH1 every ~5 seconds.
-
----
-
-## 📥 2. Input Protocol (RX: Device → App)
-
-Data received from the wand via **Stream Char (CH2)** notifications.
-
-### 🔘 Button Events
-Triggered when buttons are pressed or released. **(Requires active connection)**
-
-* **Opcode**: `0x11`
-* **Packet**: `[ 0x11, Mask ]`
-
-| Bit Mask | Button |
-| :--- | :--- |
-| `0x01` | Button 1 (Big) |
-| `0x02` | Button 2 |
-| `0x04` | Button 3 |
-| `0x08` | Button 4 |
-
-### ✨ Spell Gestures
-Triggered when a spell gesture is recognized by the hardware.
-
-* **Opcode**: `0x24`
-* **Packet Structure**:
-[ Header (4 bytes) ] [ Length (1 byte) ] [ Spell Name String (ASCII) ]
-
-* **Example**: `WINGARDIUM LEVIOSA`, `LUMOS`, `INCENDIO`
-
-### 🧭 IMU Sensor Data
-High-speed stream of Accelerometer & Gyroscope data. (Only active after `IMU_START` command).
-
-* **Structure**: Header (4B) + N × DataChunk (12B)
-* **Single Chunk Layout (12 Bytes, Little Endian)**:
-
-| Offset | Type | Value | Unit Conversion |
+| Type | UUID | Properties | Description |
 | :--- | :--- | :--- | :--- |
-| 0 | `int16` | Accel Y | `-(Raw * 0.0078125)` G |
-| 2 | `int16` | Accel X | `Raw * 0.0078125` G |
-| 4 | `int16` | Accel Z | `Raw * 0.0078125` G |
-| 6 | `int16` | Gyro Y | `-(Raw * 0.01084)` dps |
-| 8 | `int16` | Gyro X | `Raw * 0.01084` dps |
-| 10 | `int16` | Gyro Z | `Raw * 0.01084` dps |
+| **Service** | `57420001-587e-48a0-974c-544d6163c577` | - | Main Control Service |
+| **Command** | `57420002-587e-48a0-974c-544d6163c577` | Write, Notify | **(CH1)** Send commands & receive status |
+| **Stream** | `57420003-587e-48a0-974c-544d6163c577` | Notify | **(CH2)** High-speed sensor data, spells, buttons |
+| **Battery** | `00002a19-0000-1000-8000-00805f9b34fb` | Read, Notify | Standard Battery Level (0-100%) |
 
-> **Note**: Y-axis values are inverted (`-`) in the reference implementation.
+### 📦 Wand Box (Target Name: `MCB`)
+
+| Type | UUID | Properties | Description |
+| :--- | :--- | :--- | :--- |
+| **Service** | `57420001-587e-48a0-974c-54686f72c577` | - | Note: Different from Wand UUID |
+| **Command** | `57420002-587e-48a0-974c-54686f72c577` | Write, Notify | Control Channel |
+| **Stream** | `57420003-587e-48a0-974c-54686f72c577` | Notify | Status Channel |
 
 ---
 
-## 📤 3. Output Protocol (TX: App → Device)
+## 📤 2. Output Protocol (TX: App → Device)
 
-Commands sent to the wand via **Command Char (CH1)**.
+Send these commands to the **Command Characteristic (CH1)**.
 
-### 🛠 Control Commands
+### 🛠 Control Opcodes
 
-| Command | Hex Payload | Description |
-| :--- | :--- | :--- |
-| **Keep Alive** | `00` | Heartbeat to maintain connection |
-| **IMU Start** | `13` | Start sensor streaming **(High Battery Drain)** |
-| **IMU Stop** | `14` | Stop sensor streaming |
-| **Vibrate** | `02 [TL] [TH]` | Haptic feedback (`T`: Duration ms in Little Endian) |
+| Command | Opcode | Payload (Hex) | Description |
+| :--- | :--- | :--- | :--- |
+| **Firmware Req** | `0x00` | `[00]` | Request firmware string |
+| **Keep Alive** | `0x01` | `[01]` | Battery Status Request (Used as heartbeat) |
+| **Box Addr Req** | `0x09` | `[09]` | Request MAC address of paired box |
+| **Factory Unlock**| `0x0B` | `[0B]` | Unlocks calibration commands |
+| **Product Info** | `0x0D` | `[0D]` | Request SKU, Serial, etc. |
+| **IMU Start** | `0x30` | `[30, 80, 00, 00, 00]` | **High Battery Drain**. Starts sensor stream. |
+| **IMU Stop** | `0x31` | `[31]` | Stops sensor stream. |
+| **Light Clear** | `0x40` | `[40]` | Turns off all LEDs immediately. |
+| **Vibrate** | `0x50` | `[50, TL, TH]` | `T` = Duration in ms (Little Endian). |
+| **Macro Flush** | `0x60` | `[60]` | Clears current macro queue. |
+| **Macro Exec** | `0x68` | *(See Section 3)* | Executes custom LED/Haptic sequence. |
+| **Predefined** | `0x69` | `[69, ID]` | Runs built-in effect (e.g., `0x0A`). |
+| **Set Threshold**| `0x70` | `[70, Min1, Max1...]` | Sets button sensitivity. |
 
-### 🌈 VFX Macros (LED & Haptics)
-Execute complex light and vibration sequences.
+---
 
-* **Base Opcode**: `0xMM` (Macro Execute)
-* **Example Payload (Solid Red Light for 1s)**:
+## 🌈 3. VFX Macro Protocol (Opcode `0x68`)
+
+To create custom light patterns and vibrations, send a sequence of instructions starting with `0x68`.
+
+**Structure:** `[ 0x68, INSTRUCTION, PARAM_1, PARAM_2... ]`
+
+### Macro Instructions
+
+| Instruction | Opcode | Parameters | Description |
+| :--- | :--- | :--- | :--- |
+| **Delay** | `0x10` | `[TL, TH]` | Wait for `T` milliseconds. |
+| **Light Clear** | `0x20` | - | Turn off LED. |
+| **Light Trans** | `0x22` | `[00, R, G, B, TL, TH]` | Fade to RGB color over `T` ms. |
+| **Set Loops** | `0x80` | `[Count]` | Mark end of loop & set iteration count. |
+| **Loop Start** | `0x81` | - | Mark start of loop. |
+
+**Example: Flash Red (500ms)**
 ```hex
-[MM, 01, 00, FF, 00, 00, E8, 03]
-01: Light Transition Opcode
+68 22 00 FF 00 00 F4 01
+(Opcode 68, Trans 22, Mode 00, R=255, G=0, B=0, Dur=500ms)
 
-00: Mode
+📥 4. Input Protocol (RX: Device → App)
+Data received via Stream Characteristic (CH2) notifications.
 
-FF 00 00: RGB Color
+🔘 Button Events
+Opcode: 0x26 (Estimated from incoming logic)
 
-E8 03: Duration (1000ms, Little Endian)
+Payload: [ 0x26, Mask ]
 
-🐍 4. Python Example
-Requires bleak:
+0x01: Button 1 (Large)
 
-Bash
+0x02: Button 2
 
-pip install bleak
+0x04: Button 3
+
+0x08: Button 4
+
+✨ Spell Gestures
+Triggered when the hardware recognizes a wand motion.
+
+Opcode: 0x24
+
+Structure: [ Header(4B), Length(1B), Name(String) ]
+
+Example: LUMOS, WINGARDIUM_LEVIOSA
+
+🧭 IMU Stream
+Active only after IMU_START. Contains 3-axis Accelerometer & Gyroscope data.
+
+Structure: Header (4B) + N × DataChunk (12B)
+
+Chunk Layout: [AY, AX, AZ, GY, GX, GZ] (int16, Little Endian)
+
+Scale Factors:
+
+Accel: Raw * 0.0078125 (G)
+
+Gyro: Raw * 0.01084 (dps)
+
+🐍 5. Python Example (Bleak)
+This script connects to the wand, vibrates it, and listens for spells/buttons.
+
 Python
 
 import asyncio
 from bleak import BleakScanner, BleakClient
 
-# Constants
-UUID_CHAR_COMMAND = "64A70013-F691-4B93-A6F4-0968F5B648F8"
-UUID_CHAR_STREAM  = "64A70014-F691-4B93-A6F4-0968F5B648F8"
+# --- Constants derived from constants.ts ---
+UUID_WAND_CMD    = "57420002-587e-48a0-974c-544d6163c577"
+UUID_WAND_STREAM = "57420003-587e-48a0-974c-544d6163c577"
+
+CMD_KEEPALIVE = 0x01  # Battery Request
+CMD_VIBRATE   = 0x50
 
 async def main():
     print("Scanning for 'MCW'...")
     device = await BleakScanner.find_device_by_name("MCW")
     
     if not device:
-        print("Wand not found.")
+        print("❌ Wand not found.")
         return
 
     async with BleakClient(device) as client:
-        print(f"Connected to {device.name}")
+        print(f"✅ Connected to {device.name}")
 
-        # Callback for Button/Spells/IMU
+        # Data Handler
         def handle_stream(sender, data):
-            # Button Event (0x11)
-            if data[0] == 0x11:
-                mask = data[1]
-                print(f"Button Pressed Mask: {bin(mask)}")
+            # Spell Event (0x24)
+            if data[0] == 0x24:
+                try:
+                    # Skip header(4) + len(1) = 5 bytes
+                    spell = data[5:].decode('utf-8', errors='ignore').strip()
+                    print(f"✨ SPELL CAST: {spell}")
+                except: pass
             
-            # Spell Event (0x24) - Simple Check
-            elif data[0] == 0x24:
-                # Skip header(4) and length(1)
-                spell_name = data[5:].decode('utf-8', errors='ignore').strip()
-                print(f"🪄 SPELL CAST: {spell_name}")
+            # Button Event (0x26)
+            elif data[0] == 0x26:
+                print(f"🔘 Button Mask: {data[1]}")
 
-        await client.start_notify(UUID_CHAR_STREAM, handle_stream)
+        # Subscribe to notifications
+        await client.start_notify(UUID_WAND_STREAM, handle_stream)
         
-        print("Waiting for spells or buttons... (Press Ctrl+C to exit)")
-        
-        # Keep Alive Loop
+        # Send Haptic Feedback (250ms)
+        # Payload: [0x50, 0xFA, 0x00]
+        await client.write_gatt_char(UUID_WAND_CMD, bytearray([CMD_VIBRATE, 0xFA, 0x00]), response=True)
+        print("📳 Sent vibration command.")
+
+        # Keep-Alive Loop
+        print("Waiting for spells... (Ctrl+C to exit)")
         try:
             while True:
-                # Send Keep Alive (Example byte)
-                # await client.write_gatt_char(UUID_CHAR_COMMAND, bytearray([0x00]))
                 await asyncio.sleep(5)
+                # Send Keep-Alive (Battery Request)
+                await client.write_gatt_char(UUID_WAND_CMD, bytearray([CMD_KEEPALIVE]), response=True)
         except KeyboardInterrupt:
             print("Disconnecting...")
 
 if __name__ == "__main__":
     asyncio.run(main())
-⚠️ 5. Important Notes
-🔋 Battery Drain Warning:
+⚠️ Important Notes
+UUID Format: You must use the full 128-bit UUIDs listed above.
 
-Sending the IMU_START command causes the wand to stream high-frequency data, which drains the battery very quickly.
+Battery Drain: Avoid keeping IMU_START (Opcode 0x30) active unless necessary. It drains the battery rapidly. Spell recognition works without it.
 
-Only use it when analyzing raw motion data. Always send IMU_STOP when finished.
-
-Spell recognition works without IMU streaming.
-
-Connection Required:
-
-Button events and Spell recognition data are NOT advertised.
-
-You must Connect and Subscribe (Notify) to receive this data.
-
-UUID Format:
-
-Use the full 128-bit UUIDs. Short 16-bit UUIDs will fail.
+Connection: Button presses and Spell events are NOT advertised. You must connect and subscribe to notifications to receive them.
