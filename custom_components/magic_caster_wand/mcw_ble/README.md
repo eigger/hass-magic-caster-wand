@@ -15,14 +15,6 @@ The devices use **128-bit Custom UUIDs**. Standard 16-bit UUIDs will not work.
 | **Stream** | `57420003-587e-48a0-974c-544d6163c577` | Notify | **(CH2)** High-speed sensor data, spells, buttons |
 | **Battery** | `00002a19-0000-1000-8000-00805f9b34fb` | Read, Notify | Standard Battery Level (0-100%) |
 
-### 📦 Wand Box (Target Name: `MCB`)
-
-| Type | UUID | Properties | Description |
-| :--- | :--- | :--- | :--- |
-| **Service** | `57420001-587e-48a0-974c-54686f72c577` | - | Note: Different from Wand UUID |
-| **Command** | `57420002-587e-48a0-974c-54686f72c577` | Write, Notify | Control Channel |
-| **Stream** | `57420003-587e-48a0-974c-54686f72c577` | Notify | Status Channel |
-
 ---
 
 ## 📤 2. Output Protocol (TX: App → Device)

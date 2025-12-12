@@ -3,15 +3,15 @@
   "name": "Magic Caster Wand",
   "bluetooth": [
     {
-      "service_uuid": "64A70012-F691-4B93-A6F4-0968F5B648F8",
+      "service_uuid": "57420001-587e-48a0-974c-544d6163c577",
       "connectable": true
     }
   ],
   "codeowners": ["@eigger"],
   "config_flow": true,
   "dependencies": ["bluetooth_adapters"],
-  "documentation": "https://github.com/eigger/hass-magic-caster-wand",
-  "issue_tracker": "https://github.com/eigger/hass-magic-caster-wand/issues",
-  "iot_class": "local_push",
+  "documentation": "https://www.github.com/eigger/hass-mcw",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://www.github.com/eigger/hass-mcw/issues",
   "version": "1.0.0"
 }

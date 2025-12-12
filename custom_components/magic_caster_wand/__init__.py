@@ -1,120 +1,131 @@
-"""The Mcw Bluetooth integration."""
+"""The Mcw BLE integration."""
 
-from __future__ import annotations
+import base64
+import io
+import logging
 
 from functools import partial
-import logging
-from asyncio import sleep, Lock
-from .mcw_ble import McwBluetoothDeviceData, SensorUpdate
-from homeassistant.components.bluetooth import (
-    DOMAIN as BLUETOOTH_DOMAIN,
-    BluetoothScanningMode,
-    BluetoothServiceInfoBleak,
-    async_ble_device_from_address,
-)
-from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant, CoreState
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers.device_registry import DeviceRegistry
-from homeassistant.util.signal_type import SignalType
-from homeassistant.exceptions import HomeAssistantError
 from datetime import timedelta
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from .const import (
-    CONF_DISCOVERED_EVENT_CLASSES,
-    DOMAIN,
-    McwBleEvent,
+from .mcw_ble import McwDevice, BLEData
+from homeassistant.components import bluetooth
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
+from homeassistant.core import (
+    HomeAssistant,
+    ServiceCall,
+    ServiceResponse,
+    SupportsResponse,
+    callback,
 )
-from .coordinator import McwPassiveBluetoothProcessorCoordinator
-from .types import McwConfigEntry
+from homeassistant.exceptions import (
+    ConfigEntryNotReady,
+    HomeAssistantError,
+    ServiceValidationError,
+)
+from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from bleak_retry_connector import close_stale_connections_by_address
+from homeassistant.const import CONF_SCAN_INTERVAL
 
-PLATFORMS: list[Platform] = [Platform.BINARY_SENSOR, Platform.EVENT, Platform.SENSOR]
+from .const import (
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+)
+
+PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 _LOGGER = logging.getLogger(__name__)
 
-def process_service_info(
-    hass: HomeAssistant,
-    entry: McwConfigEntry,
-    device_registry: DeviceRegistry,
-    service_info: BluetoothServiceInfoBleak,
-) -> SensorUpdate:
-    """Process a BluetoothServiceInfoBleak, running side effects and returning sensor data."""
-    coordinator = entry.runtime_data
-    data = coordinator.device_data
-    update = data.update(service_info)
 
-    return update
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Set up Mcw BLE device from a config entry."""
 
-
-def format_event_dispatcher_name(
-    address: str, event_class: str
-) -> SignalType[McwBleEvent]:
-    """Format an event dispatcher name."""
-    return SignalType(f"{DOMAIN}_event_{address}_{event_class}")
-
-
-def format_discovered_event_class(address: str) -> SignalType[str, McwBleEvent]:
-    """Format a discovered event class."""
-    return SignalType(f"{DOMAIN}_discovered_event_class_{address}")
-
-
-async def async_setup_entry(hass: HomeAssistant, entry: McwConfigEntry) -> bool:
-    """Set up Mcw Bluetooth from a config entry."""
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
+
     address = entry.unique_id
     assert address is not None
 
-    data = McwBluetoothDeviceData()
+    mcw = McwDevice(address)
     hass.data[DOMAIN][entry.entry_id] = {}
     hass.data[DOMAIN][entry.entry_id]['address'] = address
-    hass.data[DOMAIN][entry.entry_id]['data'] = data
+    hass.data[DOMAIN][entry.entry_id]['mcw'] = mcw
+    mcw.register_callbck(_async_spell)
 
-    device_registry = dr.async_get(hass)
-    event_classes = set(entry.data.get(CONF_DISCOVERED_EVENT_CLASSES, ()))
-    bt_coordinator = McwPassiveBluetoothProcessorCoordinator(
-        hass,
-        _LOGGER,
-        address=address,
-        mode=BluetoothScanningMode.PASSIVE,
-        update_method=partial(process_service_info, hass, entry, device_registry),
-        device_data=data,
-        discovered_event_classes=event_classes,
-        connectable=True,
-        entry=entry,
-    )
+    scan_interval = float(entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
+    await close_stale_connections_by_address(address)
 
-    async def _async_poll_data(hass: HomeAssistant, entry: McwConfigEntry) -> SensorUpdate:
+    ble_device = bluetooth.async_ble_device_from_address(hass, address)
+    if not ble_device:
+        raise ConfigEntryNotReady(
+            f"Could not find Mcw device with address {address}"
+        )
+
+    async def _async_spell(coordinator : DataUpdateCoordinator[str] , sell: str):
+        coordinator.async_set_updated_data(sell)
+
+    async def _async_update_method(hass: HomeAssistant, entry: ConfigEntry) -> BLEData:
+        """Get data from Mcw BLE."""
+        address = hass.data[DOMAIN][entry.entry_id]['address']
+        mcw = hass.data[DOMAIN][entry.entry_id]['mcw']
+        ble_device = bluetooth.async_ble_device_from_address(hass, address)
+        if ble_device is None:
+            raise UpdateFailed(
+                f"BLE device could not be obtained from address {address}"
+            )
+
         try:
-            device = async_ble_device_from_address(hass, hass.data[DOMAIN][entry.entry_id]['address'])
-            if not device:
-                raise UpdateFailed("BLE Device none")
-            coordinator = entry.runtime_data
-            return await coordinator.device_data.async_poll(device)
+            data = await mcw.update_device(ble_device)
         except Exception as err:
-            raise UpdateFailed(f"polling error: {err}") from err
+            raise UpdateFailed(f"Unable to fetch data: {err}") from err
 
-    poll_coordinator = DataUpdateCoordinator[SensorUpdate](
+        return data
+
+    coordinator = DataUpdateCoordinator(
         hass,
         _LOGGER,
         name=DOMAIN,
-        update_method=partial(_async_poll_data, hass, entry),
-        update_interval=timedelta(minutes=5),
+        update_method=partial(_async_update_method, hass, entry),
+        update_interval=timedelta(seconds=scan_interval),
     )
-    
-    entry.runtime_data = bt_coordinator
-    entry.runtime_data.poll_coordinator = poll_coordinator
-    await poll_coordinator.async_config_entry_first_refresh()
+    spell_coordinator: DataUpdateCoordinator[str] = DataUpdateCoordinator(
+        hass,
+        _LOGGER,
+        name=DOMAIN,
+    )
+    await coordinator.async_config_entry_first_refresh()
+    hass.data[DOMAIN][entry.entry_id]['coordinator'] = coordinator
+    hass.data[DOMAIN][entry.entry_id]['spell_coordinator'] = spell_coordinator
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # only start after all platforms have had a chance to subscribe
-    entry.async_on_unload(bt_coordinator.async_start())
+    @callback
+    # callback for the draw custom service
+    async def vibrateservice(service: ServiceCall) -> ServiceResponse:
+        device_ids = service.data.get("device_id")
+        if isinstance(device_ids, str):
+            device_ids = [device_ids]
+
+        # Process each device
+        for device_id in device_ids:
+            entry_id = await get_entry_id_from_device(hass, device_id)
+            address = hass.data[DOMAIN][entry_id]['address']
+            data = hass.data[DOMAIN][entry_id]['data']
+
+    # register the services
+    hass.services.async_register(
+        DOMAIN, "vibrate", vibrateservice, supports_response=SupportsResponse.OPTIONAL
+    )
+
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: McwConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        hass.data[DOMAIN].pop(entry.entry_id)
+
+    return unload_ok
 
 async def get_entry_id_from_device(hass, device_id: str) -> str:
     device_reg = dr.async_get(hass)

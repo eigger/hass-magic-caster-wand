@@ -1,0 +1,13 @@
+vibrate:
+  name: Vibrate Wand
+  description: Vibrate Wand
+  target:
+    device:
+      manufacturer: Mcw
+  fields:
+    duration:
+      name: Duration
+      description: Duration of vibrate
+      required: true
+      example: 500
+
