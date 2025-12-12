@@ -20,4 +20,5 @@ repository into the `custom_components/magic_caster_wand` directory.
 2. Restart Home Assistant.
   
 ## References
+- [Magic-Caster-Wand-Open-app-ai (whymaxwhy)](https://github.com/whymaxwhy/Magic-Caster-Wand-Open-app-ai.git)
 
