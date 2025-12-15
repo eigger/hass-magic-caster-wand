@@ -57,13 +57,11 @@ class McwDevice:
         self._coordinator = None
         super().__init__()
 
-    def register_callbck(self, cn, cb):
+    def register_coordinator(self, cn):
         self._coordinator = cn
-        self._callback = cb
 
     async def callback(self, data):
-        self._callback(self._coordinator, data)
-
+        self._coordinator.async_set_updated_data(data)
 
     async def update_device(self, ble_device: BLEDevice) -> BLEData:
         """Connects to the device through BLE and retrieves relevant data"""
@@ -84,7 +82,7 @@ class McwDevice:
             try:
                 if not self._data.serial_number:
                     self._data.serial_number = str(
-                        await self._mcw.request_product_info()
+                        await self._mcw.request_request_box_address()
                     )
                 if not self._data.hw_version:
                     self._data.hw_version = str(

@@ -32,19 +32,32 @@ class OpcodeRX(IntEnum):
     RESP_THRESHOLD      = 0xDE
     # 펌웨어 버전은 Opcode 없이 문자열로 옴
 
-class ProductInfoType(IntEnum):
-    """제품 정보 상세 타입"""
-    SERIAL_NUMBER = 0x01
-    SKU           = 0x02
-    MFG_ID        = 0x03
-    EDITION       = 0x05
-
 class OpcodeStream(IntEnum):
     """지팡이 -> 앱 스트림 데이터 (Channel 2)"""
     # React 코드 분석 결과에 따른 Opcode
     BUTTON_EVENT = 0x11
     SPELL_EVENT  = 0x24  # 제스처/주문 인식
     # IMU 데이터는 별도 Opcode 없이 헤더로 구분되거나 0x80 등으로 시작
+
+class ProductInfoType(IntEnum):
+    SERIAL_NUMBER = 0x01
+    SKU           = 0x02
+    MFG_ID        = 0x03
+    DEVICE_ID     = 0x04
+    EDITION       = 0x05
+    DECO          = 0x06
+    COMPANION_MAC = 0x08
+    WAND_TYPE     = 0x09
+
+class WandModel(Enum):
+    """지팡이 모델 (캐릭터) 매핑"""
+    HARRY_POTTER     = 0x00
+    HERMIONE_GRANGER = 0x01
+    RON_WEASLEY      = 0x02
+    DUMBLEDORE       = 0x03
+    NEWT_SCAMANDER   = 0x04
+    WISE_UNKNOWN     = 0x05
+    UNKNOWN          = 0xFF
 
 @dataclass
 class EventButton:
@@ -88,17 +101,61 @@ class ResponseBoxAddress:
     mac_address: str  # "AA:BB:CC:DD:EE:FF"
 
 @dataclass
-class ResponseProductInfo:
-    info_type: ProductInfoType
-    value: Union[str, int]
-    raw_value: bytes
-
-@dataclass
 class ResponseThreshold:
     button_index: int
     min_val: int
     max_val: int
 
+# 1. 시리얼 넘버 (0x01)
+@dataclass
+class ResponseSerialNumber:
+    number: int
+    hex_string: str  # 디버깅용 (예: "01020304")
+
+# 2. SKU (0x02)
+@dataclass
+class ResponseSKU:
+    sku: str  # 예: "KANO-WAND-HP-01"
+
+# 3. 제조사 ID (0x03)
+@dataclass
+class ResponseManufacturerID:
+    name: str # 예: "Kano Computing"
+
+# 4. 장치 ID (0x04)
+@dataclass
+class ResponseDeviceID:
+    id_string: str
+
+# 5. 에디션 정보 (0x05)
+@dataclass
+class ResponseEdition:
+    edition: str
+
+# 6. Companion(Box) MAC 주소 (0x08) - Product Info에 포함될 경우
+@dataclass
+class ResponseCompanionAddress:
+    mac_address: str # "AA:BB:CC:DD:EE:FF"
+
+# 7. 지팡이 타입 (0x09) - 가장 중요!
+@dataclass
+class ResponseWandType:
+    model_id: int
+    model_name: WandModel
+    description: str # 예: "Harry Potter (Adventurous)"
+
+
+# 타입 힌트용 Union 타입 정의
+ProductResponseVariant = Union[
+    ResponseSerialNumber, 
+    ResponseSKU, 
+    ResponseManufacturerID, 
+    ResponseDeviceID, 
+    ResponseEdition, 
+    ResponseCompanionAddress, 
+    ResponseWandType,
+    None
+]
 # ==========================================
 # 3. 프로토콜 처리 클래스
 # ==========================================
@@ -164,42 +221,79 @@ class Protocol:
         # 1. 펌웨어 버전 (Opcode 없음, "MCW" 문자열로 시작)
         # 예: b'MCW 1.0.2'
         try:
+            # 안전하게 디코딩 시도
             text = data.decode('utf-8')
             if text.startswith("MCW"):
                 return ResponseFirmware(version=text.strip())
         except UnicodeDecodeError:
             pass # 텍스트가 아니면 다음 로직으로 넘어감
 
-        # 2. 박스 주소 응답 (0x0A)
+        # 2. 박스 주소 응답 (0x0A) - 직접 요청에 대한 응답
         # 구조: [0A, B6, B5, B4, B3, B2, B1] (역순 MAC)
         if opcode == OpcodeRX.RESP_BOX_ADDRESS and len(data) == 7:
-            # data[1:]를 뒤집어서(: -1) Hex 문자열로 변환
             mac_bytes = data[1:][::-1]
             mac_str = ':'.join(f'{b:02X}' for b in mac_bytes)
             return ResponseBoxAddress(mac_address=mac_str)
 
-        # 3. 제품 정보 응답 (0x0E)
+        # 3. 제품 정보 응답 (0x0E) -> 구체적인 클래스로 분기
         # 구조: [0E, Type, Data...]
         if opcode == OpcodeRX.RESP_PRODUCT_INFO and len(data) >= 3:
-            p_type = data[1]
+            info_type = data[1]
             raw_val = data[2:]
             
-            # 타입에 따른 값 변환
-            value = raw_val # 기본값
-            
-            if p_type in [ProductInfoType.SKU, ProductInfoType.MFG_ID, ProductInfoType.EDITION]:
-                # 문자열 데이터
-                value = raw_val.decode('utf-8', errors='ignore').strip().replace('\x00', '')
-            elif p_type == ProductInfoType.SERIAL_NUMBER:
-                # 4바이트 정수 (uint32)
+            # 3-1. 시리얼 넘버 (0x01)
+            if info_type == ProductInfoType.SERIAL_NUMBER:
                 if len(raw_val) >= 4:
-                    value = struct.unpack('<I', raw_val[:4])[0]
-            
-            return ResponseProductInfo(
-                info_type=ProductInfoType(p_type) if p_type in ProductInfoType._value2member_map_ else p_type,
-                value=value,
-                raw_value=raw_val
-            )
+                    num = struct.unpack('<I', raw_val[:4])[0]
+                    return ResponseSerialNumber(number=num, hex_string=raw_val.hex())
+
+            # 3-2. 지팡이 타입 (0x09) [중요]
+            elif info_type == ProductInfoType.WAND_TYPE:
+                if len(raw_val) >= 1:
+                    tid = raw_val[0]
+                    try:
+                        model = WandModel(tid)
+                    except ValueError:
+                        model = WandModel.UNKNOWN
+                    
+                    desc_map = {
+                        WandModel.HARRY_POTTER: "Harry Potter (Adventurous)",
+                        WandModel.HERMIONE_GRANGER: "Hermione Granger (Defiant)",
+                        WandModel.RON_WEASLEY: "Ron Weasley (Heroic)",
+                        WandModel.DUMBLEDORE: "Dumbledore (Honourable)",
+                        WandModel.NEWT_SCAMANDER: "Newt Scamander (Loyal)",
+                        WandModel.WISE_UNKNOWN: "Wise",
+                        WandModel.UNKNOWN: "Unknown Model"
+                    }
+                    return ResponseWandType(
+                        model_id=tid, 
+                        model_name=model, 
+                        description=desc_map.get(model, "Unknown")
+                    )
+
+            # 3-3. 문자열 데이터들 (SKU, MFG_ID, DEVICE_ID, EDITION)
+            elif info_type == ProductInfoType.SKU:
+                text = raw_val.decode('utf-8', errors='ignore').strip().replace('\x00', '')
+                return ResponseSKU(sku=text)
+
+            elif info_type == ProductInfoType.MFG_ID:
+                text = raw_val.decode('utf-8', errors='ignore').strip().replace('\x00', '')
+                return ResponseManufacturerID(name=text)
+
+            elif info_type == ProductInfoType.DEVICE_ID:
+                text = raw_val.decode('utf-8', errors='ignore').strip().replace('\x00', '')
+                return ResponseDeviceID(id_string=text)
+                
+            elif info_type == ProductInfoType.EDITION:
+                text = raw_val.decode('utf-8', errors='ignore').strip().replace('\x00', '')
+                return ResponseEdition(edition=text)
+
+            # 3-4. Companion Address (Info 패킷 내부에 포함된 경우)
+            elif info_type == ProductInfoType.COMPANION_MAC:
+                if len(raw_val) == 6:
+                    mac_bytes = raw_val[::-1]
+                    mac_str = ':'.join(f'{b:02X}' for b in mac_bytes)
+                    return ResponseCompanionAddress(mac_address=mac_str)
 
         # 4. 버튼 감도 응답 (0xDE)
         # 구조: [DE, Idx, Min, Max]
@@ -210,7 +304,7 @@ class Protocol:
                 max_val=data[3]
             )
 
-        return None # 알 수 없는 패킷
+        return None
     
     @staticmethod
     def parse_stream(data: bytearray) -> Union[EventButton, EventSpell, EventIMU, None]:

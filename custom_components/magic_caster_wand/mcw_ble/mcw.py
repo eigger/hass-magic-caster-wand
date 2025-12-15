@@ -7,12 +7,12 @@ import struct
 import traceback
 from typing import Any, Callable, TypeVar
 from asyncio import Event, wait_for, sleep
-from PIL import Image
 from bleak import BleakClient, BleakError
 from bleak.backends.device import BLEDevice
 from bleak_retry_connector import establish_connection
 
-from .protocol import Protocol, ResponseFirmware, ResponseBoxAddress, ResponseProductInfo, EventSpell, EventButton
+from .protocol import Protocol, ResponseFirmware, ResponseBoxAddress, ResponseWandType, EventSpell, EventButton, WandModel, ResponseSerialNumber, ResponseSKU, \
+    ResponseManufacturerID, ResponseDeviceID, ResponseEdition, ResponseCompanionAddress
 
 SERVICE_UUID = "57420001-587e-48a0-974c-544d6163c577"
 COMMAND_UUID = "57420002-587e-48a0-974c-544d6163c577"
@@ -54,9 +54,19 @@ class McwClient:
         self.event: Event = Event()
         self.command_data: bytes | None = None
         self.callback = None
+        self.wand_type = None
+        self.serial_number = None
+        self.sku = None
+        self.firmware = None
+        self.box_address = None
+        self.manufacturer_id = None
+        self.device_id = None
+        self.edition = None
+        self.companion_address = None
 
     async def is_connected(self) -> bool:
         return self.client.is_connected
+    
     async def register_callbck(self, cb):
         self.callback = cb
 
@@ -79,26 +89,42 @@ class McwClient:
             #await sleep(0.05)
 
     def _command_handler(self, _: Any, data: bytearray) -> None:
-        if self.command_data == None:
-            self.command_data = bytes(data)
-            self.event.set()
+        response = Protocol.parse_response(data)
+        if isinstance(response, ResponseWandType):
+            self.wand_type = response
+        elif isinstance(response, ResponseSerialNumber):
+            self.serial_number = response
+        elif isinstance(response, ResponseSKU):
+            self.sku = response
+        elif isinstance(response, ResponseFirmware):
+            self.firmware = response
+        elif isinstance(response, ResponseBoxAddress):
+            self.box_address = response
+        elif isinstance(response, ResponseManufacturerID):
+            self.manufacturer_id = response
+        elif isinstance(response, ResponseDeviceID):
+            self.device_id = response
+        elif isinstance(response, ResponseEdition):
+            self.edition = response
+        elif isinstance(response, ResponseCompanionAddress):
+            self.companion_address = response
+        elif response is None:
+            pass           
 
     def _stream_handler(self, _: Any, data: bytearray) -> None:
-        event = Protocol.parse_stream(data)
+        response = Protocol.parse_stream(data)
         if not self.callback:
-            if isinstance(event, EventSpell):
-                self.callback(event.name)
-            elif isinstance(event, EventButton):
-                if event.is_big_pressed:
+            if isinstance(response, EventSpell):
+                self.callback(response.name)
+            elif isinstance(response, EventButton):
+                if response.is_big_pressed:
                     self.callback("big")
-                elif event.is_top_pressed:
+                elif response.is_top_pressed:
                     self.callback("top")
-                elif event.is_mid_pressed:
+                elif response.is_mid_pressed:
                     self.callback("mid")
-                elif event.is_bot_pressed:
+                elif response.is_bot_pressed:
                     self.callback("bot")
-            elif event is None:
-                pass
 
     async def read(self, timeout: float = 5.0) -> bytes:
         await wait_for(self.event.wait(), timeout)
@@ -129,10 +155,6 @@ class McwClient:
     
     async def request_firmware(self) -> ResponseFirmware:
         res = self.write_command(Protocol.build_request_firmware())
-        return Protocol.parse_response(res)
-
-    async def request_product_info(self) -> ResponseProductInfo:
-        res = self.write_command(Protocol.build_request_product_info())
         return Protocol.parse_response(res)
 
     async def request_request_box_address(self) -> ResponseBoxAddress:

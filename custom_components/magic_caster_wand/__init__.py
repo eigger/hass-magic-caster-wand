@@ -50,7 +50,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][entry.entry_id] = {}
     hass.data[DOMAIN][entry.entry_id]['address'] = address
     hass.data[DOMAIN][entry.entry_id]['mcw'] = mcw
-    mcw.register_callbck(_async_spell)
+    
 
     scan_interval = float(entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
     await close_stale_connections_by_address(address)
@@ -60,9 +60,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         raise ConfigEntryNotReady(
             f"Could not find Mcw device with address {address}"
         )
-
-    async def _async_spell(coordinator : DataUpdateCoordinator[str] , sell: str):
-        coordinator.async_set_updated_data(sell)
 
     async def _async_update_method(hass: HomeAssistant, entry: ConfigEntry) -> BLEData:
         """Get data from Mcw BLE."""
@@ -93,6 +90,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER,
         name=DOMAIN,
     )
+    mcw.register_coordinator(spell_coordinator)
     await coordinator.async_config_entry_first_refresh()
     hass.data[DOMAIN][entry.entry_id]['coordinator'] = coordinator
     hass.data[DOMAIN][entry.entry_id]['spell_coordinator'] = spell_coordinator
