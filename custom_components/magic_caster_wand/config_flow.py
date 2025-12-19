@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 import dataclasses
 from typing import Any
+import logging
 
 from .mcw_ble import McwBluetoothDeviceData as DeviceData
 import voluptuous as vol
