@@ -111,7 +111,7 @@ async def async_setup_entry(
             McwSensor(coordinator, coordinator.data, sensors_mapping[sensor_type])
         )
     entities.append(
-        McwSellSensor(spell_coordinator)
+        McwSellSensor(hass, entry, spell_coordinator)
     )
     async_add_entities(entities)
 
