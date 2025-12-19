@@ -3,7 +3,8 @@
   "name": "Magic Caster Wand",
   "bluetooth": [
     {
-      "service_uuid": "57420001-587e-48a0-974c-544d6163c577",
+      "local_name": "MCW-*",
+      "service_uuid": "0000180a-0000-1000-8000-00805f9b34fb",
       "connectable": true
     }
   ],

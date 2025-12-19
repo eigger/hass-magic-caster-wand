@@ -21,7 +21,7 @@ from homeassistant.const import (
     UnitOfTemperature,
     UnitOfTime,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -37,28 +37,28 @@ from .const import DOMAIN
 _LOGGER = logging.getLogger(__name__)
 
 SENSORS_MAPPING_TEMPLATE: dict[str, SensorEntityDescription] = {
-    "battery": SensorEntityDescription(
-        key="battery",
-        device_class=SensorDeviceClass.BATTERY,
-        native_unit_of_measurement=PERCENTAGE,
-        name="battery",
-    ),
-    "closingstate": SensorEntityDescription(
-        key="closingstate",
-        name="closingstate",
-    ),
+    # "battery": SensorEntityDescription(
+    #     key="battery",
+    #     device_class=SensorDeviceClass.BATTERY,
+    #     native_unit_of_measurement=PERCENTAGE,
+    #     name="battery",
+    # ),
+    # "closingstate": SensorEntityDescription(
+    #     key="closingstate",
+    #     name="closingstate",
+    # ),
     # "powerlevel": SensorEntityDescription(
     #     key="powerlevel",
     #     name="powerlevel",
     # ),
-    "paperstate": SensorEntityDescription(
-        key="paperstate",
-        name="paperstate",
-    ),
-    "rfidreadstate": SensorEntityDescription(
-        key="rfidreadstate",
-        name="rfidreadstate",
-    ),
+    # "paperstate": SensorEntityDescription(
+    #     key="paperstate",
+    #     name="paperstate",
+    # ),
+    # "rfidreadstate": SensorEntityDescription(
+    #     key="rfidreadstate",
+    #     name="rfidreadstate",
+    # ),
     # "density": SensorEntityDescription(
     #     key="density",
     #     name="density",
@@ -93,7 +93,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up the Mcw BLE sensors."""
     coordinator: DataUpdateCoordinator[BLEData] = hass.data[DOMAIN][entry.entry_id]["coordinator"]
-
+    spell_coordinator: DataUpdateCoordinator[str] = hass.data[DOMAIN][entry.entry_id]["spell_coordinator"]
     # we need to change some units
     sensors_mapping = SENSORS_MAPPING_TEMPLATE.copy()
 
@@ -110,7 +110,9 @@ async def async_setup_entry(
         entities.append(
             McwSensor(coordinator, coordinator.data, sensors_mapping[sensor_type])
         )
-
+    entities.append(
+        McwSellSensor(spell_coordinator)
+    )
     async_add_entities(entities)
 
 
@@ -157,3 +159,49 @@ class McwSensor(CoordinatorEntity[DataUpdateCoordinator[BLEData]], SensorEntity)
             return self.coordinator.data.sensors[self.entity_description.key]
         except KeyError:
             return None
+
+class McwSellSensor(
+    CoordinatorEntity[DataUpdateCoordinator[str]], 
+    SensorEntity,
+):
+    #_attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+
+    def __init__(self, hass: HomeAssistant, entry: config_entries.ConfigEntry, coordinator: DataUpdateCoordinator[str]):
+        CoordinatorEntity.__init__(self, coordinator)
+        # self.hass = hass
+        address = hass.data[DOMAIN][entry.entry_id]['address']
+        self._address = address
+        self._identifier = address.replace(":", "")[-8:]
+        self._attr_name = f"Mcw {self._identifier} Spell"
+        self._attr_unique_id = f"mcw_{self._identifier}_spell"
+        self._spell = ""
+
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo (
+            connections = {
+                (
+                    CONNECTION_BLUETOOTH,
+                    self._address,
+                )
+            },
+            name = f"Mcw {self._identifier}",
+            manufacturer = "Mcw",
+        )
+
+    
+    @property
+    def native_value(self) -> StateType:
+        """Return the value reported by the sensor."""
+        try:
+            return str(self._spell)
+        except KeyError:
+            return None
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        _LOGGER.debug("Updated binary data")
+        self._spell = self.data
+        super()._handle_coordinator_update()

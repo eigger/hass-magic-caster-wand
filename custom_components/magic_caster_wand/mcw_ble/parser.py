@@ -80,14 +80,14 @@ class McwDevice:
                 self._mcw.start_notify()
 
             try:
-                if not self._data.serial_number:
-                    self._data.serial_number = str(
-                        await self._mcw.request_request_box_address()
-                    )
-                if not self._data.hw_version:
-                    self._data.hw_version = str(
-                        await self._mcw.request_firmware().version
-                    )
+                # if not self._data.serial_number:
+                #     self._data.serial_number = str(
+                #         await self._mcw.request_request_box_address()
+                #     )
+                # if not self._data.hw_version:
+                #     self._data.hw_version = str(
+                #         await self._mcw.request_firmware().version
+                #     )
                 # if not self._data.sw_version:
                 #     self._data.sw_version = str(
                 #         await printer.get_info(InfoEnum.SOFTVERSION)

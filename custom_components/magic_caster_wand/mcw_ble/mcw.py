@@ -16,7 +16,7 @@ from .protocol import Protocol, ResponseFirmware, ResponseBoxAddress, ResponseWa
 
 SERVICE_UUID = "57420001-587e-48a0-974c-544d6163c577"
 COMMAND_UUID = "57420002-587e-48a0-974c-544d6163c577"
-STREAM_UUID = "57420003-587e-48a0-974c-544d6163c577"
+NOTIFY_UUID = "57420003-587e-48a0-974c-544d6163c577"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -72,13 +72,12 @@ class McwClient:
 
     @disconnect_on_missing_services
     async def start_notify(self) -> None:
-        await self.client.start_notify(COMMAND_UUID, self._command_handler)
-        await self.client.start_notify(STREAM_UUID, self._stream_handler)
+        await self.client.start_notify(NOTIFY_UUID, self._handler)
         await sleep(1.0)
 
     @disconnect_on_missing_services
     async def stop_notify(self) -> None:
-        await self.client.stop_notify(COMMAND_UUID)
+        await self.client.stop_notify(NOTIFY_UUID)
 
     @disconnect_on_missing_services
     async def write(self, uuid: str, data: bytes, response = False) -> None:
@@ -88,8 +87,21 @@ class McwClient:
             await self.client.write_gatt_char(uuid, data[i : i + chunk], response)
             #await sleep(0.05)
 
-    def _command_handler(self, _: Any, data: bytearray) -> None:
+    def _handler(self, _: Any, data: bytearray) -> None:
         response = Protocol.parse_response(data)
+        response_strem = Protocol.parse_stream(data)
+        if not self.callback:
+            if isinstance(response_strem, EventSpell):
+                self.callback(response_strem.name)
+            elif isinstance(response_strem, EventButton):
+                if response_strem.is_big_pressed:
+                    self.callback("big")
+                elif response_strem.is_top_pressed:
+                    self.callback("top")
+                elif response_strem.is_mid_pressed:
+                    self.callback("mid")
+                elif response_strem.is_bot_pressed:
+                    self.callback("bot")
         if isinstance(response, ResponseWandType):
             self.wand_type = response
         elif isinstance(response, ResponseSerialNumber):
@@ -110,21 +122,6 @@ class McwClient:
             self.companion_address = response
         elif response is None:
             pass           
-
-    def _stream_handler(self, _: Any, data: bytearray) -> None:
-        response = Protocol.parse_stream(data)
-        if not self.callback:
-            if isinstance(response, EventSpell):
-                self.callback(response.name)
-            elif isinstance(response, EventButton):
-                if response.is_big_pressed:
-                    self.callback("big")
-                elif response.is_top_pressed:
-                    self.callback("top")
-                elif response.is_mid_pressed:
-                    self.callback("mid")
-                elif response.is_bot_pressed:
-                    self.callback("bot")
 
     async def read(self, timeout: float = 5.0) -> bytes:
         await wait_for(self.event.wait(), timeout)

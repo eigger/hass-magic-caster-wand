@@ -1,5 +1,5 @@
 import struct
-from enum import IntEnum
+from enum import IntEnum, Enum
 from dataclasses import dataclass
 from typing import Union, Optional
 
