@@ -55,6 +55,7 @@ class McwDevice:
         self._data = BLEData()
         self._mcw = None
         self._coordinator = None
+        self._await = "awaiting spell"
         super().__init__()
 
     def register_coordinator(self, cn):
@@ -66,7 +67,7 @@ class McwDevice:
 
     async def _set_ready_later(self):
         await asyncio.sleep(1)
-        self._coordinator.async_set_updated_data("Ready")
+        self._coordinator.async_set_updated_data(self._await)
 
     async def update_device(self, ble_device: BLEDevice) -> BLEData:
         """Connects to the device through BLE and retrieves relevant data"""
@@ -82,6 +83,7 @@ class McwDevice:
                 self._data.address = ble_device.address
                 self._mcw = McwClient(client)
                 self._mcw.register_callbck(self.callback)
+                self._coordinator.async_set_updated_data(self._await)
                 await self._mcw.start_notify()
 
             try:
