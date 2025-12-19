@@ -19,6 +19,7 @@ from homeassistant.const import CONF_ADDRESS
 
 from .const import DOMAIN
 
+_LOGGER = logging.getLogger(__name__)
 
 @dataclasses.dataclass
 class Discovery:
@@ -59,7 +60,7 @@ class McwConfigFlow(ConfigFlow, domain=DOMAIN):
         self.context["title_placeholders"] = {"name": title}
         self._discovery_info = discovery_info
         self._discovered_device = device
-
+        _LOGGER.debug("Discovered: %s", device)
         return await self.async_step_bluetooth_confirm()
 
     async def async_step_bluetooth_confirm(
