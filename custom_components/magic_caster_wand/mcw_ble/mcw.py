@@ -96,10 +96,10 @@ class McwClient:
         opcode = data[0]
         if opcode == 0x24:
             try:
-                if len(data) < 6: 
+                if len(data) < 5: 
                     return
-                spell_len = data[4]
-                raw_name = data[5 : 5 + spell_len]
+                spell_len = data[3]
+                raw_name = data[4 : 4 + spell_len]
                 spell_name = raw_name.decode('utf-8', errors='ignore').strip()
                 spell_name = spell_name.replace('\x00', '').replace('_', ' ')
                 if not spell_name:
