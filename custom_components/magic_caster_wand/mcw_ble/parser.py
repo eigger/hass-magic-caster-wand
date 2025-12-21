@@ -2,6 +2,7 @@
 
 import dataclasses
 import logging
+import asyncio
 
 # from logging import Logger
 from PIL import Image, ImageOps
