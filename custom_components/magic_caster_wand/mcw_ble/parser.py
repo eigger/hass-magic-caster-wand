@@ -2,7 +2,6 @@
 
 import dataclasses
 import logging
-import asyncio
 
 # from logging import Logger
 from PIL import Image, ImageOps
@@ -55,7 +54,6 @@ class McwDevice:
         self._data = BLEData()
         self._mcw = None
         self._coordinator = None
-        self._await = "awaiting"
         super().__init__()
 
     def register_coordinator(self, cn):
@@ -63,11 +61,6 @@ class McwDevice:
 
     def callback(self, data):
         self._coordinator.async_set_updated_data(data)
-        asyncio.create_task(self._set_ready_later())
-
-    async def _set_ready_later(self):
-        await asyncio.sleep(1)
-        self._coordinator.async_set_updated_data(self._await)
 
     async def update_device(self, ble_device: BLEDevice) -> BLEData:
         """Connects to the device through BLE and retrieves relevant data"""
