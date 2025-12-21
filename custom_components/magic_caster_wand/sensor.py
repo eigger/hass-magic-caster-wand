@@ -175,6 +175,10 @@ class McwSellSensor(
         self._attr_name = f"Mcw {self._identifier} Spell"
         self._attr_unique_id = f"mcw_{self._identifier}_spell"
         self._spell = "awaiting"
+        self._attr_extra_state_attributes = {
+            "last_updated": None
+        }
+
 
 
     @property
@@ -208,4 +212,7 @@ class McwSellSensor(
         """Handle updated data from the coordinator."""
         _LOGGER.debug("Updated spell data")
         self._spell = self.coordinator.data
+        self._attr_extra_state_attributes["last_updated"] = (
+            datetime.now(timezone.utc).isoformat()
+        )
         super()._handle_coordinator_update()
