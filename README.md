@@ -8,11 +8,22 @@ Harry Potter: Magic Caster Wand Home Assistant Integration
 
 ## Supported Models
 - Defiant
+- Loyal
+- Honourable
 
 ## Installation
 1. Install this integration with HACS (adding repository required), or copy the contents of this
 repository into the `custom_components/magic_caster_wand` directory.
 2. Restart Home Assistant.
+
+## Spells & Motions
+
+| Spell | Motion |
+|------|--------|
+| Protego | ↓ Downward hand motion (arrow-like) |
+| Serpensortia | ↑ Upward hand motion |
+| ... |  |
+
   
 ## References
 - [Magic-Caster-Wand-Open-app-ai (whymaxwhy)](https://github.com/whymaxwhy/Magic-Caster-Wand-Open-app-ai.git)
