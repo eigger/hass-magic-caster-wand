@@ -1,7 +1,5 @@
 """The Mcw BLE integration."""
 
-import base64
-import io
 import logging
 
 from functools import partial
@@ -19,8 +17,6 @@ from homeassistant.core import (
 )
 from homeassistant.exceptions import (
     ConfigEntryNotReady,
-    HomeAssistantError,
-    ServiceValidationError,
 )
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -32,7 +28,7 @@ from .const import (
     DOMAIN,
 )
 
-PLATFORMS: list[Platform] = [Platform.SENSOR]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH]
 
 _LOGGER = logging.getLogger(__name__)
 
