@@ -5,12 +5,10 @@ import logging
 import asyncio
 
 # from logging import Logger
-from PIL import Image, ImageOps
-from bleak import BleakClient, BleakError
+from bleak import BleakClient
 from bleak.backends.device import BLEDevice
 from bleak_retry_connector import establish_connection
 from bluetooth_sensor_state_data import BluetoothData
-from cryptography.hazmat.primitives.ciphers.aead import AESCCM
 from home_assistant_bluetooth import BluetoothServiceInfoBleak
 
 from .mcw import McwClient
@@ -48,36 +46,64 @@ class McwDevice:
 
     def __init__(self, address):
         self.address = address
+        self.client: BleakClient = None
         self.lock = asyncio.Lock()
-        self.set_sound = None
         self.model = None
         self._callback = None
         self._data = BLEData()
         self._mcw = None
-        self._coordinator = None
+        self._coordinator_spell = None
+        self._coordinator_battery = None
         super().__init__()
 
-    def register_coordinator(self, cn):
-        self._coordinator = cn
+    def register_coordinator(self, cn_spell, cn_battery):
+        self._coordinator_spell = cn_spell
+        self._coordinator_battery = cn_battery
 
-    def callback(self, data):
-        self._coordinator.async_set_updated_data(data)
+    def callback_spell(self, data):
+        self._coordinator_spell.async_set_updated_data(data)
+
+    def callback_battery(self, data):
+        self._coordinator_battery.async_set_updated_data(data)
+
+    def is_connected(self):
+        if self.client:
+            try:
+                if self.client.is_connected:
+                    return True
+            except Exception as e:
+                pass
+        return False
+
+    async def connect(self, ble_device: BLEDevice):
+        if self.client and self.client.is_connected:
+            return True
+        self.client = await establish_connection(
+            BleakClient, ble_device, ble_device.address
+        )
+        if not self.client.is_connected:
+            return False
+
+        self._mcw = McwClient(self.client)
+        self._mcw.register_callbck(self.callback_spell, self.callback_battery)
+        await self._mcw.start_notify()
+        return True
+    
+    async def disconnect(self):
+        if self.client:
+            try:
+                if self.client.is_connected:
+                    await self.client.disconnect()
+            except Exception as e:
+                _LOGGER.warning(f"Already disconnected: {e}")
 
     async def update_device(self, ble_device: BLEDevice) -> BLEData:
         """Connects to the device through BLE and retrieves relevant data"""
         async with self.lock:
-            if not self._mcw:
-                client = await establish_connection(
-                    BleakClient, ble_device, ble_device.address
-                )
-                if not client.is_connected:
-                    raise RuntimeError("could not connect to thermal printer")
-                
+            if not self._data.name:
                 self._data.name = ble_device.name or "(no such device)"
+            if not self._data.address:
                 self._data.address = ble_device.address
-                self._mcw = McwClient(client)
-                self._mcw.register_callbck(self.callback)
-                await self._mcw.start_notify()
 
             try:
                 # if not self._data.serial_number:
@@ -93,10 +119,9 @@ class McwDevice:
                 #         await printer.get_info(InfoEnum.SOFTVERSION)
                 #     )
 
-
-
-                heartbeat = await self._mcw.keep_alive()
-                #self._data.sensors["battery"] = float(heartbeat["powerlevel"]) * 25.0
+                if self.is_connected():
+                    heartbeat = await self._mcw.keep_alive()
+                    #self._data.sensors["battery"] = float(heartbeat["powerlevel"]) * 25.0
             finally:
                 pass
 

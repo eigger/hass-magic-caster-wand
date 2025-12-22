@@ -15,6 +15,7 @@ from bleak_retry_connector import establish_connection
 SERVICE_UUID = "57420001-587e-48a0-974c-544d6163c577"
 COMMAND_UUID = "57420002-587e-48a0-974c-544d6163c577"
 NOTIFY_UUID = "57420003-587e-48a0-974c-544d6163c577"
+BATTERY_UUID = "00002a19-0000-1000-8000-00805f9b34fb"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -51,7 +52,8 @@ class McwClient:
         self.client = client
         self.event: Event = Event()
         self.command_data: bytes | None = None
-        self.callback = None
+        self.callback_spell = None
+        self.callback_battery = None
         self.wand_type = None
         self.serial_number = None
         self.sku = None
@@ -65,12 +67,14 @@ class McwClient:
     async def is_connected(self) -> bool:
         return self.client.is_connected
     
-    def register_callbck(self, cb):
-        self.callback = cb
+    def register_callbck(self, spell_cb, battery_cb):
+        self.callback_spell = spell_cb
+        self.callback_battery = battery_cb
 
     @disconnect_on_missing_services
     async def start_notify(self) -> None:
         await self.client.start_notify(NOTIFY_UUID, self._handler)
+        await self.client.start_notify(BATTERY_UUID, self._handlerBattery)
         await sleep(1.0)
 
     @disconnect_on_missing_services
@@ -84,6 +88,12 @@ class McwClient:
         for i in range(0, len(data), chunk):
             await self.client.write_gatt_char(uuid, data[i : i + chunk], response)
             #await sleep(0.05)
+
+    def _handlerBattery(self, _: Any, data: bytearray) -> None:
+        _LOGGER.debug("Battery Received: %s", data.hex())
+        battery = int.from_bytes(data, byteorder="little")
+        if self.callback_battery:
+            self.callback_battery(battery)
 
     def _handler(self, _: Any, data: bytearray) -> None:
         _LOGGER.debug("Received: %s", data.hex())
@@ -105,9 +115,9 @@ class McwClient:
                 if not spell_name:
                     return
                 _LOGGER.debug("spell: %s", spell_name)
-                _LOGGER.debug("callback: %s", self.callback)
-                if self.callback:
-                    self.callback(spell_name)   
+                _LOGGER.debug("callback: %s", self.callback_spell)
+                if self.callback_spell:
+                    self.callback_spell(spell_name)   
 
             except Exception as e:
                 print(f"Spell Parse Error: {e}")

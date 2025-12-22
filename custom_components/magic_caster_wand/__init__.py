@@ -1,7 +1,5 @@
 """The Mcw BLE integration."""
 
-import base64
-import io
 import logging
 
 from functools import partial
@@ -19,8 +17,6 @@ from homeassistant.core import (
 )
 from homeassistant.exceptions import (
     ConfigEntryNotReady,
-    HomeAssistantError,
-    ServiceValidationError,
 )
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -32,7 +28,7 @@ from .const import (
     DOMAIN,
 )
 
-PLATFORMS: list[Platform] = [Platform.SENSOR]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH, Platform.TEXT]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -90,10 +86,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER,
         name=DOMAIN,
     )
-    mcw.register_coordinator(spell_coordinator)
+    battery_coordinator: DataUpdateCoordinator[float] = DataUpdateCoordinator(
+        hass,
+        _LOGGER,
+        name=DOMAIN,
+    )
+    mcw.register_coordinator(spell_coordinator, battery_coordinator)
     await coordinator.async_config_entry_first_refresh()
     hass.data[DOMAIN][entry.entry_id]['coordinator'] = coordinator
     hass.data[DOMAIN][entry.entry_id]['spell_coordinator'] = spell_coordinator
+    hass.data[DOMAIN][entry.entry_id]['battery_coordinator'] = battery_coordinator
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -120,6 +122,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
+    mcw = hass.data[DOMAIN][entry.entry_id]['mcw']
+    await mcw.disconnect()
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         hass.data[DOMAIN].pop(entry.entry_id)
 
