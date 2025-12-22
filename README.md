@@ -20,6 +20,9 @@ repository into the `custom_components/magic_caster_wand` directory.
 2. Restart Home Assistant.
 
 ## Spells & Motions
+>[!IMPORTANT]
+>You must connect to the wand via Bluetooth(Switch) first in order to receive the spell values.
+
 ⬆ ⬇ ⬅ ➡ ⬈ ⬉ ⬊ ⬋
 | Spell | Motion | Description |
 |------|--------|-------------|
