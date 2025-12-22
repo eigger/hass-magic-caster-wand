@@ -52,14 +52,19 @@ class McwDevice:
         self._callback = None
         self._data = BLEData()
         self._mcw = None
-        self._coordinator = None
+        self._coordinator_spell = None
+        self._coordinator_battery = None
         super().__init__()
 
-    def register_coordinator(self, cn):
-        self._coordinator = cn
+    def register_coordinator(self, cn_spell, cn_battery):
+        self._coordinator_spell = cn_spell
+        self._coordinator_battery = cn_battery
 
-    def callback(self, data):
-        self._coordinator.async_set_updated_data(data)
+    def callback_spell(self, data):
+        self._coordinator_spell.async_set_updated_data(data)
+
+    def callback_battery(self, data):
+        self._coordinator_battery.async_set_updated_data(data)
 
     def is_connected(self):
         if self.client:
@@ -78,8 +83,9 @@ class McwDevice:
         )
         if not self.client.is_connected:
             return False
+
         self._mcw = McwClient(self.client)
-        self._mcw.register_callbck(self.callback)
+        self._mcw.register_callbck(self.callback_spell, self.callback_battery)
         await self._mcw.start_notify()
         return True
     
@@ -94,10 +100,10 @@ class McwDevice:
     async def update_device(self, ble_device: BLEDevice) -> BLEData:
         """Connects to the device through BLE and retrieves relevant data"""
         async with self.lock:
-            if not self._mcw:
-                if self.connect(ble_device):
-                    self._data.name = ble_device.name or "(no such device)"
-                    self._data.address = ble_device.address
+            if not self._data.name:
+                self._data.name = ble_device.name or "(no such device)"
+            if not self._data.address:
+                self._data.address = ble_device.address
 
             try:
                 # if not self._data.serial_number:
@@ -113,10 +119,9 @@ class McwDevice:
                 #         await printer.get_info(InfoEnum.SOFTVERSION)
                 #     )
 
-
-
-                heartbeat = await self._mcw.keep_alive()
-                #self._data.sensors["battery"] = float(heartbeat["powerlevel"]) * 25.0
+                if self.is_connected():
+                    heartbeat = await self._mcw.keep_alive()
+                    #self._data.sensors["battery"] = float(heartbeat["powerlevel"]) * 25.0
             finally:
                 pass
 

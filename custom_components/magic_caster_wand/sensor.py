@@ -95,6 +95,7 @@ async def async_setup_entry(
     """Set up the Mcw BLE sensors."""
     coordinator: DataUpdateCoordinator[BLEData] = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     spell_coordinator: DataUpdateCoordinator[str] = hass.data[DOMAIN][entry.entry_id]["spell_coordinator"]
+    battery_coordinator: DataUpdateCoordinator[float] = hass.data[DOMAIN][entry.entry_id]["battery_coordinator"]
     # we need to change some units
     sensors_mapping = SENSORS_MAPPING_TEMPLATE.copy()
 
@@ -113,6 +114,9 @@ async def async_setup_entry(
         )
     entities.append(
         McwSellSensor(hass, entry, spell_coordinator)
+    )
+    entities.append(
+        McwBatterySensor(hass, entry, battery_coordinator)
     )
     async_add_entities(entities)
 
@@ -147,10 +151,10 @@ class McwSensor(CoordinatorEntity[DataUpdateCoordinator[BLEData]], SensorEntity)
             },
             name=name,
             manufacturer="Mcw",
-            model=ble_data.model,
-            hw_version=ble_data.hw_version,
-            sw_version=ble_data.sw_version,
-            serial_number=ble_data.serial_number,
+            # model=ble_data.model,
+            # hw_version=ble_data.hw_version,
+            # sw_version=ble_data.sw_version,
+            # serial_number=ble_data.serial_number,
         )
 
     @property
@@ -216,4 +220,51 @@ class McwSellSensor(
         self._attr_extra_state_attributes["last_updated"] = (
             dt_util.now()
         )
+        super()._handle_coordinator_update()
+
+class McwBatterySensor(
+    CoordinatorEntity[DataUpdateCoordinator[float]], 
+    SensorEntity,
+):
+    _attr_device_class = SensorDeviceClass.BATTERY
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    def __init__(self, hass: HomeAssistant, entry: config_entries.ConfigEntry, coordinator: DataUpdateCoordinator[float]):
+        CoordinatorEntity.__init__(self, coordinator)
+        # self.hass = hass
+        address = hass.data[DOMAIN][entry.entry_id]['address']
+        self._address = address
+        self._identifier = address.replace(":", "")[-8:]
+        self._attr_name = f"Mcw {self._identifier} Battery"
+        self._attr_unique_id = f"mcw_{self._identifier}_battery"
+        self._battery = 0.0
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo (
+            connections = {
+                (
+                    CONNECTION_BLUETOOTH,
+                    self._address,
+                )
+            },
+            name = f"Mcw {self._identifier}",
+            manufacturer = "Mcw",
+        )
+
+
+
+    @property
+    def native_value(self) -> StateType:
+        """Return the value reported by the sensor."""
+        try:
+            return float(self._battery)
+        except KeyError:
+            return None
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        _LOGGER.debug("Updated battery data")
+        self._battery = self.coordinator.data
         super()._handle_coordinator_update()

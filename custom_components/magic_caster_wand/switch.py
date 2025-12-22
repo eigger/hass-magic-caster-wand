@@ -66,7 +66,7 @@ class McwBleSwitch(
     @property
     def icon(self) -> str | None:
         """Icon of the entity, based on time."""
-        if self.is_on():
+        if self.is_on:
             return "mdi:bluetooth" 
         return "mdi:bluetooth-off"
         
