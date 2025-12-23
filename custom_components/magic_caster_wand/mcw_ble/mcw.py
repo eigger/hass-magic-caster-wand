@@ -83,7 +83,7 @@ class McwClient:
 
     @disconnect_on_missing_services
     async def write(self, uuid: str, data: bytes, response = False) -> None:
-        _LOGGER.debug("Write UUID=%s data=%s", uuid, len(data))
+        _LOGGER.debug("Write UUID=%s data=%s", uuid, data.hex())
         chunk = len(data)
         for i in range(0, len(data), chunk):
             await self.client.write_gatt_char(uuid, data[i : i + chunk], response)
@@ -128,15 +128,19 @@ class McwClient:
         data = self.command_data or b""
         return data
 
-    async def write_command(self, packet: bytes) -> bytes:
+    async def write_command(self, packet: bytes, response: bool = True) -> bytes:
         last_exception = None
         max_retries = 3
         for attempt in range(1, max_retries + 1):
             try:
-                self.command_data = None
-                self.event.clear()
-                await self.write(COMMAND_UUID, packet, True)
-                return await self.read()
+                if response:
+                    self.command_data = None
+                    self.event.clear()
+                    await self.write(COMMAND_UUID, packet, False)
+                    return await self.read()
+                else:
+                    await self.write(COMMAND_UUID, packet, False)
+                    return b""
             except Exception as e:
                 last_exception = e
                 if attempt < max_retries:
@@ -145,5 +149,42 @@ class McwClient:
                     continue
                 raise last_exception
             
+    async def init_wand(self):
+        await self.write_command(struct.pack('BBB', 0xdc, 0x00, 0x05), False)
+        await self.write_command(struct.pack('BBB', 0xdc, 0x01, 0x05), False)
+        await self.write_command(struct.pack('BBB', 0xdc, 0x02, 0x05), False)
+        await self.write_command(struct.pack('BBB', 0xdc, 0x03, 0x05), False)
+        await self.write_command(struct.pack('BBB', 0xdc, 0x04, 0x08), False)
+        await self.write_command(struct.pack('BBB', 0xdc, 0x05, 0x08), False)
+        await self.write_command(struct.pack('BBB', 0xdc, 0x06, 0x08), False)
+        await self.write_command(struct.pack('BBB', 0xdc, 0x07, 0x08), False)
+
     async def keep_alive(self) -> bytes:
-        res = await self.write_command(struct.pack('B', 0x01))
+        await self.write_command(struct.pack('B', 0x01), False)
+
+    async def get_wand_address(self) -> str:
+        data = await self.write_command(struct.pack('B', 0x08), True)
+        if len(data) < 7:
+            return ""
+        mac_le = data[1:7]          # little-endian order
+        mac_be = mac_le[::-1]       # reverse
+        return ":".join(f"{b:02X}" for b in mac_be)
+
+    async def get_box_address(self) -> str:
+        data = await self.write_command(struct.pack('B', 0x09), True)
+        if len(data) < 7:
+            return ""
+        mac_le = data[1:7]          # little-endian order
+        mac_be = mac_le[::-1]       # reverse
+        return ":".join(f"{b:02X}" for b in mac_be)
+
+
+    # await write(wand, struct.pack('BB', 0x0e, 0x01))    #Serial No
+    # await write(wand, struct.pack('BB', 0x0e, 0x02))    #SKU
+    # await write(wand, struct.pack('BB', 0x0e, 0x04))    #Wand No
+    # await write(wand, struct.pack('BB', 0x0e, 0x09))
+    async def get_wand_no(self) -> str:
+        data = await self.write_command(struct.pack('BB', 0x0e, 0x04), True)
+        if len(data) < 3:
+            return ""
+        return data[2:].decode("ascii")

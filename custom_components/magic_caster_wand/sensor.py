@@ -33,7 +33,7 @@ from homeassistant.helpers.update_coordinator import (
 from homeassistant.util.unit_system import METRIC_SYSTEM
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN
+from .const import DOMAIN, MANUFACTURER
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -149,8 +149,8 @@ class McwSensor(CoordinatorEntity[DataUpdateCoordinator[BLEData]], SensorEntity)
                     ble_data.address,
                 )
             },
-            name=name,
-            manufacturer="Mcw",
+            name = name,
+            manufacturer = MANUFACTURER,
             # model=ble_data.model,
             # hw_version=ble_data.hw_version,
             # sw_version=ble_data.sw_version,
@@ -174,9 +174,9 @@ class McwSellSensor(
     def __init__(self, hass: HomeAssistant, entry: config_entries.ConfigEntry, coordinator: DataUpdateCoordinator[str]):
         CoordinatorEntity.__init__(self, coordinator)
         # self.hass = hass
-        address = hass.data[DOMAIN][entry.entry_id]['address']
-        self._address = address
-        self._identifier = address.replace(":", "")[-8:]
+        self._address = hass.data[DOMAIN][entry.entry_id]['address']
+        self._mcw = hass.data[DOMAIN][entry.entry_id]['mcw']
+        self._identifier = self._address.replace(":", "")[-8:]
         self._attr_name = f"Mcw {self._identifier} Spell"
         self._attr_unique_id = f"mcw_{self._identifier}_spell"
         self._spell = "awaiting"
@@ -196,7 +196,8 @@ class McwSellSensor(
                 )
             },
             name = f"Mcw {self._identifier}",
-            manufacturer = "Mcw",
+            manufacturer = MANUFACTURER,
+            model = self._mcw.model if self._mcw is not None else None
         )
 
     @property
@@ -232,9 +233,9 @@ class McwBatterySensor(
     def __init__(self, hass: HomeAssistant, entry: config_entries.ConfigEntry, coordinator: DataUpdateCoordinator[float]):
         CoordinatorEntity.__init__(self, coordinator)
         # self.hass = hass
-        address = hass.data[DOMAIN][entry.entry_id]['address']
-        self._address = address
-        self._identifier = address.replace(":", "")[-8:]
+        self._address = hass.data[DOMAIN][entry.entry_id]['address']
+        self._mcw = hass.data[DOMAIN][entry.entry_id]['mcw']
+        self._identifier = self._address.replace(":", "")[-8:]
         self._attr_name = f"Mcw {self._identifier} Battery"
         self._attr_unique_id = f"mcw_{self._identifier}_battery"
         self._battery = 0.0
@@ -249,10 +250,9 @@ class McwBatterySensor(
                 )
             },
             name = f"Mcw {self._identifier}",
-            manufacturer = "Mcw",
+            manufacturer = MANUFACTURER,
+            model = self._mcw.model if self._mcw is not None else None
         )
-
-
 
     @property
     def native_value(self) -> StateType:

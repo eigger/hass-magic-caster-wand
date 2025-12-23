@@ -7,9 +7,7 @@ from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.restore_state import RestoreEntity
 from propcache.api import cached_property
-from .const import (
-    DOMAIN
-)
+from .const import DOMAIN, MANUFACTURER
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,7 +40,7 @@ class McwTextEntity(RestoreText):
                 )
             },
             name = f"Mcw {self._identifier}",
-            manufacturer = "Mcw",
+            manufacturer = MANUFACTURER,
         )
     
     @cached_property

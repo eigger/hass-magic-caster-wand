@@ -47,7 +47,6 @@ class McwDevice:
     def __init__(self, address):
         self.address = address
         self.client: BleakClient = None
-        self.lock = asyncio.Lock()
         self.model = None
         self._callback = None
         self._data = BLEData()
@@ -87,6 +86,8 @@ class McwDevice:
         self._mcw = McwClient(self.client)
         self._mcw.register_callbck(self.callback_spell, self.callback_battery)
         await self._mcw.start_notify()
+        await self._mcw.init_wand()
+        self.model = await self._mcw.get_wand_no()
         return True
     
     async def disconnect(self):
@@ -99,37 +100,20 @@ class McwDevice:
 
     async def update_device(self, ble_device: BLEDevice) -> BLEData:
         """Connects to the device through BLE and retrieves relevant data"""
-        async with self.lock:
-            if not self._data.name:
-                self._data.name = ble_device.name or "(no such device)"
-            if not self._data.address:
-                self._data.address = ble_device.address
+        if not self._data.name:
+            self._data.name = ble_device.name or "(no such device)"
+        if not self._data.address:
+            self._data.address = ble_device.address
 
-            try:
-                # if not self._data.serial_number:
-                #     self._data.serial_number = str(
-                #         await self._mcw.request_request_box_address()
-                #     )
-                # if not self._data.hw_version:
-                #     self._data.hw_version = str(
-                #         await self._mcw.request_firmware().version
-                #     )
-                # if not self._data.sw_version:
-                #     self._data.sw_version = str(
-                #         await printer.get_info(InfoEnum.SOFTVERSION)
-                #     )
+        if not self._mcw:
+            if await self.connect(ble_device):
+                await self.disconnect()
 
-                if self.is_connected():
-                    heartbeat = await self._mcw.keep_alive()
-                    #self._data.sensors["battery"] = float(heartbeat["powerlevel"]) * 25.0
-            finally:
-                pass
+        if self.is_connected():
+            await self._mcw.keep_alive()
 
-
-
-
-            _LOGGER.debug("Obtained BLEData: %s", self._data)
-            return self._data
+        _LOGGER.debug("Obtained BLEData: %s", self._data)
+        return self._data
 
 
 class McwBluetoothDeviceData(BluetoothData):

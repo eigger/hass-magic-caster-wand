@@ -13,7 +13,7 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 
-from .const import DOMAIN
+from .const import DOMAIN, MANUFACTURER
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ class McwBleSwitch(
                 )
             },
             name = f"Mcw {self._identifier}",
-            manufacturer = "Mcw",
+            manufacturer = MANUFACTURER,
         )
     
     @property

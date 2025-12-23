@@ -3,7 +3,7 @@ vibrate:
   description: Vibrate Wand
   target:
     device:
-      manufacturer: Mcw
+      manufacturer: "Warner Bros. Entertainment Inc."
   fields:
     duration:
       name: Duration
