@@ -31,7 +31,32 @@ repository into the `custom_components/magic_caster_wand` directory.
 | Lumos | ⬅ ⬈ ⬊ | Draw a triangular motion: move left, then diagonally up to the right, then straight down |
 | ... |  | If you know the spell motion or have an easier way to perform it, please share it here. |
 
-  
+## Spell Cards
+<table>
+  <tr>
+    <td align="center"><b>Cantis</b><br/><img src="./docs/spells/Cantis.png" width="180"/></td>
+    <td align="center"><b>Colovaria</b><br/><img src="./docs/spells/Colovaria.png" width="180"/></td>
+    <td align="center"><b>Expecto Patronum</b><br/><img src="./docs/spells/Expecto%20Patronum.png" width="180"/></td>
+    <td align="center"><b>Expelliarmus</b><br/><img src="./docs/spells/Expelliarmus.png" width="180"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Finite</b><br/><img src="./docs/spells/Finite.png" width="180"/></td>
+    <td align="center"><b>Flagrate</b><br/><img src="./docs/spells/Flagrate.png" width="180"/></td>
+    <td align="center"><b>Immobulus</b><br/><img src="./docs/spells/Immobulus.png" width="180"/></td>
+    <td align="center"><b>Incendio</b><br/><img src="./docs/spells/Incendio.png" width="180"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Lumos Maxima</b><br/><img src="./docs/spells/Lumos%20Maxima.png" width="180"/></td>
+    <td align="center"><b>Lumos</b><br/><img src="./docs/spells/Lumos.png" width="180"/></td>
+    <td align="center"><b>Meteolojinx</b><br/><img src="./docs/spells/Meteolojinx.png" width="180"/></td>
+    <td align="center"><b>Nox</b><br/><img src="./docs/spells/Nox.png" width="180"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Salvio Hexia</b><br/><img src="./docs/spells/Salvio%20Hexia.png" width="180"/></td>
+    <td align="center"><b>Silencio</b><br/><img src="./docs/spells/Silencio.png" width="180"/></td>
+  </tr>
+</table>
+
 ## References
 - [Magic-Caster-Wand-Open-app-ai (whymaxwhy)](https://github.com/whymaxwhy/Magic-Caster-Wand-Open-app-ai.git)
 
