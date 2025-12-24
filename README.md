@@ -59,4 +59,4 @@ repository into the `custom_components/magic_caster_wand` directory.
 
 ## References
 - [Magic-Caster-Wand-Open-app-ai (whymaxwhy)](https://github.com/whymaxwhy/Magic-Caster-Wand-Open-app-ai.git)
-
+- [OpenCaster (Blues-Hailfire)](https://github.com/Blues-Hailfire/OpenCaster.git)
