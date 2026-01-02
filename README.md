@@ -95,6 +95,32 @@ repository into the `custom_components/magic_caster_wand` directory.
   </tr>
 </table>
 
+## Automation Example
+```yaml
+alias: Lumos
+description: ""
+triggers:
+  - trigger: state
+    entity_id:
+      - sensor.mcw_5363f8ea_spell
+    attribute: last_updated
+conditions: []
+actions:
+  - choose:
+      - conditions:
+          - condition: state
+            entity_id: sensor.mcw_5363f8ea_spell
+            state:
+              - Lumos
+        sequence:
+          - action: light.turn_on
+            metadata: {}
+            target:
+              entity_id: light.esp_kocom_livingroom_light_1
+            data: {}
+mode: single
+```
+
 ## References
 - [Magic-Caster-Wand-Open-app-ai (whymaxwhy)](https://github.com/whymaxwhy/Magic-Caster-Wand-Open-app-ai.git)
 - [OpenCaster (Blues-Hailfire)](https://github.com/Blues-Hailfire/OpenCaster.git)
