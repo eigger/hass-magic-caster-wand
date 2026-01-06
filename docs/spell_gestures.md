@@ -1,6 +1,4 @@
-# Magic Caster Wand 주문 제스처 가이드
-
-이 문서는 해리포터 매직 캐스터 완드 APK 리소스에서 추출한 주문별 제스처 이미지 모음입니다.
+# Magic Caster Wand Spell Gestures
 
 <table>
   <tr>
