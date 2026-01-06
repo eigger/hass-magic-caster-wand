@@ -89,7 +89,7 @@ class McwDevice:
             await self._mcw.init_wand()
             self.model = await self._mcw.get_wand_no()
 
-            _LOGGER.debug("Connected to Magic Caster Wand: %s", ble_device.address)
+            _LOGGER.debug("Connected to Magic Caster Wand: %s, %s", ble_device.address, self.model)
             return True
 
         except Exception as err:
@@ -113,6 +113,9 @@ class McwDevice:
 
     async def update_device(self, ble_device: BLEDevice) -> BLEData:
         """Update device data. Sends keep-alive if connected."""
+        if not self._mcw:
+            if await self.connect(ble_device):
+                await self.disconnect()
         # Send keep-alive if connected
         if self.is_connected() and self._mcw:
             try:
@@ -165,8 +168,8 @@ class McwBluetoothDeviceData(BluetoothData):
             return False
 
         # Check for Magic Caster Wand Service UUID
-        service_uuids_lower = [uuid.lower() for uuid in data.service_uuids]
-        if self.SERVICE_UUID.lower() not in service_uuids_lower:
-            return False
+        # service_uuids_lower = [uuid.lower() for uuid in data.service_uuids]
+        # if self.SERVICE_UUID.lower() not in service_uuids_lower:
+        #     return False
 
         return True

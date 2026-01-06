@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import logging
 import struct
+import asyncio
 from asyncio import Event, sleep, wait_for
 from typing import Any, Callable, TypeVar
 
@@ -70,7 +71,8 @@ class McwClient:
         self.device_id: str | None = None
         self.edition: str | None = None
         self.companion_address: str | None = None
-
+        self.lock = asyncio.Lock()
+        
     async def is_connected(self) -> bool:
         """Check if client is connected."""
         return self.client.is_connected
@@ -152,28 +154,29 @@ class McwClient:
 
     async def write_command(self, packet: bytes, response: bool = True) -> bytes:
         """Write command and optionally wait for response."""
-        max_retries = 3
+        async with self.lock:
+            max_retries = 3
 
-        for attempt in range(1, max_retries + 1):
-            try:
-                if response:
-                    self.command_data = None
-                    self.event.clear()
-                    await self.write(COMMAND_UUID, packet, False)
-                    return await self.read()
-                else:
-                    await self.write(COMMAND_UUID, packet, False)
-                    return b""
-            except Exception as err:
-                if attempt < max_retries:
-                    _LOGGER.warning(
-                        "Write retry (attempt %d/%d): %s", attempt, max_retries, err
-                    )
-                    await sleep(0.5)
-                else:
-                    raise
+            for attempt in range(1, max_retries + 1):
+                try:
+                    if response:
+                        self.command_data = None
+                        self.event.clear()
+                        await self.write(COMMAND_UUID, packet, False)
+                        return await self.read()
+                    else:
+                        await self.write(COMMAND_UUID, packet, False)
+                        return b""
+                except Exception as err:
+                    if attempt < max_retries:
+                        _LOGGER.warning(
+                            "Write retry (attempt %d/%d): %s", attempt, max_retries, err
+                        )
+                        await sleep(0.5)
+                    else:
+                        raise
 
-        return b""
+            return b""
 
     async def init_wand(self) -> None:
         """Initialize the wand."""
