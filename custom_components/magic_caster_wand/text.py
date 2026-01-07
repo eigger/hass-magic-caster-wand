@@ -1,7 +1,6 @@
 """Support for Magic Caster Wand BLE text entity."""
 
 import logging
-from functools import cached_property
 
 from homeassistant.components.text import RestoreText
 from homeassistant.config_entries import ConfigEntry
@@ -51,14 +50,15 @@ class McwAliasTextEntity(RestoreText):
             manufacturer=MANUFACTURER,
         )
 
-    @cached_property
+    @property
     def available(self) -> bool:
         """Return True if entity is available."""
         return True
 
-    def set_value(self, value: str) -> None:
+    async def async_set_value(self, value: str) -> None:
         """Set the text value."""
         self._attr_native_value = value
+        self.async_write_ha_state()
 
     async def async_added_to_hass(self) -> None:
         """Restore previous state when added to hass."""

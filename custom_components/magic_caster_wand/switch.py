@@ -76,8 +76,10 @@ class McwConnectionSwitch(CoordinatorEntity, SwitchEntity):
         ble_device = bluetooth.async_ble_device_from_address(self._hass, self._address)
         if ble_device and self._mcw:
             await self._mcw.connect(ble_device)
+            self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs) -> None:
         """Disconnect from the device."""
         if self._mcw:
             await self._mcw.disconnect()
+            self.async_write_ha_state()

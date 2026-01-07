@@ -12,9 +12,6 @@ from homeassistant.const import CONF_SCAN_INTERVAL, Platform
 from homeassistant.core import (
     HomeAssistant,
     ServiceCall,
-    ServiceResponse,
-    SupportsResponse,
-    callback,
 )
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
@@ -178,7 +175,7 @@ async def get_entry_id_from_device(hass, device_id: str) -> str:
     if not device_entry.config_entries:
         raise ValueError(f"No config entries for device {device_id}")
 
-    _LOGGER.debug(f"{device_id} to {device_entry.config_entries}")
+    _LOGGER.debug("%s to %s", device_id, device_entry.config_entries)
     try:
         entry_id = next(iter(device_entry.config_entries))
     except StopIteration:

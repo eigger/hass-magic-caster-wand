@@ -73,7 +73,7 @@ class McwClient:
         self.companion_address: str | None = None
         self.lock = asyncio.Lock()
         
-    async def is_connected(self) -> bool:
+    def is_connected(self) -> bool:
         """Check if client is connected."""
         return self.client.is_connected
 
