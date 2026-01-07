@@ -59,7 +59,6 @@ class McwConnectionSwitch(CoordinatorEntity, SwitchEntity):
             connections={(CONNECTION_BLUETOOTH, self._address)},
             name=f"Magic Caster Wand {self._identifier}",
             manufacturer=MANUFACTURER,
-            model=self._mcw.model if self._mcw else None,
         )
 
     @property
@@ -75,13 +74,10 @@ class McwConnectionSwitch(CoordinatorEntity, SwitchEntity):
     async def async_turn_on(self, **kwargs) -> None:
         """Connect to the device."""
         ble_device = bluetooth.async_ble_device_from_address(self._hass, self._address)
-        if ble_device:
+        if ble_device and self._mcw:
             await self._mcw.connect(ble_device)
-            await self.coordinator.async_request_refresh()
-            self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs) -> None:
         """Disconnect from the device."""
-        await self._mcw.disconnect()
-        await self.coordinator.async_request_refresh()
-        self.async_write_ha_state()
+        if self._mcw:
+            await self._mcw.disconnect()

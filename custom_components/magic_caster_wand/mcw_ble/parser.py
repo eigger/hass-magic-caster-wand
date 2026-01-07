@@ -79,16 +79,20 @@ class McwDevice:
 
             if not self.client.is_connected:
                 return False
-        # Update basic device info
-            self._data.name = ble_device.name or "Magic Caster Wand"
-            self._data.address = ble_device.address
-            self._data.identifier = ble_device.address.replace(":", "")[-8:]
+
+            # Update basic device info
+            if not self._data.name:
+                self._data.name = ble_device.name or "Magic Caster Wand"
+            if not self._data.address:
+                self._data.address = ble_device.address
+            if not self._data.identifier:
+                self._data.identifier = ble_device.address.replace(":", "")[-8:]
             self._mcw = McwClient(self.client)
             self._mcw.register_callback(self._callback_spell, self._callback_battery)
             await self._mcw.start_notify()
             await self._mcw.init_wand()
-            self.model = await self._mcw.get_wand_no()
-
+            if not self.model:
+                self.model = await self._mcw.get_wand_no()
             _LOGGER.debug("Connected to Magic Caster Wand: %s, %s", ble_device.address, self.model)
             return True
 
