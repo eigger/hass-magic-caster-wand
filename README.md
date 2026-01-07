@@ -61,8 +61,6 @@ repository into the `custom_components/magic_caster_wand` directory.
 >[!IMPORTANT]
 >You must connect to the wand via Bluetooth(Switch) first in order to receive the spell values.
 
-🔗 **[Detailed Spell Gesture Guide (Full 69 Gestures)](./docs/spell_gestures.md)** - See the visual guide for all original wand gestures.
-
 ⬆ ⬇ ⬅ ➡ ⬈ ⬉ ⬊ ⬋
 | Spell | Motion | Description |
 |------|--------|-------------|
