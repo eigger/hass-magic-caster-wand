@@ -229,6 +229,10 @@ class McwClient:
     async def keep_alive(self) -> None:
         """Send keep-alive command."""
         await self.write_command(struct.pack("B", 0x01), False)
+    
+    async def calibration(self) -> None:
+        """Send calibration command."""
+        await self.write_command(struct.pack("B", 0x01), False)
 
     async def get_wand_address(self) -> str:
         """Get wand BLE address."""

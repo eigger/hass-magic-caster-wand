@@ -75,11 +75,7 @@ class McwCalibrationButton(CoordinatorEntity[DataUpdateCoordinator[BLEData]], Bu
     async def async_press(self) -> None:
         """Handle the button press."""
         _LOGGER.debug("Calibration button pressed, sending calibration packets")
-        
-        # Send first calibration packet: 0x01 0x02 0x03
-        await self._mcw.send_calibration(bytes([0x01, 0x02, 0x03]))
-        
-        # Send second calibration packet: 0x04 0x05 0x06
-        await self._mcw.send_calibration(bytes([0x04, 0x05, 0x06]))
+        if self._mcw and self._mcw.is_connected():
+            await self._mcw.calibration()
         
         _LOGGER.debug("Calibration packets sent")
