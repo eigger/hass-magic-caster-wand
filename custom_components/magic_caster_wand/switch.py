@@ -1,81 +1,85 @@
-"""Support for mcw ble switchs."""
+"""Support for Magic Caster Wand BLE switch."""
 
 import logging
 
-from homeassistant import config_entries
 from homeassistant.components import bluetooth
-from homeassistant.components.switch import (
-    SwitchEntity
-)
+from homeassistant.components.switch import SwitchEntity
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
 
 from .const import DOMAIN, MANUFACTURER
+from .mcw_ble import BLEData
 
 _LOGGER = logging.getLogger(__name__)
 
+
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: config_entries.ConfigEntry,
+    entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the Mcw BLE switchs."""
-    entities = []
-    entities.append(
-        McwBleSwitch(hass, entry)
-    )
-    async_add_entities(entities)
+    """Set up the Magic Caster Wand BLE switch."""
+    data = hass.data[DOMAIN][entry.entry_id]
+    address = data["address"]
+    mcw = data["mcw"]
+    coordinator = data["coordinator"]
+
+    async_add_entities([McwConnectionSwitch(hass, address, mcw, coordinator)])
 
 
-class McwBleSwitch(
-    SwitchEntity,
-):
-    #_attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+class McwConnectionSwitch(CoordinatorEntity, SwitchEntity):
+    """Switch entity for controlling BLE connection."""
 
-    def __init__(self, hass: HomeAssistant, entry: config_entries.ConfigEntry):
-        # self.hass = hass
-        address = hass.data[DOMAIN][entry.entry_id]['address']
+    _attr_has_entity_name = True
+
+    def __init__(
+        self, 
+        hass: HomeAssistant, 
+        address: str, 
+        mcw, 
+        coordinator: DataUpdateCoordinator[BLEData]
+    ) -> None:
+        """Initialize the connection switch."""
+        super().__init__(coordinator)
         self._hass = hass
-        self._mcw = hass.data[DOMAIN][entry.entry_id]['mcw']
         self._address = address
+        self._mcw = mcw
         self._identifier = address.replace(":", "")[-8:]
-        self._attr_name = f"Mcw {self._identifier} Connect"
+        self._attr_name = "Connection"
         self._attr_unique_id = f"mcw_{self._identifier}_connect"
-
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo (
-            connections = {
-                (
-                    CONNECTION_BLUETOOTH,
-                    self._address,
-                )
-            },
-            name = f"Mcw {self._identifier}",
-            manufacturer = MANUFACTURER,
+        """Return device info."""
+        return DeviceInfo(
+            connections={(CONNECTION_BLUETOOTH, self._address)},
+            name=f"Magic Caster Wand {self._identifier}",
+            manufacturer=MANUFACTURER,
         )
-    
+
     @property
-    def is_on(self) -> bool | None:
+    def is_on(self) -> bool:
+        """Return true if the device is connected."""
         return self._mcw.is_connected()
 
     @property
-    def icon(self) -> str | None:
-        """Icon of the entity, based on time."""
-        if self.is_on:
-            return "mdi:bluetooth" 
-        return "mdi:bluetooth-off"
-        
-    async def async_turn_on(self, **kwargs):
-        """Turn the entity on."""
-        ble_device = bluetooth.async_ble_device_from_address(self._hass, self._address)
-        if ble_device:
-            await self._mcw.connect(ble_device)
+    def icon(self) -> str:
+        """Return the icon based on connection state."""
+        return "mdi:bluetooth" if self.is_on else "mdi:bluetooth-off"
 
-    async def async_turn_off(self, **kwargs):
-        """Turn the entity off."""
-        await self._mcw.disconnect()
+    async def async_turn_on(self, **kwargs) -> None:
+        """Connect to the device."""
+        ble_device = bluetooth.async_ble_device_from_address(self._hass, self._address)
+        if ble_device and self._mcw:
+            await self._mcw.connect(ble_device)
+            self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Disconnect from the device."""
+        if self._mcw:
+            await self._mcw.disconnect()
+            self.async_write_ha_state()
