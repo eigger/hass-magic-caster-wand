@@ -21,6 +21,10 @@ CMD_ID_GET_FIRMWARE_VERSION = 0x00
 CMD_ID_KEEP_ALIVE = 0x01
 CMD_ID_GET_BOX_ADDRESS = 0x09
 CMD_ID_GET_WAND_INFORMATION = 0x0E
+CMD_ID_IMU_STREAMING_START = 0x30
+CMD_ID_IMU_STREAMING_STOP = 0x31
+CMD_ID_LIGHT_CONTROL_CLEAR_ALL = 0x40
+CMD_ID_LIGHT_CONTROL_SET = 0x42
 CMD_ID_SET_BUTTON_THRESHOLD = 0xDC
 CMD_ID_CALIBRATE_BUTTON_BASELINE = 0xFB
 CMD_ID_RESET = 0xFF
@@ -34,6 +38,7 @@ MSG_ID_BOX_ADDRESS = 0x09
 MSG_ID_WAND_INFORMATION = 0x0E
 MSG_ID_BUTTON_PAYLOAD = 0x10
 MSG_ID_SPELL_CAST = 0x24
+MSG_ID_IMU_PAYLOAD = 0x2C
 MSG_ID_BUTTON_THRESHOLD_RESPONSE = 0xDD
 MSG_ID_CALIBRATE_BASELINE_RESPONSE = 0xFB
 MSG_ID_IMU_CALIBRATION_RESPONSE = 0xFC
@@ -46,6 +51,10 @@ CMD_TO_MSG_MAP = {
     CMD_ID_GET_FIRMWARE_VERSION: MSG_ID_FIRMWARE_VERSION,
     CMD_ID_GET_WAND_INFORMATION: MSG_ID_WAND_INFORMATION,
 }
+
+# Sensor scale factors (from Android IMUSample.java)
+ACCELEROMETER_SCALE = 0.00048828125
+GYROSCOPE_SCALE = 0.0010908308
 
 # Exception definitions
 class BleakCharacteristicMissing(BleakError):
@@ -73,6 +82,38 @@ class ButtonState:
     def __repr__(self):
         return f"ButtonState(full={self.full_touch}, pads=[{self.pad1}, {self.pad2}, {self.pad3}, {self.pad4}])"
 
+class IMUSample:
+    """Represents a single IMU sensor sample with gyroscope and accelerometer data"""
+
+    def __init__(self, gyro_x: int, gyro_y: int, gyro_z: int,
+                 accel_x: int, accel_y: int, accel_z: int):
+        self.gyro_x = gyro_x
+        self.gyro_y = gyro_y
+        self.gyro_z = gyro_z
+        self.accel_x = accel_x
+        self.accel_y = accel_y
+        self.accel_z = accel_z
+
+    def get_scaled_accel(self) -> tuple[float, float, float]:
+        """Returns accelerometer data scaled to G-forces"""
+        return (
+            self.accel_x * ACCELEROMETER_SCALE,
+            self.accel_y * ACCELEROMETER_SCALE,
+            self.accel_z * ACCELEROMETER_SCALE
+        )
+
+    def get_scaled_gyro(self) -> tuple[float, float, float]:
+        """Returns gyroscope data scaled to rad/s"""
+        return (
+            self.gyro_x * GYROSCOPE_SCALE,
+            self.gyro_y * GYROSCOPE_SCALE,
+            self.gyro_z * GYROSCOPE_SCALE
+        )
+
+    def __repr__(self):
+        return (f"IMUSample(gyro=({self.gyro_x}, {self.gyro_y}, {self.gyro_z}), "
+                f"accel=({self.accel_x}, {self.accel_y}, {self.accel_z}))")
+
 WrapFuncType = TypeVar("WrapFuncType", bound=Callable[..., Any])
 
 def disconnect_on_missing_services(func: WrapFuncType) -> WrapFuncType:
@@ -96,9 +137,10 @@ class McwClient:
         self,
         client: BleakClient,
     ) -> None:
-        self.callback_spell = None
         self.callback_battery = None
         self.callback_button = None
+        self.callback_imu = None
+        self.callback_spell = None
 
         self._client = client
         self._box_address = None
@@ -114,11 +156,12 @@ class McwClient:
     def is_connected(self) -> bool:
         return self._client.is_connected
     
-    def register_callbacks(self, spell_cb, battery_cb, button_cb=None):
+    def register_callbacks(self, spell_cb, battery_cb, button_cb=None, imu_cb=None) -> None:
         """Register callbacks for different data types"""
-        self.callback_spell = spell_cb
         self.callback_battery = battery_cb
         self.callback_button = button_cb
+        self.callback_imu = imu_cb
+        self.callback_spell = spell_cb
 
     @disconnect_on_missing_services
     async def start_notify(self) -> None:
@@ -181,6 +224,9 @@ class McwClient:
                 _LOGGER.debug("callback: %s", self.callback_spell)
                 if self.callback_spell:
                     self.callback_spell(spell_name)   
+
+            elif opcode == MSG_ID_IMU_PAYLOAD:
+                self._parse_imu_payload(data)
 
             elif opcode == MSG_ID_BUTTON_THRESHOLD_RESPONSE:
                 if len(data) >= 3:
@@ -252,33 +298,22 @@ class McwClient:
                 raise last_exception
             finally:
                 self._waiting_for_msg_id = None
-            
-    async def init_wand(self):
-        """Initialize wand with default configuration
 
-        TODO: Implement different configurations based on wand type
-            HEROIC / HONOURABLE:
-                Min: 5, 5, 5, 5
-                Max: 8, 8, 8, 8
-            LOYAL:
-                Min: 7, 7, 10, 10
-                Max: 10, 10, 13, 13
-            DEFIANT:
-                Min: 7, 7, 7, 7
-                Max: 10, 10, 10, 10
+    async def calibrate_button_baseline(self) -> None:
+        """Calibrate button baseline (capacitive touch sensors)
+
+        Recalibrates the capacitive touch sensor baseline to determine what
+        the wand considers the "not touched" state. This helps improve touch
+        sensitivity and accuracy.
+
+        Response will come via MSG_ID_CALIBRATE_BASELINE_RESPONSE (0xFB)
         """
-        await self.write_command(struct.pack('BBB', CMD_ID_SET_BUTTON_THRESHOLD, 0x00, 0x05))
-        await self.write_command(struct.pack('BBB', CMD_ID_SET_BUTTON_THRESHOLD, 0x01, 0x05))
-        await self.write_command(struct.pack('BBB', CMD_ID_SET_BUTTON_THRESHOLD, 0x02, 0x05))
-        await self.write_command(struct.pack('BBB', CMD_ID_SET_BUTTON_THRESHOLD, 0x03, 0x05))
-        await self.write_command(struct.pack('BBB', CMD_ID_SET_BUTTON_THRESHOLD, 0x04, 0x08))
-        await self.write_command(struct.pack('BBB', CMD_ID_SET_BUTTON_THRESHOLD, 0x05, 0x08))
-        await self.write_command(struct.pack('BBB', CMD_ID_SET_BUTTON_THRESHOLD, 0x06, 0x08))
-        await self.write_command(struct.pack('BBB', CMD_ID_SET_BUTTON_THRESHOLD, 0x07, 0x08))
-
-    async def keep_alive(self) -> bytes:
-        """Send keep-alive packet"""
-        await self.write_command(struct.pack('B', CMD_ID_KEEP_ALIVE))
+        _LOGGER.debug("Sending baseline calibration command")
+        await sleep(1.0)
+        await self._factory_unlock()
+        await self.write_command(struct.pack('B', CMD_ID_CALIBRATE_BUTTON_BASELINE))
+        await sleep(1.0)
+        await self.vibrate(200)
 
     async def get_box_address(self) -> str:
         """Get companion box MAC address"""
@@ -316,21 +351,42 @@ class McwClient:
             self._wand_type = self._wand_device_id_to_type(await self.get_wand_device_id())
         return self._wand_type or ""
 
-    async def calibrate_button_baseline(self) -> None:
-        """Calibrate button baseline (capacitive touch sensors)
+    async def imu_streaming_start(self) -> None:
+        """Start IMU data streaming"""
+        _LOGGER.debug("Starting IMU streaming")
+        await self.write_command(struct.pack('BBB', CMD_ID_IMU_STREAMING_START, 0x00, 0x01), False)
 
-        Recalibrates the capacitive touch sensor baseline to determine what
-        the wand considers the "not touched" state. This helps improve touch
-        sensitivity and accuracy.
+    async def imu_streaming_stop(self) -> None:
+        """Stop IMU data streaming (Android: sendIMUStop)"""
+        _LOGGER.debug("Stopping IMU streaming")
+        await self.write_command(struct.pack('B', CMD_ID_IMU_STREAMING_STOP), False)
 
-        Response will come via MSG_ID_CALIBRATE_BASELINE_RESPONSE (0xFB)
+    async def init_wand(self):
+        """Initialize wand with default configuration
+
+        TODO: Implement different configurations based on wand type
+            HEROIC / HONOURABLE:
+                Min: 5, 5, 5, 5
+                Max: 8, 8, 8, 8
+            LOYAL:
+                Min: 7, 7, 10, 10
+                Max: 10, 10, 13, 13
+            DEFIANT:
+                Min: 7, 7, 7, 7
+                Max: 10, 10, 10, 10
         """
-        _LOGGER.debug("Sending baseline calibration command")
-        await sleep(1.0)
-        await self._factory_unlock()
-        await self.write_command(struct.pack('B', CMD_ID_CALIBRATE_BUTTON_BASELINE))
-        await sleep(1.0)
-        await self.vibrate(200)
+        await self.write_command(struct.pack('BBB', CMD_ID_SET_BUTTON_THRESHOLD, 0x00, 0x05))
+        await self.write_command(struct.pack('BBB', CMD_ID_SET_BUTTON_THRESHOLD, 0x01, 0x05))
+        await self.write_command(struct.pack('BBB', CMD_ID_SET_BUTTON_THRESHOLD, 0x02, 0x05))
+        await self.write_command(struct.pack('BBB', CMD_ID_SET_BUTTON_THRESHOLD, 0x03, 0x05))
+        await self.write_command(struct.pack('BBB', CMD_ID_SET_BUTTON_THRESHOLD, 0x04, 0x08))
+        await self.write_command(struct.pack('BBB', CMD_ID_SET_BUTTON_THRESHOLD, 0x05, 0x08))
+        await self.write_command(struct.pack('BBB', CMD_ID_SET_BUTTON_THRESHOLD, 0x06, 0x08))
+        await self.write_command(struct.pack('BBB', CMD_ID_SET_BUTTON_THRESHOLD, 0x07, 0x08))
+
+    async def keep_alive(self) -> bytes:
+        """Send keep-alive packet"""
+        await self.write_command(struct.pack('B', CMD_ID_KEEP_ALIVE))
 
     async def reset_wand(self) -> None:
         """Reset wand to default configuration
@@ -423,6 +479,77 @@ class McwClient:
             self._wand_firmware_version = version
         except Exception as e:
             _LOGGER.error("Error parsing firmware version: %s", e)
+
+    def _parse_imu_payload(self, data: bytearray) -> None:
+        """Parse IMU data message (ID 0x2C)
+
+        Based on Android IMUPayloadMessage.kt:
+        - Byte 0: Message ID (0x2C)
+        - Bytes 1-2: Start index (little-endian short)
+        - Byte 3: Sample count
+        - Bytes 4+: Sample data (12 bytes per sample)
+
+        Each sample contains 6 shorts (little-endian):
+        - gyroX, gyroY, gyroZ, accelX, accelY, accelZ
+        """
+        if len(data) < 4:
+            _LOGGER.warning("Invalid IMU payload length: %d", len(data))
+            return
+
+        # Extract header
+        sample_count = data[3]
+        expected_length = 4 + (sample_count * 12)
+
+        if len(data) < expected_length:
+            _LOGGER.warning("IMU payload too short. Expected %d, got %d",
+                          expected_length, len(data))
+            return
+
+        # Check if payload length is valid (should be divisible by 6 shorts = 12 bytes)
+        payload_length = len(data) - 4
+        if payload_length % 12 != 0:
+            _LOGGER.warning("IMU payload length not divisible by 12: %d", payload_length)
+            return
+
+        samples = []
+        offset = 4
+
+        for i in range(sample_count):
+            try:
+                # Parse 6 shorts (little-endian) - 12 bytes total
+                # Android uses: bytes[start+1], bytes[start] order (swapped)
+                gyro_x = struct.unpack('<h', bytes([data[offset+1], data[offset]]))[0]
+                gyro_y = struct.unpack('<h', bytes([data[offset+3], data[offset+2]]))[0]
+                gyro_z = struct.unpack('<h', bytes([data[offset+5], data[offset+4]]))[0]
+                accel_x = struct.unpack('<h', bytes([data[offset+7], data[offset+6]]))[0]
+                accel_y = struct.unpack('<h', bytes([data[offset+9], data[offset+8]]))[0]
+                accel_z = struct.unpack('<h', bytes([data[offset+11], data[offset+10]]))[0]
+
+                sample = IMUSample(gyro_x, gyro_y, gyro_z, accel_x, accel_y, accel_z)
+                samples.append(sample)
+
+                offset += 12
+            except Exception as e:
+                _LOGGER.error("Error parsing IMU sample %d: %s", i, e)
+                break
+
+        if samples:
+            _LOGGER.debug("Parsed %d IMU samples", len(samples))
+            if self.callback_imu:
+                # Send scaled data
+                imu_data = []
+                for sample in samples:
+                    accel = sample.get_scaled_accel()
+                    gyro = sample.get_scaled_gyro()
+                    imu_data.append({
+                        'accel_x': accel[0],
+                        'accel_y': accel[1],
+                        'accel_z': accel[2],
+                        'gyro_x': gyro[0],
+                        'gyro_y': gyro[1],
+                        'gyro_z': gyro[2],
+                    })
+                self.callback_imu(imu_data)
 
     def _parse_wand_information(self, data: bytearray) -> None:
         """Parse wand information message (ID 0x0E)"""
