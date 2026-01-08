@@ -42,11 +42,13 @@ class McwDevice:
         self._data = BLEData()
         self._coordinator_spell = None
         self._coordinator_battery = None
+        self._coordinator_buttons = None
 
-    def register_coordinator(self, cn_spell, cn_battery) -> None:
-        """Register coordinators for spell and battery updates."""
+    def register_coordinator(self, cn_spell, cn_battery, cn_buttons) -> None:
+        """Register coordinators for spell, battery, and button updates."""
         self._coordinator_spell = cn_spell
         self._coordinator_battery = cn_battery
+        self._coordinator_buttons = cn_buttons
 
     def _callback_spell(self, data: str) -> None:
         """Handle spell detection callback."""
@@ -57,6 +59,11 @@ class McwDevice:
         """Handle battery update callback."""
         if self._coordinator_battery:
             self._coordinator_battery.async_set_updated_data(data)
+
+    def _callback_buttons(self, data: dict[str, bool]) -> None:
+        """Handle button state update callback."""
+        if self._coordinator_buttons:
+            self._coordinator_buttons.async_set_updated_data(data)
 
     def is_connected(self) -> bool:
         """Check if the device is currently connected."""
@@ -88,11 +95,11 @@ class McwDevice:
             if not self._data.identifier:
                 self._data.identifier = ble_device.address.replace(":", "")[-8:]
             self._mcw = McwClient(self.client)
-            self._mcw.register_callback(self._callback_spell, self._callback_battery)
+            self._mcw.register_callback(self._callback_spell, self._callback_battery, self._callback_buttons)
             await self._mcw.start_notify()
-            await self._mcw.init_wand()
             if not self.model:
                 self.model = await self._mcw.get_wand_no()
+                await self._mcw.init_wand()
             _LOGGER.debug("Connected to Magic Caster Wand: %s, %s", ble_device.address, self.model)
             return True
 
@@ -114,20 +121,28 @@ class McwDevice:
             finally:
                 self.client = None
                 self._mcw = None
+                # Reset all button states to OFF on disconnect
+                if self._coordinator_buttons:
+                    self._coordinator_buttons.async_set_updated_data({
+                        "button_1": False,
+                        "button_2": False,
+                        "button_3": False,
+                        "button_4": False,
+                    })
 
     async def update_device(self, ble_device: BLEDevice) -> BLEData:
         """Update device data. Sends keep-alive if connected."""
         if not self._mcw:
-            if await self.connect(ble_device):
-                await self.disconnect()
+            await self.connect(ble_device)
+            await self.disconnect()
         # Send keep-alive if connected
-        if self.is_connected() and self._mcw:
-            try:
-                await self._mcw.keep_alive()
-            except Exception as err:
-                _LOGGER.debug("Keep-alive failed: %s", err)
+        # if self.is_connected() and self._mcw:
+        #     try:
+        #         await self._mcw.keep_alive()
+        #     except Exception as err:
+        #         _LOGGER.debug("Keep-alive failed: %s", err)
 
-        _LOGGER.debug("Updated BLEData: %s", self._data)
+        # _LOGGER.debug("Updated BLEData: %s", self._data)
         return self._data
 
     async def send_macro(self, macro: Macro) -> None:
@@ -149,6 +164,11 @@ class McwDevice:
         """Clear all LEDs."""
         if self.is_connected() and self._mcw:
             await self._mcw.clear_leds()
+
+    async def send_calibration(self, packet: bytes) -> None:
+        """Send calibration packet."""
+        if self.is_connected() and self._mcw:
+            await self._mcw.write_command(packet, response=False)
 
 
 class McwBluetoothDeviceData(BluetoothData):

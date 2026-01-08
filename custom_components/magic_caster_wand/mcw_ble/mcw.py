@@ -62,6 +62,7 @@ class McwClient:
         self.command_data: bytes | None = None
         self.callback_spell: Callable[[str], None] | None = None
         self.callback_battery: Callable[[float], None] | None = None
+        self.callback_buttons: Callable[[dict[str, bool]], None] | None = None
         self.wand_type: str | None = None
         self.serial_number: str | None = None
         self.sku: str | None = None
@@ -77,10 +78,11 @@ class McwClient:
         """Check if client is connected."""
         return self.client.is_connected
 
-    def register_callback(self, spell_cb: Callable, battery_cb: Callable) -> None:
-        """Register callbacks for spell and battery notifications."""
+    def register_callback(self, spell_cb: Callable, battery_cb: Callable, buttons_cb: Callable = None) -> None:
+        """Register callbacks for spell, battery, and button notifications."""
         self.callback_spell = spell_cb
         self.callback_battery = battery_cb
+        self.callback_buttons = buttons_cb
 
     @disconnect_on_missing_services
     async def start_notify(self) -> None:
@@ -125,6 +127,8 @@ class McwClient:
         opcode = data[0]
         if opcode == 0x24:
             self._parse_spell(data)
+        elif opcode == 0x10:
+            self._parse_buttons(data)
 
     def _parse_spell(self, data: bytearray) -> None:
         """Parse spell data from notification."""
@@ -146,6 +150,35 @@ class McwClient:
 
         except Exception as err:
             _LOGGER.warning("Spell parse error: %s", err)
+
+    def _parse_buttons(self, data: bytearray) -> None:
+        """Parse button states from notification.
+        
+        Format: [0x10, Mask]
+        Bit Mask:
+            0x01: Button 1 (Big)
+            0x02: Button 2
+            0x04: Button 3
+            0x08: Button 4
+        """
+        try:
+            if len(data) < 2:
+                return
+
+            mask = data[1]
+            button_states = {
+                "button_1": bool(mask & 0x01),
+                "button_2": bool(mask & 0x02),
+                "button_3": bool(mask & 0x04),
+                "button_4": bool(mask & 0x08),
+            }
+
+            _LOGGER.debug("Button states: %s (mask=0x%02X)", button_states, mask)
+            if self.callback_buttons:
+                self.callback_buttons(button_states)
+
+        except Exception as err:
+            _LOGGER.warning("Button parse error: %s", err)
 
     async def read(self, timeout: float = 5.0) -> bytes:
         """Read response data with timeout."""

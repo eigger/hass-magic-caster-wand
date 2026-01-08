@@ -49,7 +49,7 @@ class McwConnectionSwitch(CoordinatorEntity, SwitchEntity):
         self._address = address
         self._mcw = mcw
         self._identifier = address.replace(":", "")[-8:]
-        self._attr_name = "Connection"
+        self._attr_name = "Connect"
         self._attr_unique_id = f"mcw_{self._identifier}_connect"
 
     @property
@@ -77,9 +77,11 @@ class McwConnectionSwitch(CoordinatorEntity, SwitchEntity):
         if ble_device and self._mcw:
             await self._mcw.connect(ble_device)
             self.async_write_ha_state()
+            await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs) -> None:
         """Disconnect from the device."""
         if self._mcw:
             await self._mcw.disconnect()
             self.async_write_ha_state()
+            await self.coordinator.async_request_refresh()

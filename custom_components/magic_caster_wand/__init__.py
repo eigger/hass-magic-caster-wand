@@ -20,7 +20,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .const import DEFAULT_SCAN_INTERVAL, DOMAIN
 from .mcw_ble import BLEData, McwDevice, LedGroup, SpellMacros
 
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH, Platform.TEXT]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH, Platform.TEXT, Platform.BINARY_SENSOR, Platform.BUTTON]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -67,8 +67,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         name=f"{DOMAIN}_battery_{identifier}",
     )
 
+    buttons_coordinator: DataUpdateCoordinator[dict[str, bool]] = DataUpdateCoordinator(
+        hass,
+        _LOGGER,
+        name=f"{DOMAIN}_buttons_{identifier}",
+    )
+
     # Register coordinators with device for BLE callbacks
-    mcw.register_coordinator(spell_coordinator, battery_coordinator)
+    mcw.register_coordinator(spell_coordinator, battery_coordinator, buttons_coordinator)
 
     # Perform first refresh
     await coordinator.async_config_entry_first_refresh()
@@ -80,6 +86,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "coordinator": coordinator,
         "spell_coordinator": spell_coordinator,
         "battery_coordinator": battery_coordinator,
+        "buttons_coordinator": buttons_coordinator,
     }
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
