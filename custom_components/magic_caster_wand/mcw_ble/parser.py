@@ -53,17 +53,22 @@ class McwDevice:
         self._mcw = None
         self._coordinator_spell = None
         self._coordinator_battery = None
+        self._coordinator_button = None
         super().__init__()
 
-    def register_coordinator(self, cn_spell, cn_battery):
+    def register_coordinator(self, cn_spell, cn_battery, cn_button):
         self._coordinator_spell = cn_spell
         self._coordinator_battery = cn_battery
+        self._coordinator_button = cn_button
 
     def callback_spell(self, data):
         self._coordinator_spell.async_set_updated_data(data)
 
     def callback_battery(self, data):
         self._coordinator_battery.async_set_updated_data(data)
+
+    def callback_button(self, data):
+        self._coordinator_button.async_set_updated_data(data)
 
     def is_connected(self):
         if self.client:
@@ -84,10 +89,12 @@ class McwDevice:
             return False
 
         self._mcw = McwClient(self.client)
-        self._mcw.register_callbck(self.callback_spell, self.callback_battery)
+        self._mcw.register_callbacks(self.callback_spell, self.callback_battery, self.callback_button)
         await self._mcw.start_notify()
         await self._mcw.init_wand()
-        self.model = await self._mcw.get_wand_no()
+        device_id = await self._mcw.get_wand_device_id()
+        wand_type = await self._mcw.get_wand_type()
+        self.model = f"{device_id} ({wand_type})" if wand_type != "UNKNOWN" else device_id
         return True
     
     async def disconnect(self):
