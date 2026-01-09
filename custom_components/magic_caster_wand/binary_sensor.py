@@ -54,6 +54,20 @@ async def async_setup_entry(
     coordinator = data["coordinator"]
     entities.append(McwConnectionBinarySensor(address, mcw, coordinator))
 
+    # Add calibration sensors
+    calibration_coordinator: DataUpdateCoordinator[dict[str, bool]] = data["calibration_coordinator"]
+    for sensor in CALIBRATION_SENSORS:
+        entities.append(
+            McwCalibrationBinarySensor(
+                address=address,
+                mcw=mcw,
+                coordinator=calibration_coordinator,
+                sensor_key=sensor["key"],
+                sensor_name=sensor["name"],
+                sensor_icon=sensor["icon"],
+            )
+        )
+
     async_add_entities(entities)
 
 
@@ -161,4 +175,67 @@ class McwConnectionBinarySensor(
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
+        self.async_write_ha_state()
+
+
+class McwCalibrationBinarySensor(
+    CoordinatorEntity[DataUpdateCoordinator[dict[str, bool]]],
+    BinarySensorEntity,
+):
+    """Binary sensor entity for tracking calibration state."""
+
+    _attr_has_entity_name = True
+    _attr_device_class = None
+
+    def __init__(
+        self,
+        address: str,
+        mcw,
+        coordinator: DataUpdateCoordinator[dict[str, bool]],
+        sensor_key: str,
+        sensor_name: str,
+        sensor_icon: str,
+    ) -> None:
+        """Initialize the calibration binary sensor."""
+        CoordinatorEntity.__init__(self, coordinator)
+        
+        self._address = address
+        self._mcw = mcw
+        self._identifier = address.replace(":", "")[-8:]
+        self._sensor_key = sensor_key
+        self._sensor_icon = sensor_icon
+        
+        self._attr_name = sensor_name
+        self._attr_unique_id = f"mcw_{self._identifier}_{sensor_key}"
+        self._is_on = False
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device info."""
+        return DeviceInfo(
+            connections={(CONNECTION_BLUETOOTH, self._address)},
+            name=f"Magic Caster Wand {self._identifier}",
+            manufacturer=MANUFACTURER,
+            model=self._mcw.model if self._mcw else None,
+        )
+
+    @property
+    def is_on(self) -> bool:
+        """Return true if calibration is confirmed."""
+        return self._is_on
+
+    @property
+    def icon(self) -> str:
+        """Return the icon based on calibration state."""
+        return self._sensor_icon
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        if self.coordinator.data:
+            calibration_states = self.coordinator.data
+            self._is_on = calibration_states.get(self._sensor_key, False)
+            _LOGGER.debug(
+                "Calibration %s state: %s", self._sensor_key, self._is_on
+            )
         self.async_write_ha_state()
