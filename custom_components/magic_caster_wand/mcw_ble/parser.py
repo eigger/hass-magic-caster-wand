@@ -126,8 +126,6 @@ class McwDevice:
             except Exception as err:
                 _LOGGER.warning("Error during disconnect: %s", err)
             finally:
-                self.client = None
-                self._mcw = None
                 # Reset all button states to OFF on disconnect
                 if self._coordinator_buttons:
                     self._coordinator_buttons.async_set_updated_data({

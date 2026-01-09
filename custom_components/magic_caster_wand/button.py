@@ -25,9 +25,10 @@ async def async_setup_entry(
     address = data["address"]
     mcw = data["mcw"]
     coordinator = data["coordinator"]
+    calibration_coordinator = data["calibration_coordinator"]
 
     async_add_entities([
-        McwCalibrationButton(address, mcw, coordinator),
+        McwCalibrationButton(address, mcw, coordinator, calibration_coordinator),
     ])
 
 
@@ -41,12 +42,14 @@ class McwCalibrationButton(CoordinatorEntity[DataUpdateCoordinator[BLEData]], Bu
         address: str, 
         mcw,
         coordinator: DataUpdateCoordinator[BLEData],
+        calibration_coordinator: DataUpdateCoordinator[dict[str, str]],
     ) -> None:
         """Initialize the calibration button."""
         super().__init__(coordinator)
         self._address = address
         self._mcw = mcw
         self._identifier = address.replace(":", "")[-8:]
+        self._calibration_coordinator = calibration_coordinator
 
         self._attr_name = "Calibration"
         self._attr_unique_id = f"mcw_{self._identifier}_calibration"
@@ -74,7 +77,14 @@ class McwCalibrationButton(CoordinatorEntity[DataUpdateCoordinator[BLEData]], Bu
 
     async def async_press(self) -> None:
         """Handle the button press."""
-        _LOGGER.debug("Calibration button pressed, sending calibration packets")
+        _LOGGER.debug("Calibration button pressed, resetting calibration sensors and sending calibration packets")
+        
+        # Reset both calibration sensors to Pending
+        self._calibration_coordinator.async_set_updated_data({
+            "calibration_button": "Pending",
+            "calibration_imu": "Pending",
+        })
+        
         await self._mcw.send_calibration()
         
         _LOGGER.debug("Calibration packets sent")

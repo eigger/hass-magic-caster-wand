@@ -199,11 +199,11 @@ class McwClient:
             if opcode == 0xFB:
                 _LOGGER.debug("Button calibration confirmed (FB response)")
                 if self.callback_calibration:
-                    self.callback_calibration({"button_calibrated": True, "imu_calibrated": False})
+                    self.callback_calibration({"calibration_button": "Done"})
             elif opcode == 0xFC:
                 _LOGGER.debug("IMU calibration confirmed (FC response)")
                 if self.callback_calibration:
-                    self.callback_calibration({"button_calibrated": False, "imu_calibrated": True})
+                    self.callback_calibration({"calibration_imu": "Done"})
 
         except Exception as err:
             _LOGGER.warning("Calibration parse error: %s", err)
@@ -266,8 +266,12 @@ class McwClient:
         trigger callbacks for button_calibrated and imu_calibrated sensors.
         """
         await self.write_command(struct.pack("BBB", 0xFE, 0x55, 0xAA), False)
-        await self.write_command(struct.pack("B", 0xFB), True)
-        await self.write_command(struct.pack("B", 0xFC), True)
+        await sleep(0.5)
+        await self.write_command(struct.pack("B", 0xFC), False)
+        await sleep(1.5)
+        await self.write_command(struct.pack("BBB", 0xFE, 0x55, 0xAA), False)
+        await sleep(0.5)
+        await self.write_command(struct.pack("B", 0xFB), False)
 
     async def get_wand_address(self) -> str:
         """Get wand BLE address."""
