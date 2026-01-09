@@ -27,6 +27,7 @@ CMD_ID_LIGHT_CONTROL_CLEAR_ALL = 0x40
 CMD_ID_LIGHT_CONTROL_SET = 0x42
 CMD_ID_SET_BUTTON_THRESHOLD = 0xDC
 CMD_ID_CALIBRATE_BUTTON_BASELINE = 0xFB
+CMD_ID_CALIBRATE_IMU = 0xFC
 CMD_ID_RESET = 0xFF
 
 # Macro Command IDs (based on Android implementation)
@@ -96,7 +97,7 @@ class IMUSample:
     def get_scaled_accel(self) -> tuple[float, float, float]:
         """Returns accelerometer data scaled to G-forces"""
         return (
-            self.accel_x * ACCELEROMETER_SCALE,
+            -self.accel_x * ACCELEROMETER_SCALE,
             self.accel_y * ACCELEROMETER_SCALE,
             self.accel_z * ACCELEROMETER_SCALE
         )
@@ -104,7 +105,7 @@ class IMUSample:
     def get_scaled_gyro(self) -> tuple[float, float, float]:
         """Returns gyroscope data scaled to rad/s"""
         return (
-            self.gyro_x * GYROSCOPE_SCALE,
+            -self.gyro_x * GYROSCOPE_SCALE,
             self.gyro_y * GYROSCOPE_SCALE,
             self.gyro_z * GYROSCOPE_SCALE
         )
@@ -311,6 +312,18 @@ class McwClient:
         await sleep(1.0)
         await self._factory_unlock()
         await self.write_command(struct.pack('B', CMD_ID_CALIBRATE_BUTTON_BASELINE))
+        await sleep(1.0)
+        await self.vibrate(200)
+
+    async def calibrate_imu(self) -> None:
+        """Calibrate IMU sensors (gyroscope and accelerometer)
+
+        Response will come via MSG_ID_IMU_CALIBRATION_RESPONSE (0xFC)
+        """
+        _LOGGER.debug("Sending IMU calibration command")
+        await sleep(1.0)
+        await self._factory_unlock()
+        await self.write_command(struct.pack('B', CMD_ID_CALIBRATE_IMU))
         await sleep(1.0)
         await self.vibrate(200)
 
