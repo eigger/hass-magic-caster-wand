@@ -85,8 +85,7 @@ class ButtonState:
 class IMUSample:
     """Represents a single IMU sensor sample with gyroscope and accelerometer data"""
 
-    def __init__(self, gyro_x: int, gyro_y: int, gyro_z: int,
-                 accel_x: int, accel_y: int, accel_z: int):
+    def __init__(self, gyro_x: int, gyro_y: int, gyro_z: int, accel_x: int, accel_y: int, accel_z: int):
         self.gyro_x = gyro_x
         self.gyro_y = gyro_y
         self.gyro_z = gyro_z
@@ -388,6 +387,29 @@ class McwClient:
         """Send keep-alive packet"""
         await self.write_command(struct.pack('B', CMD_ID_KEEP_ALIVE))
 
+    async def led_on(self, r: int, g: int, b: int) -> None:
+        """Set wand LED color
+
+        Args:
+            r: Red component (0-255)
+            g: Green component (0-255)
+            b: Blue component (0-255)
+
+        Based on Android: LightControlSetMessage (opcode 0x42 'B')
+        Format: [0x42] [?] [r] [g] [b]
+        """
+        _LOGGER.debug("Setting LED color to R=%d G=%d B=%d", r, g, b)
+        await self.write_command(struct.pack('BBBBB', CMD_ID_LIGHT_CONTROL_SET, 3, r, g, b))
+
+    async def led_off(self) -> None:
+        """Turn off wand LED
+
+        Based on Android: LightControlClearAllMessage (opcode 0x40 '@')
+        Format: [0x40]
+        """
+        _LOGGER.debug("Turning off LED")
+        await self.write_command(struct.pack('B', CMD_ID_LIGHT_CONTROL_CLEAR_ALL))
+
     async def reset_wand(self) -> None:
         """Reset wand to default configuration
 
@@ -517,13 +539,12 @@ class McwClient:
         for i in range(sample_count):
             try:
                 # Parse 6 shorts (little-endian) - 12 bytes total
-                # Android uses: bytes[start+1], bytes[start] order (swapped)
-                gyro_x = struct.unpack('<h', bytes([data[offset+1], data[offset]]))[0]
-                gyro_y = struct.unpack('<h', bytes([data[offset+3], data[offset+2]]))[0]
-                gyro_z = struct.unpack('<h', bytes([data[offset+5], data[offset+4]]))[0]
-                accel_x = struct.unpack('<h', bytes([data[offset+7], data[offset+6]]))[0]
-                accel_y = struct.unpack('<h', bytes([data[offset+9], data[offset+8]]))[0]
-                accel_z = struct.unpack('<h', bytes([data[offset+11], data[offset+10]]))[0]
+                gyro_x = struct.unpack_from('<h', data, offset)[0]
+                gyro_y = struct.unpack_from('<h', data, offset+2)[0]
+                gyro_z = struct.unpack_from('<h', data, offset+4)[0]
+                accel_x = struct.unpack_from('<h', data, offset+6)[0]
+                accel_y = struct.unpack_from('<h', data, offset+8)[0]
+                accel_z = struct.unpack_from('<h', data, offset+10)[0]
 
                 sample = IMUSample(gyro_x, gyro_y, gyro_z, accel_x, accel_y, accel_z)
                 samples.append(sample)
