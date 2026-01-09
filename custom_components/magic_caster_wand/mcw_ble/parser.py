@@ -43,12 +43,14 @@ class McwDevice:
         self._coordinator_spell = None
         self._coordinator_battery = None
         self._coordinator_buttons = None
+        self._coordinator_calibration = None
 
-    def register_coordinator(self, cn_spell, cn_battery, cn_buttons) -> None:
-        """Register coordinators for spell, battery, and button updates."""
+    def register_coordinator(self, cn_spell, cn_battery, cn_buttons, cn_calibration=None) -> None:
+        """Register coordinators for spell, battery, button, and calibration updates."""
         self._coordinator_spell = cn_spell
         self._coordinator_battery = cn_battery
         self._coordinator_buttons = cn_buttons
+        self._coordinator_calibration = cn_calibration
 
     def _callback_spell(self, data: str) -> None:
         """Handle spell detection callback."""
@@ -64,6 +66,11 @@ class McwDevice:
         """Handle button state update callback."""
         if self._coordinator_buttons:
             self._coordinator_buttons.async_set_updated_data(data)
+
+    def _callback_calibration(self, data: dict[str, bool]) -> None:
+        """Handle calibration state update callback."""
+        if self._coordinator_calibration:
+            self._coordinator_calibration.async_set_updated_data(data)
 
     def is_connected(self) -> bool:
         """Check if the device is currently connected."""
@@ -95,7 +102,7 @@ class McwDevice:
             if not self._data.identifier:
                 self._data.identifier = ble_device.address.replace(":", "")[-8:]
             self._mcw = McwClient(self.client)
-            self._mcw.register_callback(self._callback_spell, self._callback_battery, self._callback_buttons)
+            self._mcw.register_callback(self._callback_spell, self._callback_battery, self._callback_buttons, self._callback_calibration)
             await self._mcw.start_notify()
             if not self.model:
                 self.model = await self._mcw.get_wand_no()

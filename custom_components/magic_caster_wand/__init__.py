@@ -73,8 +73,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         name=f"{DOMAIN}_buttons_{identifier}",
     )
 
+    calibration_coordinator: DataUpdateCoordinator[dict[str, bool]] = DataUpdateCoordinator(
+        hass,
+        _LOGGER,
+        name=f"{DOMAIN}_calibration_{identifier}",
+    )
+
     # Register coordinators with device for BLE callbacks
-    mcw.register_coordinator(spell_coordinator, battery_coordinator, buttons_coordinator)
+    mcw.register_coordinator(spell_coordinator, battery_coordinator, buttons_coordinator, calibration_coordinator)
 
     # Perform first refresh
     await coordinator.async_config_entry_first_refresh()
@@ -87,6 +93,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "spell_coordinator": spell_coordinator,
         "battery_coordinator": battery_coordinator,
         "buttons_coordinator": buttons_coordinator,
+        "calibration_coordinator": calibration_coordinator,
     }
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

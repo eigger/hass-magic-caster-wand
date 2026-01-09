@@ -63,6 +63,7 @@ class McwClient:
         self.callback_spell: Callable[[str], None] | None = None
         self.callback_battery: Callable[[float], None] | None = None
         self.callback_buttons: Callable[[dict[str, bool]], None] | None = None
+        self.callback_calibration: Callable[[dict[str, bool]], None] | None = None
         self.wand_type: str | None = None
         self.serial_number: str | None = None
         self.sku: str | None = None
@@ -78,11 +79,12 @@ class McwClient:
         """Check if client is connected."""
         return self.client.is_connected
 
-    def register_callback(self, spell_cb: Callable, battery_cb: Callable, buttons_cb: Callable = None) -> None:
-        """Register callbacks for spell, battery, and button notifications."""
+    def register_callback(self, spell_cb: Callable, battery_cb: Callable, buttons_cb: Callable = None, calibration_cb: Callable = None) -> None:
+        """Register callbacks for spell, battery, button, and calibration notifications."""
         self.callback_spell = spell_cb
         self.callback_battery = battery_cb
         self.callback_buttons = buttons_cb
+        self.callback_calibration = calibration_cb
 
     @disconnect_on_missing_services
     async def start_notify(self) -> None:
@@ -121,7 +123,7 @@ class McwClient:
             self.command_data = bytes(data)
             self.event.set()
 
-        if not data or len(data) < 2:
+        if not data or len(data) < 1:
             return
 
         opcode = data[0]
@@ -129,6 +131,8 @@ class McwClient:
             self._parse_spell(data)
         elif opcode == 0x10:
             self._parse_buttons(data)
+        elif opcode == 0xFB or opcode == 0xFC:
+            self._parse_calibration(data)
 
     def _parse_spell(self, data: bytearray) -> None:
         """Parse spell data from notification."""
@@ -179,6 +183,30 @@ class McwClient:
 
         except Exception as err:
             _LOGGER.warning("Button parse error: %s", err)
+
+    def _parse_calibration(self, data: bytearray) -> None:
+        """Parse calibration response from notification.
+        
+        Format:
+            0xFB: Button calibration confirmed
+            0xFC: IMU calibration confirmed
+        """
+        try:
+            if len(data) < 1:
+                return
+
+            opcode = data[0]
+            if opcode == 0xFB:
+                _LOGGER.debug("Button calibration confirmed (FB response)")
+                if self.callback_calibration:
+                    self.callback_calibration({"button_calibrated": True, "imu_calibrated": False})
+            elif opcode == 0xFC:
+                _LOGGER.debug("IMU calibration confirmed (FC response)")
+                if self.callback_calibration:
+                    self.callback_calibration({"button_calibrated": False, "imu_calibrated": True})
+
+        except Exception as err:
+            _LOGGER.warning("Calibration parse error: %s", err)
 
     async def read(self, timeout: float = 5.0) -> bytes:
         """Read response data with timeout."""
@@ -231,9 +259,15 @@ class McwClient:
         await self.write_command(struct.pack("B", 0x01), False)
     
     async def calibration(self) -> None:
-        """Send calibration command."""
+        """Send calibration commands.
+        
+        Sends FE 55 AA to start calibration, then FB and FC commands.
+        Responses are parsed in _handler via _parse_calibration and 
+        trigger callbacks for button_calibrated and imu_calibrated sensors.
+        """
         await self.write_command(struct.pack("BBB", 0xFE, 0x55, 0xAA), False)
-        await self.write_command(struct.pack("B", 0xFC), False)
+        await self.write_command(struct.pack("B", 0xFB), True)
+        await self.write_command(struct.pack("B", 0xFC), True)
 
     async def get_wand_address(self) -> str:
         """Get wand BLE address."""
