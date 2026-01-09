@@ -28,13 +28,6 @@ BUTTONS = [
     {"key": "button_4", "name": "Button 4"},
 ]
 
-# Calibration sensor definitions
-CALIBRATION_SENSORS = [
-    {"key": "button_calibrated", "name": "Button Calibrated", "icon": "mdi:gesture-tap-button"},
-    {"key": "imu_calibrated", "name": "IMU Calibrated", "icon": "mdi:axis-arrow"},
-]
-
-
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,

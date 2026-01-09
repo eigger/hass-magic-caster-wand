@@ -25,6 +25,13 @@ from .mcw_ble import BLEData
 _LOGGER = logging.getLogger(__name__)
 
 
+# Calibration sensor definitions
+CALIBRATION_SENSORS = [
+    {"key": "calibration_button", "name": "Calibration Button", "icon": "mdi:gesture-tap-button"},
+    {"key": "calibration_imu", "name": "Calibration IMU", "icon": "mdi:axis-arrow"},
+]
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -34,13 +41,29 @@ async def async_setup_entry(
     data = hass.data[DOMAIN][entry.entry_id]
     spell_coordinator: DataUpdateCoordinator[str] = data["spell_coordinator"]
     battery_coordinator: DataUpdateCoordinator[float] = data["battery_coordinator"]
+    calibration_coordinator: DataUpdateCoordinator[dict[str, str]] = data["calibration_coordinator"]
     address = data["address"]
     mcw = data["mcw"]
 
-    async_add_entities([
+    entities = [
         McwSpellSensor(address, mcw, spell_coordinator),
         McwBatterySensor(address, mcw, battery_coordinator),
-    ])
+    ]
+
+    # Add calibration sensors
+    for sensor in CALIBRATION_SENSORS:
+        entities.append(
+            McwCalibrationSensor(
+                address=address,
+                mcw=mcw,
+                coordinator=calibration_coordinator,
+                sensor_key=sensor["key"],
+                sensor_name=sensor["name"],
+                sensor_icon=sensor["icon"],
+            )
+        )
+
+    async_add_entities(entities)
 
 
 class McwBaseSensor(SensorEntity):
@@ -137,4 +160,53 @@ class McwBatterySensor(
         if self.coordinator.data is not None:
             _LOGGER.debug("Battery level: %s%%", self.coordinator.data)
             self._battery = self.coordinator.data
+        self.async_write_ha_state()
+
+
+class McwCalibrationSensor(
+    CoordinatorEntity[DataUpdateCoordinator[dict[str, str]]],
+    McwBaseSensor,
+):
+    """Sensor entity for tracking calibration state."""
+
+    def __init__(
+        self,
+        address: str,
+        mcw,
+        coordinator: DataUpdateCoordinator[dict[str, str]],
+        sensor_key: str,
+        sensor_name: str,
+        sensor_icon: str,
+    ) -> None:
+        """Initialize the calibration sensor."""
+        CoordinatorEntity.__init__(self, coordinator)
+        McwBaseSensor.__init__(self, address, mcw)
+
+        self._sensor_key = sensor_key
+        self._sensor_icon = sensor_icon
+        self._attr_name = sensor_name
+        self._attr_unique_id = f"mcw_{self._identifier}_{sensor_key}"
+        self._state: str = "Pending"
+
+    @property
+    def icon(self) -> str:
+        """Return the icon."""
+        return self._sensor_icon
+
+    @property
+    def native_value(self) -> StateType:
+        """Return the calibration state."""
+        return self._state
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        if self.coordinator.data:
+            calibration_states = self.coordinator.data
+            # Only update state if this sensor's key is present in the data
+            if self._sensor_key in calibration_states:
+                self._state = calibration_states[self._sensor_key]
+                _LOGGER.debug(
+                    "Calibration %s state: %s", self._sensor_key, self._state
+                )
         self.async_write_ha_state()
