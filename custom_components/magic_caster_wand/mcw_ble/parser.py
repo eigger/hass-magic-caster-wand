@@ -165,10 +165,10 @@ class McwDevice:
         if self.is_connected() and self._mcw:
             await self._mcw.clear_leds()
 
-    async def send_calibration(self, packet: bytes) -> None:
+    async def send_calibration(self) -> None:
         """Send calibration packet."""
         if self.is_connected() and self._mcw:
-            await self._mcw.write_command(packet, response=False)
+            await self._mcw.calibration()
 
 
 class McwBluetoothDeviceData(BluetoothData):
