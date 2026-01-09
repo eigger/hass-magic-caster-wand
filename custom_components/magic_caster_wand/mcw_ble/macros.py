@@ -13,14 +13,25 @@ class LedGroup(IntEnum):
     MID_UPPER = 3
 
 # Macro packet IDs from APK
-MACRO_ID_CHANGE_LED = 0x42
-MACRO_ID_CLEAR_LEDS = 0x40
-MACRO_ID_DELAY = 0x44
-MACRO_ID_BUZZ = 0x46
-MACRO_ID_LOOP = 0x48
-MACRO_ID_SET_LOOPS = 0x4A
-MACRO_ID_WAIT_BUSY = 0x4C
-MACRO_ID_MACRO_CONTROL = 0x68
+class MACROIDS:
+    DELAY = 0x10
+    """MacroDelayMessage.kt"""
+    WAIT_BUSY = 0x11
+    """MacroWaitBusyMessage.kt"""
+    LIGHT_CONTROL_CLEAR_ALL = 0x20
+    """MacroLightControlClearAllMessage.kt"""
+    LIGHT_CONTROL_TRANSITION = 0x22
+    """MacroLightControlTransitionMessage.kt"""
+    HAP_BUZZ = 0x50
+    """MacroHapBuzzMessage.kt"""
+    FLUSH = 0x60
+    """MacroFlushMessage.kt"""
+    CONTROL = 0x68
+    """MacroControlMessage.kt"""
+    SET_LOOPS = 0x80
+    """MacroSetLoopsMessage.kt"""
+    SET_LOOP = 0x81
+    """MacroSetLoopMessage.kt"""
 
 @dataclass
 class ChangeLedCommand:
@@ -33,7 +44,7 @@ class ChangeLedCommand:
     
     def to_bytes(self) -> bytes:
         return bytes([
-            MACRO_ID_CHANGE_LED,
+            MACROIDS.LIGHT_CONTROL_TRANSITION,
             int(self.group),
             self.red & 0xFF,
             self.green & 0xFF,
@@ -44,7 +55,7 @@ class ChangeLedCommand:
 class ClearLedsCommand:
     """Clear all LEDs."""
     def to_bytes(self) -> bytes:
-        return bytes([MACRO_ID_CLEAR_LEDS])
+        return bytes([MACROIDS.LIGHT_CONTROL_CLEAR_ALL])
 
 @dataclass
 class DelayCommand:
@@ -52,7 +63,7 @@ class DelayCommand:
     duration_ms: int
     
     def to_bytes(self) -> bytes:
-        return bytes([MACRO_ID_DELAY]) + struct.pack('>H', self.duration_ms)
+        return bytes([MACROIDS.DELAY]) + struct.pack('>H', self.duration_ms)
 
 @dataclass
 class BuzzCommand:
@@ -60,13 +71,13 @@ class BuzzCommand:
     duration_ms: int
     
     def to_bytes(self) -> bytes:
-        return bytes([MACRO_ID_BUZZ]) + struct.pack('>H', self.duration_ms)
+        return bytes([MACROIDS.HAP_BUZZ]) + struct.pack('>H', self.duration_ms)
 
 @dataclass
 class LoopCommand:
     """Mark the start of a loop."""
     def to_bytes(self) -> bytes:
-        return bytes([MACRO_ID_LOOP])
+        return bytes([MACROIDS.SET_LOOP])
 
 @dataclass
 class SetLoopsCommand:
@@ -74,13 +85,13 @@ class SetLoopsCommand:
     loops: int
     
     def to_bytes(self) -> bytes:
-        return bytes([MACRO_ID_SET_LOOPS, self.loops & 0xFF])
+        return bytes([MACROIDS.SET_LOOPS, self.loops & 0xFF])
 
 @dataclass
 class WaitBusyCommand:
     """Wait for previous commands to complete."""
     def to_bytes(self) -> bytes:
-        return bytes([MACRO_ID_WAIT_BUSY])
+        return bytes([MACROIDS.WAIT_BUSY])
 
 MacroCommandType = Union[
     ChangeLedCommand, ClearLedsCommand, DelayCommand,
@@ -131,7 +142,7 @@ class Macro:
         data = bytearray()
         for cmd in self.commands:
             data.extend(cmd.to_bytes())
-        return bytes([MACRO_ID_MACRO_CONTROL]) + bytes(data)
+        return bytes([MACROIDS.CONTROL]) + bytes(data)
 
 class SpellMacros:
     """Pre-built macro templates for all spells."""

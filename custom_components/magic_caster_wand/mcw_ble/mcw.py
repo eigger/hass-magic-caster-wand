@@ -10,13 +10,77 @@ from asyncio import Event, sleep, wait_for
 from typing import Any, Callable, TypeVar
 
 from bleak import BleakClient, BleakError
-from bleak.backends.device import BLEDevice
-from bleak_retry_connector import establish_connection
 
 SERVICE_UUID = "57420001-587e-48a0-974c-544d6163c577"
 COMMAND_UUID = "57420002-587e-48a0-974c-544d6163c577"
 NOTIFY_UUID = "57420003-587e-48a0-974c-544d6163c577"
 BATTERY_UUID = "00002a19-0000-1000-8000-00805f9b34fb"
+
+# Message packet IDs from APK
+class MESSAGEIDS:
+    FIRMWARE_VERSION_READ = 0x00 
+    """FirmwareVersionReadMessage.kt"""
+    CHALLENGE = 0x01
+    """ChallengeMessage.kt"""
+    PAIR_WITH_ME = 0x03
+    """PairWithMeMessage.kt"""
+    BOX_ADDRESS_READ = 0x09
+    """BoxAddressReadMessage.kt"""
+    WAND_PRODUCT_INFORMATION_READ = 0x0E
+    """WandProductInfoReadMessage.kt"""
+    IMUFLAG_SET = 0x30
+    """IMUFlagMessage.kt"""
+    IMUFLAG_RESET = 0x31
+    """IMUFlagMessage.kt"""
+    LIGHT_CONTROL_CLEAR_ALL = 0x40
+    """LightControlClearAllMessage.kt"""
+    LIGHT_CONTROL_SET_LED = 0x42
+    """LightControlSetMessage.kt"""
+    BUTTON_SET_THRESHOLD = 0xDC
+    """ButtonSetThresholdMessage.kt"""
+    BUTTON_READ_THRESHOLD = 0xDD
+    """ButtonReadThresholdMessage.kt"""
+    BUTTON_CALIBRATION_BASELINE = 0xFB
+    """ButtonCalibrationBaselineMessage.kt"""
+    IMU_CALIBRATION = 0xFC
+    """IMUCalibrationMessage.kt"""
+    FACTORY_UNLOCK = 0xFE
+    """FactoryUnlockMessage.kt"""
+
+# Response packet IDs from APK
+class RESPONSEIDS:
+    FIRMWARE_VERSION = 0x00
+    """FirmwareVersionResponseMessage.kt"""
+    CHALLENGE = 0x01
+    """ChallengeResponseMessage.kt"""
+    PONG = 0x02
+    """PongResponseMessage.kt"""
+    BOX_ADDRESS = 0x09
+    """BoxAddressResponseMessage.kt"""
+    BUTTON_PAYLOAD = 0x10
+    """ButtonPayloadMessage.kt"""
+    WAND_PRODUCT_INFORMATION = 0x0E
+    """WandProductInfoResponseMessage.kt"""
+    SPELL_CAST = 0x24
+    """???"""
+    IMU_PAYLOAD = 0x2C
+    """IMUPayloadMessage.kt"""
+    BUTTON_READ_THRESHOLD = 0xDD
+    """ButtonReadThresholdResponseMessage.kt"""
+    BUTTON_CALIBRATION_BASELINE = 0xFB
+    """ButtonCalibrationBaselineResponseMessage.kt"""
+    IMU_CALIBRATION = 0xFC
+    """IMUCalibrationResponseMessage.kt"""
+
+MESSAGE_TO_RESPONSE_MAP: dict[int, int] = {
+    MESSAGEIDS.BOX_ADDRESS_READ: RESPONSEIDS.BOX_ADDRESS,
+    MESSAGEIDS.BUTTON_CALIBRATION_BASELINE: RESPONSEIDS.BUTTON_CALIBRATION_BASELINE,
+    MESSAGEIDS.BUTTON_READ_THRESHOLD: RESPONSEIDS.BUTTON_READ_THRESHOLD,
+    MESSAGEIDS.CHALLENGE: RESPONSEIDS.CHALLENGE,
+    MESSAGEIDS.FIRMWARE_VERSION_READ: RESPONSEIDS.FIRMWARE_VERSION,
+    MESSAGEIDS.IMU_CALIBRATION: RESPONSEIDS.IMU_CALIBRATION,
+    MESSAGEIDS.WAND_PRODUCT_INFORMATION_READ: RESPONSEIDS.WAND_PRODUCT_INFORMATION,
+}
 
 from .macros import Macro, LedGroup
 
@@ -64,15 +128,6 @@ class McwClient:
         self.callback_battery: Callable[[float], None] | None = None
         self.callback_buttons: Callable[[dict[str, bool]], None] | None = None
         self.callback_calibration: Callable[[dict[str, bool]], None] | None = None
-        self.wand_type: str | None = None
-        self.serial_number: str | None = None
-        self.sku: str | None = None
-        self.firmware: str | None = None
-        self.box_address: str | None = None
-        self.manufacturer_id: str | None = None
-        self.device_id: str | None = None
-        self.edition: str | None = None
-        self.companion_address: str | None = None
         self.lock = asyncio.Lock()
         
     def is_connected(self) -> bool:
@@ -127,11 +182,11 @@ class McwClient:
             return
 
         opcode = data[0]
-        if opcode == 0x24:
+        if opcode == RESPONSEIDS.SPELL_CAST:
             self._parse_spell(data)
-        elif opcode == 0x10:
+        elif opcode == RESPONSEIDS.BUTTON_PAYLOAD:
             self._parse_buttons(data)
-        elif opcode == 0xFB or opcode == 0xFC:
+        elif opcode == RESPONSEIDS.BUTTON_CALIBRATION_BASELINE or opcode == RESPONSEIDS.IMU_CALIBRATION:
             self._parse_calibration(data)
 
     def _parse_spell(self, data: bytearray) -> None:
@@ -242,21 +297,22 @@ class McwClient:
     async def init_wand(self) -> None:
         """Initialize the wand."""
         commands = [
-            struct.pack("BBB", 0xDC, 0x00, 0x05),
-            struct.pack("BBB", 0xDC, 0x01, 0x05),
-            struct.pack("BBB", 0xDC, 0x02, 0x05),
-            struct.pack("BBB", 0xDC, 0x03, 0x05),
-            struct.pack("BBB", 0xDC, 0x04, 0x08),
-            struct.pack("BBB", 0xDC, 0x05, 0x08),
-            struct.pack("BBB", 0xDC, 0x06, 0x08),
-            struct.pack("BBB", 0xDC, 0x07, 0x08),
+            struct.pack("BBB", MESSAGEIDS.BUTTON_SET_THRESHOLD, 0x00, 0x05),
+            struct.pack("BBB", MESSAGEIDS.BUTTON_SET_THRESHOLD, 0x01, 0x05),
+            struct.pack("BBB", MESSAGEIDS.BUTTON_SET_THRESHOLD, 0x02, 0x05),
+            struct.pack("BBB", MESSAGEIDS.BUTTON_SET_THRESHOLD, 0x03, 0x05),
+            struct.pack("BBB", MESSAGEIDS.BUTTON_SET_THRESHOLD, 0x04, 0x08),
+            struct.pack("BBB", MESSAGEIDS.BUTTON_SET_THRESHOLD, 0x05, 0x08),
+            struct.pack("BBB", MESSAGEIDS.BUTTON_SET_THRESHOLD, 0x06, 0x08),
+            struct.pack("BBB", MESSAGEIDS.BUTTON_SET_THRESHOLD, 0x07, 0x08),
         ]
         for cmd in commands:
             await self.write_command(cmd, False)
 
     async def keep_alive(self) -> None:
         """Send keep-alive command."""
-        await self.write_command(struct.pack("B", 0x01), False)
+        # TODO: This returns a response that specifies the session mode (guest vs paired)
+        await self.write_command(struct.pack("B", MESSAGEIDS.CHALLENGE), False)
     
     async def calibration(self) -> None:
         """Send calibration commands.
@@ -265,26 +321,17 @@ class McwClient:
         Responses are parsed in _handler via _parse_calibration and 
         trigger callbacks for button_calibrated and imu_calibrated sensors.
         """
-        await self.write_command(struct.pack("BBB", 0xFE, 0x55, 0xAA), False)
+        await self.write_command(struct.pack("BBB", MESSAGEIDS.FACTORY_UNLOCK, 0x55, 0xAA), False)
         await sleep(0.5)
-        await self.write_command(struct.pack("B", 0xFC), False)
+        await self.write_command(struct.pack("B", MESSAGEIDS.IMU_CALIBRATION), False)
         await sleep(1.5)
-        await self.write_command(struct.pack("BBB", 0xFE, 0x55, 0xAA), False)
+        await self.write_command(struct.pack("BBB", MESSAGEIDS.FACTORY_UNLOCK, 0x55, 0xAA), False)
         await sleep(0.5)
-        await self.write_command(struct.pack("B", 0xFB), False)
-
-    async def get_wand_address(self) -> str:
-        """Get wand BLE address."""
-        data = await self.write_command(struct.pack("B", 0x08), True)
-        if len(data) < 7:
-            return ""
-        mac_le = data[1:7]
-        mac_be = mac_le[::-1]
-        return ":".join(f"{b:02X}" for b in mac_be)
+        await self.write_command(struct.pack("B", MESSAGEIDS.BUTTON_CALIBRATION_BASELINE), False)
 
     async def get_box_address(self) -> str:
         """Get box BLE address."""
-        data = await self.write_command(struct.pack("B", 0x09), True)
+        data = await self.write_command(struct.pack("B", MESSAGEIDS.BOX_ADDRESS_READ), True)
         if len(data) < 7:
             return ""
         mac_le = data[1:7]
@@ -293,7 +340,7 @@ class McwClient:
 
     async def get_wand_no(self) -> str:
         """Get wand model number."""
-        data = await self.write_command(struct.pack("BB", 0x0E, 0x04), True)
+        data = await self.write_command(struct.pack("BB", MESSAGEIDS.WAND_PRODUCT_INFORMATION_READ, 0x04), True)
         if len(data) < 3:
             return ""
         return data[2:].decode("ascii", errors="ignore")
