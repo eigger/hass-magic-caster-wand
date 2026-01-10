@@ -68,29 +68,12 @@ class MotionVisualizer:
     def __init__(self, loop):
         self.loop = loop
         self.mcw = None  # Will be set by wand_connection
-        self.root = tk.Tk()
-        self.root.title("Wand Motion Tracker")
-        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
-
-        # Canvas
-        self.canvas = tk.Canvas(self.root, width=CANVAS_WIDTH, height=CANVAS_HEIGHT, bg='black')
-        self.canvas.pack()
-
-        # Status label
-        self.status_label = tk.Label(self.root, text="Hold all buttons to start",
-                                     font=('Arial', 14), fg='white', bg='black')
-        self.status_label.place(x=10, y=10)
-
-        # Button indicators frame
-        self.button_frame = tk.Frame(self.root, bg='black')
-        self.button_frame.place(x=10, y=50)
-
-        self.button_labels = []
-        for i in range(4):
-            label = tk.Label(self.button_frame, text=f"Pad {i+1}",
-                           font=('Arial', 12), fg='gray', bg='black')
-            label.pack(anchor='w')
-            self.button_labels.append(label)
+        self.root = None
+        self.canvas = None
+        self.status_label = None
+        self.button_frame = None
+        self.button_labels: list[tk.Label] = []
+        self.ui_ready = False
 
         # AHRS-based spell renderer
         self.spell_renderer = SpellRenderer(
@@ -115,6 +98,37 @@ class MotionVisualizer:
 
         # Running flag
         self.running = True
+
+    def start_ui(self):
+        """Create the Tk window only after the wand connects"""
+        if self.ui_ready:
+            return
+
+        self.root = tk.Tk()
+        self.root.title("Wand Motion Tracker")
+        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+
+        # Canvas
+        self.canvas = tk.Canvas(self.root, width=CANVAS_WIDTH, height=CANVAS_HEIGHT, bg='black')
+        self.canvas.pack()
+
+        # Status label
+        self.status_label = tk.Label(self.root, text="Hold all buttons to start",
+                                     font=('Arial', 14), fg='white', bg='black')
+        self.status_label.place(x=10, y=10)
+
+        # Button indicators frame
+        self.button_frame = tk.Frame(self.root, bg='black')
+        self.button_frame.place(x=10, y=50)
+
+        self.button_labels = []
+        for i in range(4):
+            label = tk.Label(self.button_frame, text=f"Pad {i+1}",
+                             font=('Arial', 12), fg='gray', bg='black')
+            label.pack(anchor='w')
+            self.button_labels.append(label)
+
+        self.ui_ready = True
 
     def handle_button_callback(self, button_data):
         """Handle button state updates"""
@@ -141,31 +155,29 @@ class MotionVisualizer:
         if not self.motion_mode or not imu_data:
             return
 
-        # Process the most recent IMU sample (processing all can cause lag)
-        sample = imu_data[-1]
+        for sample in imu_data:
+            # Extract IMU data from sample
+            accel_x = sample['accel_x']
+            accel_y = sample['accel_y']
+            accel_z = sample['accel_z']
+            gyro_x = sample['gyro_x']
+            gyro_y = sample['gyro_y']
+            gyro_z = sample['gyro_z']
 
-        # Extract IMU data from sample
-        accel_x = sample['accel_x']
-        accel_y = sample['accel_y']
-        accel_z = sample['accel_z']
-        gyro_x = sample['gyro_x']
-        gyro_y = sample['gyro_y']
-        gyro_z = sample['gyro_z']
+            if DEBUG_IMU:
+                print(f"Accel: X={accel_x:.3f}, Y={accel_y:.3f}, Z={accel_z:.3f}")
+                print(f"Gyro: X={gyro_x:.3f}, Y={gyro_y:.3f}, Z={gyro_z:.3f}")
 
-        if DEBUG_IMU:
-            print(f"Accel: X={accel_x:.3f}, Y={accel_y:.3f}, Z={accel_z:.3f}")
-            print(f"Gyro: X={gyro_x:.3f}, Y={gyro_y:.3f}, Z={gyro_z:.3f}")
-
-        # Update AHRS filter and get screen position
-        # dt = 1/100 = 0.01 seconds (assuming 100Hz sample rate)
-        point = self.spell_renderer.update_imu(
-            accel_x=accel_y,
-            accel_y=-accel_x,
-            accel_z=accel_z,
-            gyro_x=gyro_y,
-            gyro_y=-gyro_x,
-            gyro_z=gyro_z
-        )
+            # Update AHRS filter and get screen position
+            # dt = 1/100 = 0.01 seconds (assuming 100Hz sample rate)
+            point = self.spell_renderer.update_imu(
+                accel_x=accel_y,
+                accel_y=-accel_x,
+                accel_z=accel_z,
+                gyro_x=gyro_y,
+                gyro_y=-gyro_x,
+                gyro_z=gyro_z
+            )
 
         if point is not None:
             screen_x, screen_y = point
@@ -209,8 +221,7 @@ class MotionVisualizer:
         print("Motion mode: INACTIVE")
 
         # End spell rendering and get the complete path
-        path = self.spell_renderer.end_spell()
-        print(f"Spell complete: {len(path)} points captured")
+        self.spell_renderer.end_spell()
 
         # Turn off LEDs
         if self.mcw:
@@ -218,12 +229,16 @@ class MotionVisualizer:
 
     def clear_canvas(self):
         """Clear all trail lines from canvas"""
+        if not self.ui_ready:
+            return
         for line_id in self.trail_line_ids:
             self.canvas.delete(line_id)
         self.trail_line_ids.clear()
 
     def render(self):
         """Render the visualization"""
+        if not self.ui_ready:
+            return
         # Draw trail if in motion mode
         if self.motion_mode and len(self.trail) > 1:
             # Only draw the latest segment
@@ -248,19 +263,21 @@ class MotionVisualizer:
     def on_close(self):
         """Handle window close event"""
         self.running = False
-        self.root.quit()
+        if self.root:
+            self.root.quit()
 
     def update(self):
         """Update GUI (called periodically)"""
-        if self.running:
+        if self.running and self.ui_ready:
             self.render()
             self.root.update()
 
     def cleanup(self):
         """Cleanup tkinter resources"""
         try:
-            self.root.destroy()
-        except:
+            if self.root:
+                self.root.destroy()
+        except Exception:
             pass
 
 
@@ -281,6 +298,7 @@ async def wand_connection(visualizer):
             return
 
         print("Connected! Creating MCW client...")
+        visualizer.start_ui()
         mcw = McwClient(client)
         visualizer.mcw = mcw  # Pass mcw to visualizer for LED control
 
