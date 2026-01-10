@@ -13,27 +13,23 @@ TUNING:
 """
 
 import asyncio
+from dataclasses import dataclass, field
 import logging
+import math
+import struct
+from spell_tracker import Point, SpellTracker
+from typing import List, Sequence, Tuple
 from bleak import BleakClient
 from mcw import McwClient
 import tkinter as tk
 from collections import deque
-import numpy as np
-from ahrs.filters import Madgwick
 
 # Configuration
 MAC_ADDRESS = "F4:27:7E:29:39:D2"
 CANVAS_WIDTH = 800
 CANVAS_HEIGHT = 600
-TRAIL_LENGTH = 200  # Number of points to keep in trail
-MOTION_SENSITIVITY = 5.0  # Scale factor for motion (using gyro now)
-SMOOTHING = 0.85  # Smoothing factor (0-1, higher = more smoothing)
-DEBUG_IMU = False  # Set to True to see IMU values
-
-# AHRS Configuration
-AHRS_SAMPLE_RATE = 100.0  # Hz - IMU sample rate
-TRACE_SCALE = 50.0  # Scale factor for spell rendering (increase for bigger gestures)
-
+TRAIL_LENGTH = 1000  # Number of points to keep in trail
+DEBUG_IMU = True  # Set to True to see IMU values
 
 class SpellRenderer:
     """
@@ -42,130 +38,31 @@ class SpellRenderer:
     Axis mapping: X = -roll (left/right tilt), Y = -yaw (rotate wand tip)
     """
 
-    def __init__(self, canvas_width=800, canvas_height=600, trace_scale=TRACE_SCALE):
+    def __init__(self, canvas_width=800, canvas_height=600):
         self.canvas_width = canvas_width
         self.canvas_height = canvas_height
-        self.trace_scale = trace_scale
 
         # Center point where spell starts
         self.start_x = canvas_width / 2
         self.start_y = canvas_height / 2
 
-        # AHRS filter (Madgwick)
-        self.ahrs = Madgwick(frequency=AHRS_SAMPLE_RATE)
+        self.tracker: SpellTracker | None = None
 
-        # Current orientation quaternion [w, x, y, z]
-        self.quaternion = np.array([1.0, 0.0, 0.0, 0.0])
-
-        # Reference orientation (captured at spell start)
-        self.reference_quaternion = None
-        self.reference_yaw = 0.0
-        self.reference_roll = 0.0
-
-        # Path tracking
-        self.path = []
-        self.is_active = False
-
-    def start_spell(self):
+    def start_spell(self) -> None:
         """Start a new spell gesture"""
-        self.path = []
-        self.is_active = True
-        # Reset AHRS filter
-        self.ahrs = Madgwick(frequency=AHRS_SAMPLE_RATE)
-        self.quaternion = np.array([1.0, 0.0, 0.0, 0.0])
-        # Reset reference - will be set on first update
-        self.reference_quaternion = None
-        self.reference_yaw = 0.0
-        self.reference_roll = 0.0
+        self.tracker = SpellTracker()
 
-    def end_spell(self):
-        """End the current spell gesture and return the path"""
-        self.is_active = False
-        return self.path.copy()
+    def end_spell(self) -> None:
+        """End the current spell gesture"""
+        self.tracker = None
 
-    def update_imu(self, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z, dt=0.01):
-        """
-        Process IMU sample and return screen coordinates
-
-        Args:
-            accel_x, accel_y, accel_z: Accelerometer readings (m/s^2)
-            gyro_x, gyro_y, gyro_z: Gyroscope readings (rad/s)
-            dt: Time delta since last sample (seconds)
-
-        Returns:
-            Tuple of (screen_x, screen_y) coordinates, or None if not active
-        """
-        if not self.is_active:
+    def update_imu(self, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z):
+        if self.tracker is None:
             return None
 
-        # Create numpy arrays for AHRS processing
-        accel = np.array([accel_x, accel_y, accel_z])
-        gyro = np.array([gyro_x, gyro_y, gyro_z])
+        point: Point = self.tracker.update(accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)
 
-        # Update AHRS filter with IMU data
-        # This produces a quaternion representing the current orientation
-        self.quaternion = self.ahrs.updateIMU(self.quaternion, gyr=gyro, acc=accel)
-
-        # Extract yaw and roll from current orientation
-        yaw, roll = self._quaternion_to_yaw_roll(self.quaternion)
-
-        # On first update, capture reference orientation
-        if self.reference_quaternion is None:
-            self.reference_quaternion = self.quaternion.copy()
-            self.reference_yaw = yaw
-            self.reference_roll = roll
-            # Start at center
-            screen_x = self.start_x
-            screen_y = self.start_y
-        else:
-            # Calculate relative position
-            # X axis: -roll (negative roll delta = left/right tilt)
-            # Y axis: -yaw (negative yaw delta = rotate wand tip)
-            delta_roll = roll - self.reference_roll
-            delta_yaw = yaw - self.reference_yaw
-
-            pos_x = -delta_roll
-            pos_y = -delta_yaw
-
-            # Scale with multiplier (100.0 from reference implementation)
-            pos_x *= 100.0 * self.trace_scale
-            pos_y *= 100.0 * self.trace_scale
-
-            # Convert to screen coordinates
-            screen_x = self.start_x + pos_x
-            screen_y = self.start_y + pos_y
-
-        # Add to path
-        point = (screen_x, screen_y)
-        self.path.append(point)
-
-        return point
-
-    def _quaternion_to_yaw_roll(self, q):
-        """
-        Convert quaternion to yaw and roll Euler angles.
-
-        Args:
-            q: Quaternion array [w, x, y, z]
-
-        Returns:
-            Tuple of (yaw, roll) in radians
-        """
-        # Extract quaternion components
-        w, x, y, z = q
-
-        # Yaw (rotation around Z axis) - rotate wand tip left/right
-        sin_yaw = 2.0 * (w * z + x * y)
-        cos_yaw = 1.0 - 2.0 * (y * y + z * z)
-        yaw = np.arctan2(sin_yaw, cos_yaw)
-
-        # Roll (rotation around X axis) - tilt wand left/right
-        sin_roll = 2.0 * (w * x + y * z)
-        cos_roll = 1.0 - 2.0 * (x * x + y * y)
-        roll = np.arctan2(sin_roll, cos_roll)
-
-        return yaw, roll
-
+        return [point.x + self.start_x, point.y + self.start_y]
 
 class MotionVisualizer:
     def __init__(self, loop):
@@ -199,7 +96,6 @@ class MotionVisualizer:
         self.spell_renderer = SpellRenderer(
             canvas_width=CANVAS_WIDTH,
             canvas_height=CANVAS_HEIGHT,
-            trace_scale=TRACE_SCALE
         )
 
         # Motion tracking
@@ -263,13 +159,12 @@ class MotionVisualizer:
         # Update AHRS filter and get screen position
         # dt = 1/100 = 0.01 seconds (assuming 100Hz sample rate)
         point = self.spell_renderer.update_imu(
-            accel_x=accel_x,
-            accel_y=accel_y,
+            accel_x=accel_y,
+            accel_y=-accel_x,
             accel_z=accel_z,
-            gyro_x=gyro_x,
-            gyro_y=gyro_y,
-            gyro_z=gyro_z,
-            dt=1.0 / AHRS_SAMPLE_RATE
+            gyro_x=gyro_y,
+            gyro_y=-gyro_x,
+            gyro_z=gyro_z
         )
 
         if point is not None:

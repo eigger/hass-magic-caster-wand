@@ -97,7 +97,7 @@ class IMUSample:
     def get_scaled_accel(self) -> tuple[float, float, float]:
         """Returns accelerometer data scaled to G-forces"""
         return (
-            -self.accel_x * ACCELEROMETER_SCALE,
+            self.accel_x * ACCELEROMETER_SCALE,
             self.accel_y * ACCELEROMETER_SCALE,
             self.accel_z * ACCELEROMETER_SCALE
         )
@@ -105,7 +105,7 @@ class IMUSample:
     def get_scaled_gyro(self) -> tuple[float, float, float]:
         """Returns gyroscope data scaled to rad/s"""
         return (
-            -self.gyro_x * GYROSCOPE_SCALE,
+            self.gyro_x * GYROSCOPE_SCALE,
             self.gyro_y * GYROSCOPE_SCALE,
             self.gyro_z * GYROSCOPE_SCALE
         )
