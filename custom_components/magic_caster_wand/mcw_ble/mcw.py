@@ -75,7 +75,6 @@ class RESPONSEIDS:
 MESSAGE_TO_RESPONSE_MAP: dict[int, int] = {
     MESSAGEIDS.BOX_ADDRESS_READ: RESPONSEIDS.BOX_ADDRESS,
     MESSAGEIDS.BUTTON_CALIBRATION_BASELINE: RESPONSEIDS.BUTTON_CALIBRATION_BASELINE,
-    MESSAGEIDS.BUTTON_READ_THRESHOLD: RESPONSEIDS.BUTTON_READ_THRESHOLD,
     MESSAGEIDS.CHALLENGE: RESPONSEIDS.CHALLENGE,
     MESSAGEIDS.FIRMWARE_VERSION_READ: RESPONSEIDS.FIRMWARE_VERSION,
     MESSAGEIDS.IMU_CALIBRATION: RESPONSEIDS.IMU_CALIBRATION,
@@ -86,17 +85,13 @@ from .macros import Macro, LedGroup
 
 _LOGGER = logging.getLogger(__name__)
 
-
 class BleakCharacteristicMissing(BleakError):
     """Raised when a characteristic is missing."""
-
 
 class BleakServiceMissing(BleakError):
     """Raised when a service is missing."""
 
-
 WrapFuncType = TypeVar("WrapFuncType", bound=Callable[..., Any])
-
 
 def disconnect_on_missing_services(func: WrapFuncType) -> WrapFuncType:
     """Decorator to handle missing services by disconnecting."""
@@ -122,19 +117,27 @@ class McwClient:
     def __init__(self, client: BleakClient) -> None:
         """Initialize the client."""
         self.client = client
-        self.event: Event = Event()
-        self.command_data: bytes | None = None
         self.callback_spell: Callable[[str], None] | None = None
         self.callback_battery: Callable[[float], None] | None = None
         self.callback_buttons: Callable[[dict[str, bool]], None] | None = None
         self.callback_calibration: Callable[[dict[str, bool]], None] | None = None
         self.lock = asyncio.Lock()
+
+        self._box_address: str | None = None
+        self._waiting_cmd_event: Event = Event()
+        self._waiting_for_msg_id: int | None = None
+        self._wand_challenge: int | None = None
+        self._wand_device_id: str | None = None
+        self._wand_firmware_version: str | None = None
+        self._wand_serial_number: str | None = None
+        self._wand_sku: str | None = None
+        self._wand_type: str | None = None
         
     def is_connected(self) -> bool:
         """Check if client is connected."""
         return self.client.is_connected
 
-    def register_callback(self, spell_cb: Callable, battery_cb: Callable, buttons_cb: Callable = None, calibration_cb: Callable = None) -> None:
+    def register_callback(self, spell_cb: Callable, battery_cb: Callable, buttons_cb: Callable, calibration_cb: Callable) -> None:
         """Register callbacks for spell, battery, button, and calibration notifications."""
         self.callback_spell = spell_cb
         self.callback_battery = battery_cb
@@ -174,20 +177,45 @@ class McwClient:
         """Handle notification data."""
         _LOGGER.debug("Received: %s", data.hex())
 
-        if self.command_data is None:
-            self.command_data = bytes(data)
-            self.event.set()
-
         if not data or len(data) < 1:
             return
 
         opcode = data[0]
-        if opcode == RESPONSEIDS.SPELL_CAST:
-            self._parse_spell(data)
-        elif opcode == RESPONSEIDS.BUTTON_PAYLOAD:
-            self._parse_buttons(data)
-        elif opcode == RESPONSEIDS.BUTTON_CALIBRATION_BASELINE or opcode == RESPONSEIDS.IMU_CALIBRATION:
-            self._parse_calibration(data)
+
+        try:
+            if opcode == RESPONSEIDS.FIRMWARE_VERSION:
+                self._parse_firmware_version(data)
+
+            elif opcode == RESPONSEIDS.CHALLENGE:
+                self._parse_challenge(data)
+
+            elif opcode == RESPONSEIDS.BOX_ADDRESS:
+                self._parse_box_address(data)
+
+            elif opcode == RESPONSEIDS.WAND_PRODUCT_INFORMATION:
+                self._parse_wand_information(data)
+
+            elif opcode == RESPONSEIDS.BUTTON_PAYLOAD:
+                self._parse_buttons(data)
+
+            elif opcode == RESPONSEIDS.SPELL_CAST:
+                self._parse_spell(data)
+
+            elif opcode == RESPONSEIDS.BUTTON_CALIBRATION_BASELINE or opcode == RESPONSEIDS.IMU_CALIBRATION:
+                self._parse_calibration(data)
+
+            else:
+                _LOGGER.debug("Unknown opcode: 0x%02X, length=%d", opcode, len(data))
+
+        except Exception as e:
+            _LOGGER.error("Error in message handler for opcode 0x%02X: %s", opcode, e)
+            _LOGGER.debug("Stack trace:", exc_info=True)
+
+        # Signal waiting command if this message matches expected response
+        if self._waiting_for_msg_id is not None and opcode == self._waiting_for_msg_id:
+            _LOGGER.debug("Received expected response 0x%02X, signaling caller", opcode)
+            self._waiting_cmd_event.set()
+            self._waiting_for_msg_id = None
 
     def _parse_spell(self, data: bytearray) -> None:
         """Parse spell data from notification."""
@@ -263,26 +291,36 @@ class McwClient:
         except Exception as err:
             _LOGGER.warning("Calibration parse error: %s", err)
 
-    async def read(self, timeout: float = 5.0) -> bytes:
-        """Read response data with timeout."""
-        await wait_for(self.event.wait(), timeout)
-        return self.command_data or b""
-
-    async def write_command(self, packet: bytes, response: bool = True) -> bytes:
+    async def write_command(self, packet: bytes, timeout: float = 5.0) -> None:
         """Write command and optionally wait for response."""
         async with self.lock:
             max_retries = 3
 
+            # Extract command ID from packet (first byte)
+            cmd_id = packet[0] if len(packet) > 0 else None
+            if cmd_id is None:
+                raise ValueError("Empty packet")
+
+            # Check if this command expects a response
+            expected_msg_id: int | None = MESSAGE_TO_RESPONSE_MAP.get(cmd_id)
+            expects_response: bool = expected_msg_id is not None
+
             for attempt in range(1, max_retries + 1):
                 try:
-                    if response:
-                        self.command_data = None
-                        self.event.clear()
-                        await self.write(COMMAND_UUID, packet, False)
-                        return await self.read()
+                    if expects_response:
+                        _LOGGER.debug("Sending command 0x%02X, expecting response 0x%02X", cmd_id, expected_msg_id)
+                        self._waiting_cmd_event.clear()
+                        self._waiting_for_msg_id = expected_msg_id
                     else:
-                        await self.write(COMMAND_UUID, packet, False)
-                        return b""
+                        _LOGGER.debug("Sending command 0x%02X (no response expected)", cmd_id)
+
+                    await self.write(COMMAND_UUID, packet, False)
+
+                    if expects_response:
+                        await wait_for(self._waiting_cmd_event.wait(), timeout)
+                        _LOGGER.debug("Command 0x%02X completed successfully", cmd_id)
+                    
+                    return
                 except Exception as err:
                     if attempt < max_retries:
                         _LOGGER.warning(
@@ -291,8 +329,6 @@ class McwClient:
                         await sleep(0.5)
                     else:
                         raise
-
-            return b""
 
     async def init_wand(self) -> None:
         """Initialize the wand."""
@@ -307,12 +343,12 @@ class McwClient:
             struct.pack("BBB", MESSAGEIDS.BUTTON_SET_THRESHOLD, 0x07, 0x08),
         ]
         for cmd in commands:
-            await self.write_command(cmd, False)
+            await self.write_command(cmd)
 
-    async def keep_alive(self) -> None:
-        """Send keep-alive command."""
-        # TODO: This returns a response that specifies the session mode (guest vs paired)
-        await self.write_command(struct.pack("B", MESSAGEIDS.CHALLENGE), False)
+    async def challenge(self) -> int:
+        """Send challenge command."""
+        await self.write_command(struct.pack("B", MESSAGEIDS.CHALLENGE))
+        return self._wand_challenge or 0
     
     async def calibration(self) -> None:
         """Send calibration commands.
@@ -321,33 +357,53 @@ class McwClient:
         Responses are parsed in _handler via _parse_calibration and 
         trigger callbacks for button_calibrated and imu_calibrated sensors.
         """
-        await self.write_command(struct.pack("BBB", MESSAGEIDS.FACTORY_UNLOCK, 0x55, 0xAA), False)
+        await self.write_command(struct.pack("BBB", MESSAGEIDS.FACTORY_UNLOCK, 0x55, 0xAA))
         await sleep(0.5)
-        await self.write_command(struct.pack("B", MESSAGEIDS.IMU_CALIBRATION), False)
+        await self.write_command(struct.pack("B", MESSAGEIDS.IMU_CALIBRATION))
         await sleep(1.5)
-        await self.write_command(struct.pack("BBB", MESSAGEIDS.FACTORY_UNLOCK, 0x55, 0xAA), False)
+        await self.write_command(struct.pack("BBB", MESSAGEIDS.FACTORY_UNLOCK, 0x55, 0xAA))
         await sleep(0.5)
-        await self.write_command(struct.pack("B", MESSAGEIDS.BUTTON_CALIBRATION_BASELINE), False)
+        await self.write_command(struct.pack("B", MESSAGEIDS.BUTTON_CALIBRATION_BASELINE))
 
     async def get_box_address(self) -> str:
         """Get box BLE address."""
-        data = await self.write_command(struct.pack("B", MESSAGEIDS.BOX_ADDRESS_READ), True)
-        if len(data) < 7:
-            return ""
-        mac_le = data[1:7]
-        mac_be = mac_le[::-1]
-        return ":".join(f"{b:02X}" for b in mac_be)
+        if self._box_address is None:
+            await self.write_command(struct.pack("B", MESSAGEIDS.BOX_ADDRESS_READ))
+        return self._box_address or ""
 
-    async def get_wand_no(self) -> str:
-        """Get wand model number."""
-        data = await self.write_command(struct.pack("BB", MESSAGEIDS.WAND_PRODUCT_INFORMATION_READ, 0x04), True)
-        if len(data) < 3:
-            return ""
-        return data[2:].decode("ascii", errors="ignore")
+    async def get_wand_device_id(self) -> str:
+        """Get wand device ID."""
+        if self._wand_device_id is None:
+            await self.write_command(struct.pack("BB", MESSAGEIDS.WAND_PRODUCT_INFORMATION_READ, 0x04))
+        return self._wand_device_id or ""
+
+    async def get_wand_firmware_version(self) -> str:
+        """Get wand firmware version."""
+        if self._wand_firmware_version is None:
+            await self.write_command(struct.pack("B", MESSAGEIDS.FIRMWARE_VERSION_READ))
+        return self._wand_firmware_version or ""
+
+    async def get_wand_serial_number(self) -> str:
+        """Get wand serial number."""
+        if self._wand_serial_number is None:
+            await self.write_command(struct.pack("BB", MESSAGEIDS.WAND_PRODUCT_INFORMATION_READ, 0x01))
+        return self._wand_serial_number or ""
+    
+    async def get_wand_sku(self) -> str:
+        """Get wand SKU."""
+        if self._wand_sku is None:
+            await self.write_command(struct.pack("BB", MESSAGEIDS.WAND_PRODUCT_INFORMATION_READ, 0x02))
+        return self._wand_sku or ""
+
+    async def get_wand_type(self) -> str:
+        """Get wand type from the device ID."""
+        if self._wand_type is None:
+            self._wand_type = self._wand_device_id_to_type(await self.get_wand_device_id())
+        return self._wand_type or ""
 
     async def send_macro(self, macro: Macro) -> None:
         """Send a macro sequence to the wand."""
-        await self.write_command(macro.to_bytes(), False)
+        await self.write_command(macro.to_bytes())
 
     async def set_led(self, group: LedGroup, red: int, green: int, blue: int, duration_ms: int = 0) -> None:
         """Set LED color on a specific group."""
@@ -363,3 +419,94 @@ class McwClient:
         """Vibrate the wand."""
         macro = Macro().add_buzz(duration_ms)
         await self.send_macro(macro)
+
+    def _parse_box_address(self, data: bytearray) -> None:
+        """Parse box address (ID 0x09)"""
+        if len(data) < 7:
+            return
+        try:
+            mac_le = data[1:7]
+            mac_be = mac_le[::-1]
+            self._box_address = ":".join(f"{b:02X}" for b in mac_be)
+            _LOGGER.debug("Box address: %s", self._box_address)
+        except Exception as e:
+            _LOGGER.error("Error parsing box address: %s", e)
+
+    def _parse_challenge(self, data: bytearray) -> None:
+        """Parse challenge response (ID 0x01)"""
+        if len(data) == 3:
+            self._wand_challenge = struct.unpack('<H', data[1:3])[0]
+
+    def _parse_firmware_version(self, data: bytearray) -> None:
+        """Parse firmware version message (ID 0x00)
+
+        Response format: [0x00] [version_bytes...]
+        """
+        if len(data) < 2:
+            return
+        try:
+            # Skip first byte (opcode)
+            version_bytes = data[1:]
+
+            # Convert bytes to dotted version string (decimal values)
+            # e.g., [0, 3] -> "0.3", [1, 2, 3] -> "1.2.3"
+            version = ".".join(str(b) for b in version_bytes)
+
+            _LOGGER.debug("Firmware version: %s", version)
+            self._wand_firmware_version = version
+        except Exception as e:
+            _LOGGER.error("Error parsing firmware version: %s", e)
+
+    def _parse_wand_information(self, data: bytearray) -> None:
+        """Parse wand information message (ID 0x0E)"""
+        if len(data) < 3:
+            return
+        try:
+            info_type = data[1]
+
+            if info_type == 0x01:
+                if len(data) >= 6:
+                    serial = struct.unpack('<I', data[2:6])[0]
+                    self._wand_serial_number = str(serial)
+                    _LOGGER.debug("Wand serial number: %s", self._wand_serial_number)
+            elif info_type == 0x02:
+                self._wand_sku = data[2:].decode('ascii', errors='ignore').strip('\x00')
+                _LOGGER.debug("Wand SKU: %s", self._wand_sku)
+            elif info_type == 0x04:
+                self._wand_device_id = data[2:].decode('ascii', errors='ignore').strip('\x00')
+                _LOGGER.debug("Wand device id: %s", self._wand_device_id)
+        except Exception as e:
+            _LOGGER.error("Error parsing wand information: %s", e)
+
+    def _wand_device_id_to_type(self, device_id: str) -> str:
+        """Extract wand type from device ID string
+
+        Device ID format: [prefix][type_suffix][variant_char]
+        Example: "WBMC22G1SHNW" -> "HN" -> "HONOURABLE"
+
+        Based on Android WandDeviceInfoFactory.kt
+
+        Args:
+            device_id: Device ID string from product info (e.g., "WBMC22G1SHNW")
+
+        Returns:
+            Wand type string (e.g., "HONOURABLE", "HEROIC", etc.)
+        """
+        if len(device_id) < 3:
+            return "UNKNOWN"
+
+        # Extract type suffix: drop last char, take last 2
+        # Example: "WBMC22G1SHNW" -> "WBMC22G1SHN" -> "HN"
+        type_suffix = device_id[:-1][-2:]
+
+        # Map suffix to wand type (from WandType.kt)
+        type_mapping = {
+            "DF": "DEFIANT",
+            "LY": "LOYAL",
+            "HR": "HEROIC",
+            "HN": "HONOURABLE",
+            "AV": "ADVENTUROUS",
+            "WS": "WISE",
+        }
+
+        return type_mapping.get(type_suffix, "UNKNOWN")
