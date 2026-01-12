@@ -88,7 +88,6 @@ _LOGGER = logging.getLogger(__name__)
 class BleakCharacteristicMissing(BleakError):
     """Raised when a characteristic is missing."""
 
-
 class BleakServiceMissing(BleakError):
     """Raised when a service is missing."""
 
@@ -347,7 +346,7 @@ class McwClient:
             await self.write_command(cmd)
 
     async def challenge(self) -> int:
-        """Send keep-alive command."""
+        """Send challenge command."""
         await self.write_command(struct.pack("B", MESSAGEIDS.CHALLENGE))
         return self._wand_challenge or 0
     
