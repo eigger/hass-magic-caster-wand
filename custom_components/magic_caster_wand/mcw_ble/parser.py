@@ -105,7 +105,7 @@ class McwDevice:
             self._mcw.register_callback(self._callback_spell, self._callback_battery, self._callback_buttons, self._callback_calibration)
             await self._mcw.start_notify()
             if not self.model:
-                self.model = await self._mcw.get_wand_no()
+                self.model = await self._mcw.get_wand_device_id()
                 await self._mcw.init_wand()
             _LOGGER.debug("Connected to Magic Caster Wand: %s, %s", ble_device.address, self.model)
             return True
