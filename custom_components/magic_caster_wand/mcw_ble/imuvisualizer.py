@@ -46,21 +46,21 @@ class SpellRenderer:
         self.start_x = canvas_width / 2
         self.start_y = canvas_height / 2
 
-        self.tracker: SpellTracker | None = None
+        self.tracker: SpellTracker = SpellTracker()
 
     def start_spell(self) -> None:
         """Start a new spell gesture"""
-        self.tracker = SpellTracker()
+        self.tracker.start()
 
-    def end_spell(self) -> None:
-        """End the current spell gesture"""
-        self.tracker = None
+    def end_spell(self) -> str | None:
+        """End the current spell gesture and return the recognized spell name."""
+        return self.tracker.stop()
 
     def update_imu(self, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z):
-        if self.tracker is None:
-            return None
+        point: Point | None = self.tracker.update(accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)
 
-        point: Point = self.tracker.update(accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)
+        if point is None:
+            return None
 
         return [point.x + self.start_x, point.y + self.start_y]
 
@@ -217,11 +217,16 @@ class MotionVisualizer:
     def exit_motion_mode(self):
         """Exit motion mode"""
         self.motion_mode = False
-        self.status_label.config(text="Hold all buttons to start", fg='white')
         print("Motion mode: INACTIVE")
 
-        # End spell rendering and get the complete path
-        self.spell_renderer.end_spell()
+        # End spell rendering and get the recognized spell
+        spell_name = self.spell_renderer.end_spell()
+        
+        if spell_name:
+            self.status_label.config(text=f"Spell: {spell_name}", fg='yellow')
+            print(f"Recognized spell: {spell_name}")
+        else:
+            self.status_label.config(text="Hold all buttons to start", fg='white')
 
         # Turn off LEDs
         if self.mcw:
@@ -312,6 +317,8 @@ async def wand_connection(visualizer):
         # Start notifications
         print("Starting notifications...")
         await mcw.start_notify()
+
+        await mcw.keep_alive()
 
         # Start IMU streaming
         print("Starting IMU streaming...")
