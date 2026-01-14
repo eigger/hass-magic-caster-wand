@@ -19,5 +19,5 @@
   "documentation": "https://www.github.com/eigger/hass-magic_caster_wand",
   "issue_tracker": "https://www.github.com/eigger/hass-magic_caster_wand/issues",
   "iot_class": "local_polling",
-  "version": "1.1.3"
+  "version": "1.1.4"
 }
