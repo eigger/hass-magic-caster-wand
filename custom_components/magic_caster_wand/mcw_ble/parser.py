@@ -137,9 +137,10 @@ class McwDevice:
 
     async def update_device(self, ble_device: BLEDevice) -> BLEData:
         """Update device data. Sends keep-alive if connected."""
-        if not self._mcw:
-            await self.connect(ble_device)
-            await self.disconnect()
+        if not ble_device:
+            if not self._mcw:
+                await self.connect(ble_device)
+                await self.disconnect()
         # Send keep-alive if connected
         # if self.is_connected() and self._mcw:
         #     try:

@@ -160,9 +160,6 @@ async def _async_update_method(
     address = entry.unique_id
     ble_device = bluetooth.async_ble_device_from_address(hass, address)
 
-    if ble_device is None:
-        raise UpdateFailed(f"BLE device could not be obtained from address {address}")
-
     try:
         data = await mcw.update_device(ble_device)
     except Exception as err:
