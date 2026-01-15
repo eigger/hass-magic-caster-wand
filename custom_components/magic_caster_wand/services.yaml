@@ -2,8 +2,8 @@ vibrate:
   name: Vibrate Wand
   description: Vibrate Wand
   target:
-    device:
-      manufacturer: "Warner Bros. Entertainment Inc."
+    entity:
+      integration: magic_caster_wand
   fields:
     duration:
       name: Duration
@@ -20,8 +20,8 @@ set_led:
   name: Set LED
   description: Set the color of a specific LED group on the wand.
   target:
-    device:
-      manufacturer: "Warner Bros. Entertainment Inc."
+    entity:
+      integration: magic_caster_wand
   fields:
     group:
       name: LED Group
@@ -61,15 +61,15 @@ clear_leds:
   name: Clear LEDs
   description: Turn off all LEDs on the wand.
   target:
-    device:
-      manufacturer: "Warner Bros. Entertainment Inc."
+    entity:
+      integration: magic_caster_wand
 
 play_spell:
   name: Play Spell Effect
   description: Play a pre-defined spell macro effect.
   target:
-    device:
-      manufacturer: "Warner Bros. Entertainment Inc."
+    entity:
+      integration: magic_caster_wand
   fields:
     spell:
       name: Spell
