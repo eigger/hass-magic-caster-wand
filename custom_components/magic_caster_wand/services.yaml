@@ -1,15 +1,10 @@
 vibrate:
   name: Vibrate Wand
   description: Vibrate Wand
+  target:
+    device:
+      integration: magic_caster_wand
   fields:
-    device_id:
-      name: Device
-      description: The wand device to vibrate
-      required: true
-      selector:
-        device:
-          multiple: true
-          integration: magic_caster_wand
     duration:
       name: Duration
       description: Duration of vibrate in milliseconds
@@ -24,15 +19,10 @@ vibrate:
 set_led:
   name: Set LED
   description: Set the color of a specific LED group on the wand.
+  target:
+    device:
+      integration: magic_caster_wand
   fields:
-    device_id:
-      name: Device
-      description: The wand device to control
-      required: true
-      selector:
-        device:
-          multiple: true
-          integration: magic_caster_wand
     group:
       name: LED Group
       description: The LED group to control.
@@ -70,28 +60,17 @@ set_led:
 clear_leds:
   name: Clear LEDs
   description: Turn off all LEDs on the wand.
-  fields:
-    device_id:
-      name: Device
-      description: The wand device to clear LEDs
-      required: true
-      selector:
-        device:
-          multiple: true
-          integration: magic_caster_wand
+  target:
+    device:
+      integration: magic_caster_wand
 
 play_spell:
   name: Play Spell Effect
   description: Play a pre-defined spell macro effect.
+  target:
+    device:
+      integration: magic_caster_wand
   fields:
-    device_id:
-      name: Device
-      description: The wand device to play spell
-      required: true
-      selector:
-        device:
-          multiple: true
-          integration: magic_caster_wand
     spell:
       name: Spell
       description: The spell effect to play.
