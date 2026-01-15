@@ -8,6 +8,7 @@ vibrate:
       required: true
       selector:
         device:
+          multiple: true
           integration: magic_caster_wand
     duration:
       name: Duration
@@ -30,6 +31,7 @@ set_led:
       required: true
       selector:
         device:
+          multiple: true
           integration: magic_caster_wand
     group:
       name: LED Group
@@ -75,6 +77,7 @@ clear_leds:
       required: true
       selector:
         device:
+          multiple: true
           integration: magic_caster_wand
 
 play_spell:
@@ -87,6 +90,7 @@ play_spell:
       required: true
       selector:
         device:
+          multiple: true
           integration: magic_caster_wand
     spell:
       name: Spell
