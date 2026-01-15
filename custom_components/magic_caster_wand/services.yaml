@@ -2,7 +2,7 @@ vibrate:
   name: Vibrate Wand
   description: Vibrate Wand
   target:
-    entity:
+    device:
       integration: magic_caster_wand
   fields:
     duration:
@@ -20,7 +20,7 @@ set_led:
   name: Set LED
   description: Set the color of a specific LED group on the wand.
   target:
-    entity:
+    device:
       integration: magic_caster_wand
   fields:
     group:
@@ -61,14 +61,14 @@ clear_leds:
   name: Clear LEDs
   description: Turn off all LEDs on the wand.
   target:
-    entity:
+    device:
       integration: magic_caster_wand
 
 play_spell:
   name: Play Spell Effect
   description: Play a pre-defined spell macro effect.
   target:
-    entity:
+    device:
       integration: magic_caster_wand
   fields:
     spell:
