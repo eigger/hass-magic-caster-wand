@@ -102,7 +102,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def handle_vibrate(call: ServiceCall) -> None:
         """Handle execution of vibrate service."""
         duration = call.data.get("duration", 500)
-        for device_id in call.data.get("device_id", []):
+        device_ids = call.data.get("device_id", [])
+        if isinstance(device_ids, str):
+            device_ids = [device_ids]
+        for device_id in device_ids:
             entry_id = await get_entry_id_from_device(hass, device_id)
             if entry_id and entry_id in hass.data[DOMAIN]:
                 device: McwDevice = hass.data[DOMAIN][entry_id]["mcw"]
@@ -114,7 +117,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         group = LedGroup[group_str]
         rgb = call.data.get("rgb_color", (255, 255, 255))
         duration = call.data.get("duration", 0)
-        for device_id in call.data.get("device_id", []):
+        device_ids = call.data.get("device_id", [])
+        if isinstance(device_ids, str):
+            device_ids = [device_ids]
+        for device_id in device_ids:
             entry_id = await get_entry_id_from_device(hass, device_id)
             if entry_id and entry_id in hass.data[DOMAIN]:
                 device: McwDevice = hass.data[DOMAIN][entry_id]["mcw"]
@@ -122,7 +128,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def handle_clear_leds(call: ServiceCall) -> None:
         """Handle execution of clear_leds service."""
-        for device_id in call.data.get("device_id", []):
+        device_ids = call.data.get("device_id", [])
+        if isinstance(device_ids, str):
+            device_ids = [device_ids]
+        for device_id in device_ids:
             entry_id = await get_entry_id_from_device(hass, device_id)
             if entry_id and entry_id in hass.data[DOMAIN]:
                 device: McwDevice = hass.data[DOMAIN][entry_id]["mcw"]
@@ -131,7 +140,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def handle_play_spell(call: ServiceCall) -> None:
         """Handle execution of play_spell service."""
         spell_name = call.data.get("spell")
-        for device_id in call.data.get("device_id", []):
+        device_ids = call.data.get("device_id", [])
+        if isinstance(device_ids, str):
+            device_ids = [device_ids]
+        for device_id in device_ids:
             entry_id = await get_entry_id_from_device(hass, device_id)
             if entry_id and entry_id in hass.data[DOMAIN]:
                 device: McwDevice = hass.data[DOMAIN][entry_id]["mcw"]
