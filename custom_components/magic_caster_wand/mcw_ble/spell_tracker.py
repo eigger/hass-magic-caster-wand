@@ -111,6 +111,7 @@ class SpellTracker:
 
     _CONST_0_0 = np.float32(0.0)
     _CONST_0_5 = np.float32(0.5)
+    _CONST_0_99 = np.float32(0.99)
     _CONST_1_0 = np.float32(1.0)
     _CONST_1_5 = np.float32(1.5)
     _CONST_2_0 = np.float32(2.0)
@@ -124,7 +125,7 @@ class SpellTracker:
 
     @staticmethod
     def _create_interpeter() -> tf.lite.Interpreter:
-        interpreter = tf.lite.Interpreter(model_path="c:\\temp\\tensor\\model.tflite")
+        interpreter = tf.lite.Interpreter(model_path="model.tflite")
         interpreter.allocate_tensors()
         return interpreter
 
@@ -208,7 +209,8 @@ class SpellTracker:
         self
     ) -> str | None:
         self._state.tracking_active = 0
-        return self._recognize_spell()
+        result = self._recognize_spell()
+        return result if isinstance(result, str) else None
 
     def update(
         self,
@@ -372,8 +374,9 @@ class SpellTracker:
         self._state.ahrs_quat_q3 = fVar1 * fVar4
 
     def _recognize_spell(
-        self
-    ) -> str | None:
+        self,
+        confidence_threshold: np.float32 = _CONST_0_99
+    ) -> str | int:
         """
         Recognize a spell/gesture from recorded positions.
         
@@ -386,9 +389,6 @@ class SpellTracker:
         position_count: int = self._state.position_count
         
         # Phase 1: Calculate bounding box (min/max X and Y)
-        if position_count <= 0:
-            return None
-        
         min_x: np.float32 = np.float32(np.inf)
         max_x: np.float32 = np.float32(-np.inf)
         min_y: np.float32 = np.float32(np.inf)
@@ -413,10 +413,10 @@ class SpellTracker:
         
         # Phase 2: Early exit checks
         if bbox_size <= SpellTracker._CONST_0_0:
-            return None  # No movement detected
+            return -1  # No movement detected
         
         if position_count <= 99:
-            return None  # Not enough data points
+            return -2  # Not enough data points
         
         # Phase 3: Trim stationary tail (end of gesture)
         threshold_sq = SpellTracker._CONST_MILLIMETERMOVETHRESHOLD * SpellTracker._CONST_MILLIMETERMOVETHRESHOLD
@@ -424,9 +424,9 @@ class SpellTracker:
         
         if threshold_sq > SpellTracker._CONST_0_0:
             while end_index >= 121:  # 0x79 = 121
-                # Compare points 10 apart from the end
+                # Compare points 40 apart from the end
                 curr_idx = end_index - 1
-                prev_idx = curr_idx - 10
+                prev_idx = curr_idx - 40
                 
                 dx = positions[curr_idx, 0] - positions[prev_idx, 0]
                 dy = positions[curr_idx, 1] - positions[prev_idx, 1]
@@ -466,6 +466,7 @@ class SpellTracker:
         sample_pos = start_float
         for i in range(50):
             idx = int(sample_pos)
+
             # Clamp index to valid range
             if idx >= position_count:
                 idx = position_count - 1
@@ -488,16 +489,14 @@ class SpellTracker:
         
         # Get output probabilities
         output_tensor = self._interpreter.get_output_details()[0]
-        probabilities = self._interpreter.get_tensor(output_tensor['index']).flatten()[:len(SPELL_NAMES)]
+        probabilities = self._interpreter.get_tensor(output_tensor['index'])[0]
         
         # Phase 7: Find best match (highest probability)
-        best_index = 0
-        best_prob = probabilities[0]
-        
-        for i in range(1, len(SPELL_NAMES)):
-            if probabilities[i] > best_prob:
-                best_prob = probabilities[i]
-                best_index = i
-        
+        best_index = np.argmax(probabilities)
+        best_prob = probabilities[best_index]
+
+        if best_prob < confidence_threshold:
+            return -3  # No spell recognized with sufficient confidence
+
         print(f"Recognized spell: {SPELL_NAMES[best_index]} with probability {best_prob:.4f}")
         return SPELL_NAMES[best_index]
