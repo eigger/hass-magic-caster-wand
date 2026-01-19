@@ -1,270 +1,212 @@
-"""Support for mcw ble sensors."""
+"""Support for Magic Caster Wand BLE sensors."""
 
 import logging
-import dataclasses
 
-from .mcw_ble import BLEData
-
-from homeassistant import config_entries
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
-    SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.const import (
-    CONCENTRATION_PARTS_PER_BILLION,
-    CONCENTRATION_PARTS_PER_MILLION,
-    LIGHT_LUX,
-    PERCENTAGE,
-    UnitOfPressure,
-    UnitOfTemperature,
-    UnitOfTime,
-)
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import PERCENTAGE
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import StateType
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
 )
-from homeassistant.util.unit_system import METRIC_SYSTEM
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, MANUFACTURER
+from .mcw_ble import BLEData
 
 _LOGGER = logging.getLogger(__name__)
 
-SENSORS_MAPPING_TEMPLATE: dict[str, SensorEntityDescription] = {
-    # "battery": SensorEntityDescription(
-    #     key="battery",
-    #     device_class=SensorDeviceClass.BATTERY,
-    #     native_unit_of_measurement=PERCENTAGE,
-    #     name="battery",
-    # ),
-    # "closingstate": SensorEntityDescription(
-    #     key="closingstate",
-    #     name="closingstate",
-    # ),
-    # "powerlevel": SensorEntityDescription(
-    #     key="powerlevel",
-    #     name="powerlevel",
-    # ),
-    # "paperstate": SensorEntityDescription(
-    #     key="paperstate",
-    #     name="paperstate",
-    # ),
-    # "rfidreadstate": SensorEntityDescription(
-    #     key="rfidreadstate",
-    #     name="rfidreadstate",
-    # ),
-    # "density": SensorEntityDescription(
-    #     key="density",
-    #     name="density",
-    # ),
-    # "printspeed": SensorEntityDescription(
-    #     key="printspeed",
-    #     name="printspeed",
-    # ),
-    # "labeltype": SensorEntityDescription(
-    #     key="labeltype",
-    #     name="labeltype",
-    # ),
-    # "languagetype": SensorEntityDescription(
-    #     key="languagetype",
-    #     name="languagetype",
-    # ),
-    # "autoshutdowntime": SensorEntityDescription(
-    #     key="autoshutdowntime",
-    #     name="autoshutdowntime",
-    # ),
-    # "devicetype": SensorEntityDescription(
-    #     key="devicetype",
-    #     name="devicetype",
-    # ),
-}
+
+# Calibration sensor definitions
+CALIBRATION_SENSORS = [
+    {"key": "calibration_button", "name": "Calibration Button", "icon": "mdi:gesture-tap-button"},
+    {"key": "calibration_imu", "name": "Calibration IMU", "icon": "mdi:axis-arrow"},
+]
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: config_entries.ConfigEntry,
+    entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the Mcw BLE sensors."""
-    coordinator: DataUpdateCoordinator[BLEData] = hass.data[DOMAIN][entry.entry_id]["coordinator"]
-    spell_coordinator: DataUpdateCoordinator[str] = hass.data[DOMAIN][entry.entry_id]["spell_coordinator"]
-    battery_coordinator: DataUpdateCoordinator[float] = hass.data[DOMAIN][entry.entry_id]["battery_coordinator"]
-    # we need to change some units
-    sensors_mapping = SENSORS_MAPPING_TEMPLATE.copy()
+    """Set up the Magic Caster Wand BLE sensors."""
+    data = hass.data[DOMAIN][entry.entry_id]
+    spell_coordinator: DataUpdateCoordinator[str] = data["spell_coordinator"]
+    battery_coordinator: DataUpdateCoordinator[float] = data["battery_coordinator"]
+    calibration_coordinator: DataUpdateCoordinator[dict[str, str]] = data["calibration_coordinator"]
+    address = data["address"]
+    mcw = data["mcw"]
 
-    entities = []
-    _LOGGER.debug("got sensors: %s", coordinator.data.sensors)
-    for sensor_type, sensor_value in coordinator.data.sensors.items():
-        if sensor_type not in sensors_mapping:
-            _LOGGER.debug(
-                "Unknown sensor type detected: %s, %s",
-                sensor_type,
-                sensor_value,
-            )
-            continue
+    entities = [
+        McwSpellSensor(address, mcw, spell_coordinator),
+        McwBatterySensor(address, mcw, battery_coordinator),
+    ]
+
+    # Add calibration sensors
+    for sensor in CALIBRATION_SENSORS:
         entities.append(
-            McwSensor(coordinator, coordinator.data, sensors_mapping[sensor_type])
+            McwCalibrationSensor(
+                address=address,
+                mcw=mcw,
+                coordinator=calibration_coordinator,
+                sensor_key=sensor["key"],
+                sensor_name=sensor["name"],
+                sensor_icon=sensor["icon"],
+            )
         )
-    entities.append(
-        McwSellSensor(hass, entry, spell_coordinator)
-    )
-    entities.append(
-        McwBatterySensor(hass, entry, battery_coordinator)
-    )
+
     async_add_entities(entities)
 
 
-class McwSensor(CoordinatorEntity[DataUpdateCoordinator[BLEData]], SensorEntity):
-    """Mcw BLE sensors for the device."""
+class McwBaseSensor(SensorEntity):
+    """Base class for Magic Caster Wand sensors."""
 
-    # _attr_state_class = None
     _attr_has_entity_name = True
+
+    def __init__(self, address: str, mcw) -> None:
+        """Initialize the base sensor."""
+        self._address = address
+        self._mcw = mcw
+        self._identifier = address.replace(":", "")[-8:]
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device info."""
+        return DeviceInfo(
+            connections={(CONNECTION_BLUETOOTH, self._address)},
+            name=f"Magic Caster Wand {self._identifier}",
+            manufacturer=MANUFACTURER,
+            model=self._mcw.model if self._mcw else None,
+        )
+
+
+class McwSpellSensor(
+    CoordinatorEntity[DataUpdateCoordinator[str]],
+    McwBaseSensor,
+):
+    """Sensor entity for tracking wand spell detection."""
 
     def __init__(
         self,
-        coordinator: DataUpdateCoordinator[BLEData],
-        ble_data: BLEData,
-        entity_description: SensorEntityDescription,
+        address: str,
+        mcw,
+        coordinator: DataUpdateCoordinator[str],
     ) -> None:
-        """Populate the mcw entity with relevant data."""
-        super().__init__(coordinator)
-        self.entity_description = entity_description
-
-        name = f"{ble_data.name} {ble_data.identifier}"
-
-        self._attr_unique_id = f"{name}_{entity_description.key}"
-
-        self._id = ble_data.address
-        self._attr_device_info = DeviceInfo(
-            connections={
-                (
-                    CONNECTION_BLUETOOTH,
-                    ble_data.address,
-                )
-            },
-            name = name,
-            manufacturer = MANUFACTURER,
-            # model=ble_data.model,
-            # hw_version=ble_data.hw_version,
-            # sw_version=ble_data.sw_version,
-            # serial_number=ble_data.serial_number,
-        )
-
-    @property
-    def native_value(self) -> StateType:
-        """Return the value reported by the sensor."""
-        try:
-            return self.coordinator.data.sensors[self.entity_description.key]
-        except KeyError:
-            return None
-
-class McwSellSensor(
-    CoordinatorEntity[DataUpdateCoordinator[str]], 
-    SensorEntity,
-):
-    #_attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
-
-    def __init__(self, hass: HomeAssistant, entry: config_entries.ConfigEntry, coordinator: DataUpdateCoordinator[str]):
+        """Initialize the spell sensor."""
         CoordinatorEntity.__init__(self, coordinator)
-        # self.hass = hass
-        self._address = hass.data[DOMAIN][entry.entry_id]['address']
-        self._mcw = hass.data[DOMAIN][entry.entry_id]['mcw']
-        self._identifier = self._address.replace(":", "")[-8:]
-        self._attr_name = f"Mcw {self._identifier} Spell"
+        McwBaseSensor.__init__(self, address, mcw)
+
+        self._attr_name = "Spell"
         self._attr_unique_id = f"mcw_{self._identifier}_spell"
+        self._attr_icon = "mdi:magic-staff"
         self._spell = "awaiting"
-        self._attr_extra_state_attributes = {
-            "last_updated": None
-        }
-
-
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        return DeviceInfo (
-            connections = {
-                (
-                    CONNECTION_BLUETOOTH,
-                    self._address,
-                )
-            },
-            name = f"Mcw {self._identifier}",
-            manufacturer = MANUFACTURER,
-            model = self._mcw.model if self._mcw is not None else None
-        )
-
-    @property
-    def icon(self) -> str | None:
-        """Icon of the entity, based on time."""
-        return "mdi:magic-staff"
+        self._attr_extra_state_attributes = {"last_updated": None}
 
     @property
     def native_value(self) -> StateType:
-        """Return the value reported by the sensor."""
-        try:
-            return str(self._spell)
-        except KeyError:
-            return None
+        """Return the current spell value."""
+        return str(self._spell)
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        _LOGGER.debug("Updated spell data")
-        self._spell = self.coordinator.data
-        self._attr_extra_state_attributes["last_updated"] = (
-            dt_util.now()
-        )
-        super()._handle_coordinator_update()
+        if self.coordinator.data:
+            _LOGGER.debug("Spell detected: %s", self.coordinator.data)
+            self._spell = self.coordinator.data
+            self._attr_extra_state_attributes["last_updated"] = dt_util.now()
+        self.async_write_ha_state()
+
 
 class McwBatterySensor(
-    CoordinatorEntity[DataUpdateCoordinator[float]], 
-    SensorEntity,
+    CoordinatorEntity[DataUpdateCoordinator[float]],
+    McwBaseSensor,
 ):
+    """Sensor entity for tracking wand battery level."""
+
     _attr_device_class = SensorDeviceClass.BATTERY
     _attr_native_unit_of_measurement = PERCENTAGE
     _attr_state_class = SensorStateClass.MEASUREMENT
-    def __init__(self, hass: HomeAssistant, entry: config_entries.ConfigEntry, coordinator: DataUpdateCoordinator[float]):
-        CoordinatorEntity.__init__(self, coordinator)
-        # self.hass = hass
-        self._address = hass.data[DOMAIN][entry.entry_id]['address']
-        self._mcw = hass.data[DOMAIN][entry.entry_id]['mcw']
-        self._identifier = self._address.replace(":", "")[-8:]
-        self._attr_name = f"Mcw {self._identifier} Battery"
-        self._attr_unique_id = f"mcw_{self._identifier}_battery"
-        self._battery = 0.0
 
-    @property
-    def device_info(self) -> DeviceInfo:
-        return DeviceInfo (
-            connections = {
-                (
-                    CONNECTION_BLUETOOTH,
-                    self._address,
-                )
-            },
-            name = f"Mcw {self._identifier}",
-            manufacturer = MANUFACTURER,
-            model = self._mcw.model if self._mcw is not None else None
-        )
+    def __init__(
+        self,
+        address: str,
+        mcw,
+        coordinator: DataUpdateCoordinator[float],
+    ) -> None:
+        """Initialize the battery sensor."""
+        CoordinatorEntity.__init__(self, coordinator)
+        McwBaseSensor.__init__(self, address, mcw)
+
+        self._attr_name = "Battery"
+        self._attr_unique_id = f"mcw_{self._identifier}_battery"
+        self._battery: float = 0.0
 
     @property
     def native_value(self) -> StateType:
-        """Return the value reported by the sensor."""
-        try:
-            return float(self._battery)
-        except KeyError:
-            return None
+        """Return the battery level."""
+        return self._battery
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        _LOGGER.debug("Updated battery data")
-        self._battery = self.coordinator.data
-        super()._handle_coordinator_update()
+        if self.coordinator.data is not None:
+            _LOGGER.debug("Battery level: %s%%", self.coordinator.data)
+            self._battery = self.coordinator.data
+        self.async_write_ha_state()
+
+
+class McwCalibrationSensor(
+    CoordinatorEntity[DataUpdateCoordinator[dict[str, str]]],
+    McwBaseSensor,
+):
+    """Sensor entity for tracking calibration state."""
+
+    def __init__(
+        self,
+        address: str,
+        mcw,
+        coordinator: DataUpdateCoordinator[dict[str, str]],
+        sensor_key: str,
+        sensor_name: str,
+        sensor_icon: str,
+    ) -> None:
+        """Initialize the calibration sensor."""
+        CoordinatorEntity.__init__(self, coordinator)
+        McwBaseSensor.__init__(self, address, mcw)
+
+        self._sensor_key = sensor_key
+        self._sensor_icon = sensor_icon
+        self._attr_name = sensor_name
+        self._attr_unique_id = f"mcw_{self._identifier}_{sensor_key}"
+        self._state: str = "Pending"
+
+    @property
+    def icon(self) -> str:
+        """Return the icon."""
+        return self._sensor_icon
+
+    @property
+    def native_value(self) -> StateType:
+        """Return the calibration state."""
+        return self._state
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        if self.coordinator.data:
+            calibration_states = self.coordinator.data
+            # Only update state if this sensor's key is present in the data
+            if self._sensor_key in calibration_states:
+                self._state = calibration_states[self._sensor_key]
+                _LOGGER.debug(
+                    "Calibration %s state: %s", self._sensor_key, self._state
+                )
+        self.async_write_ha_state()

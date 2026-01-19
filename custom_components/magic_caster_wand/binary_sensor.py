@@ -1,14 +1,14 @@
-"""Support for mcw ble binary sensors."""
+"""Support for Magic Caster Wand BLE button binary sensors."""
 
 import logging
 
-from homeassistant import config_entries
 from homeassistant.components.binary_sensor import (
+    BinarySensorDeviceClass,
     BinarySensorEntity,
 )
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
@@ -16,99 +16,149 @@ from homeassistant.helpers.update_coordinator import (
 )
 
 from .const import DOMAIN, MANUFACTURER
+from .mcw_ble import BLEData
 
 _LOGGER = logging.getLogger(__name__)
 
+# Button definitions with key, name, and icon
+BUTTONS = [
+    {"key": "button_1", "name": "Button 1"},
+    {"key": "button_2", "name": "Button 2"},
+    {"key": "button_3", "name": "Button 3"},
+    {"key": "button_4", "name": "Button 4"},
+]
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: config_entries.ConfigEntry,
+    entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the Mcw BLE binary sensors."""
-    button_coordinator: DataUpdateCoordinator[dict] = hass.data[DOMAIN][entry.entry_id]["button_coordinator"]
-    address = hass.data[DOMAIN][entry.entry_id]['address']
-    mcw = hass.data[DOMAIN][entry.entry_id]['mcw']
-    identifier = address.replace(":", "")[-8:]
+    """Set up the Magic Caster Wand BLE button binary sensors."""
+    data = hass.data[DOMAIN][entry.entry_id]
+    buttons_coordinator: DataUpdateCoordinator[dict[str, bool]] = data["buttons_coordinator"]
+    address = data["address"]
+    mcw = data["mcw"]
 
     entities = [
-        McwButtonSensor(button_coordinator, address, mcw, identifier, 1, "pad1"),
-        McwButtonSensor(button_coordinator, address, mcw, identifier, 2, "pad2"),
-        McwButtonSensor(button_coordinator, address, mcw, identifier, 3, "pad3"),
-        McwButtonSensor(button_coordinator, address, mcw, identifier, 4, "pad4"),
+        McwButtonBinarySensor(
+            address=address,
+            mcw=mcw,
+            coordinator=buttons_coordinator,
+            button_key=button["key"],
+            button_name=button["name"]
+        )
+        for button in BUTTONS
     ]
+
+    # Add connection status binary sensor
+    coordinator = data["coordinator"]
+    entities.append(McwConnectionBinarySensor(address, mcw, coordinator))
+
     async_add_entities(entities)
 
 
-class McwButtonSensor(
-    CoordinatorEntity[DataUpdateCoordinator[dict]],
+class McwButtonBinarySensor(
+    CoordinatorEntity[DataUpdateCoordinator[dict[str, bool]]],
     BinarySensorEntity,
 ):
-    """Binary sensor for wand button pad state."""
+    """Binary sensor entity for tracking wand button state."""
+
+    _attr_has_entity_name = True
+    _attr_device_class = None #BinarySensorDeviceClass.MOTION
 
     def __init__(
         self,
-        coordinator: DataUpdateCoordinator[dict],
         address: str,
         mcw,
-        identifier: str,
-        pad_number: int,
-        pad_key: str,
-    ):
-        """Initialize the binary sensor."""
+        coordinator: DataUpdateCoordinator[dict[str, bool]],
+        button_key: str,
+        button_name: str
+    ) -> None:
+        """Initialize the button binary sensor."""
         CoordinatorEntity.__init__(self, coordinator)
+        
         self._address = address
         self._mcw = mcw
-        self._identifier = identifier
-        self._pad_number = pad_number
-        self._pad_key = pad_key
-        self._attr_name = f"Mcw {self._identifier} Button Pad {pad_number}"
-        self._attr_unique_id = f"mcw_{self._identifier}_button_pad_{pad_number}"
+        self._identifier = address.replace(":", "")[-8:]
+        self._button_key = button_key
+        
+        self._attr_name = button_name
+        self._attr_unique_id = f"mcw_{self._identifier}_{button_key}"
         self._is_on = False
 
     @property
     def device_info(self) -> DeviceInfo:
-        """Return device information."""
+        """Return device info."""
         return DeviceInfo(
-            connections={
-                (
-                    CONNECTION_BLUETOOTH,
-                    self._address,
-                )
-            },
-            name=f"Mcw {self._identifier}",
+            connections={(CONNECTION_BLUETOOTH, self._address)},
+            name=f"Magic Caster Wand {self._identifier}",
             manufacturer=MANUFACTURER,
-            model=self._mcw.model if self._mcw is not None else None
+            model=self._mcw.model if self._mcw else None,
         )
 
     @property
-    def icon(self) -> str | None:
-        """Icon of the entity."""
-        if self._is_on:
-            return "mdi:gesture-tap"
-        return "mdi:circle-outline"
-
-    @property
-    def available(self) -> bool:
-        """Return True if entity is available."""
-        # Entity is available only when wand is connected
-        return self._mcw.is_connected()
-
-    @property
     def is_on(self) -> bool:
-        """Return true if the button pad is touched."""
-        # If not connected, always return False
-        if not self.available:
-            return False
+        """Return true if the button is pressed."""
         return self._is_on
+
+    @property
+    def icon(self) -> str:
+        """Return the icon based on button state."""
+        return "mdi:radiobox-marked" if self._is_on else "mdi:radiobox-blank"
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         if self.coordinator.data:
-            self._is_on = self.coordinator.data.get(self._pad_key, False)
-            _LOGGER.debug("Button pad %d state: %s", self._pad_number, self._is_on)
-        else:
-            # Reset to off when no data (e.g., disconnected)
-            self._is_on = False
-        super()._handle_coordinator_update()
+            button_states = self.coordinator.data
+            self._is_on = button_states.get(self._button_key, False)
+            _LOGGER.debug(
+                "Button %s state: %s", self._button_key, self._is_on
+            )
+        self.async_write_ha_state()
+
+
+class McwConnectionBinarySensor(
+    CoordinatorEntity[DataUpdateCoordinator[BLEData]],
+    BinarySensorEntity,
+):
+    """Binary sensor entity for tracking BLE connection state."""
+
+    _attr_has_entity_name = True
+    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+
+    def __init__(
+        self,
+        address: str,
+        mcw,
+        coordinator: DataUpdateCoordinator[BLEData],
+    ) -> None:
+        """Initialize the connection binary sensor."""
+        CoordinatorEntity.__init__(self, coordinator)
+        
+        self._address = address
+        self._mcw = mcw
+        self._identifier = address.replace(":", "")[-8:]
+        
+        self._attr_name = "Connected"
+        self._attr_unique_id = f"mcw_{self._identifier}_connected"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device info."""
+        return DeviceInfo(
+            connections={(CONNECTION_BLUETOOTH, self._address)},
+            name=f"Magic Caster Wand {self._identifier}",
+            manufacturer=MANUFACTURER,
+            model=self._mcw.model if self._mcw else None,
+        )
+
+    @property
+    def is_on(self) -> bool:
+        """Return true if connected."""
+        return self._mcw.is_connected() if self._mcw else False
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        self.async_write_ha_state()

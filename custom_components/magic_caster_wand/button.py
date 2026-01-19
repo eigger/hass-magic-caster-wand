@@ -1,77 +1,90 @@
-"""Support for mcw ble buttons."""
+"""Support for Magic Caster Wand BLE buttons."""
 
 import logging
 
-from homeassistant import config_entries
 from homeassistant.components.button import ButtonEntity
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
 
 from .const import DOMAIN, MANUFACTURER
+from .mcw_ble import BLEData
 
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: config_entries.ConfigEntry,
+    entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the Mcw BLE buttons."""
-    address = hass.data[DOMAIN][entry.entry_id]['address']
-    mcw = hass.data[DOMAIN][entry.entry_id]['mcw']
-    identifier = address.replace(":", "")[-8:]
+    """Set up the Magic Caster Wand BLE buttons."""
+    data = hass.data[DOMAIN][entry.entry_id]
+    address = data["address"]
+    mcw = data["mcw"]
+    coordinator = data["coordinator"]
+    calibration_coordinator = data["calibration_coordinator"]
 
-    entities = [
-        McwCalibrateButtonBaselineButton(address, mcw, identifier),
-    ]
-    async_add_entities(entities)
+    async_add_entities([
+        McwCalibrationButton(address, mcw, coordinator, calibration_coordinator),
+    ])
 
 
-class McwCalibrateButtonBaselineButton(ButtonEntity):
-    """Button to trigger capacitive button baseline calibration."""
+class McwCalibrationButton(CoordinatorEntity[DataUpdateCoordinator[BLEData]], ButtonEntity):
+    """Button entity for wand calibration."""
 
-    def __init__(self, address: str, mcw, identifier: str):
-        """Initialize the button."""
+    _attr_has_entity_name = True
+
+    def __init__(
+        self, 
+        address: str, 
+        mcw,
+        coordinator: DataUpdateCoordinator[BLEData],
+        calibration_coordinator: DataUpdateCoordinator[dict[str, str]],
+    ) -> None:
+        """Initialize the calibration button."""
+        super().__init__(coordinator)
         self._address = address
         self._mcw = mcw
-        self._identifier = identifier
-        self._attr_name = f"Mcw {self._identifier} Calibrate Button Baseline"
-        self._attr_unique_id = f"mcw_{self._identifier}_calibrate_button_baseline"
+        self._identifier = address.replace(":", "")[-8:]
+        self._calibration_coordinator = calibration_coordinator
+
+        self._attr_name = "Calibration"
+        self._attr_unique_id = f"mcw_{self._identifier}_calibration"
+        self._attr_icon = "mdi:compass-outline"
 
     @property
     def device_info(self) -> DeviceInfo:
-        """Return device information."""
+        """Return device info."""
         return DeviceInfo(
-            connections={
-                (
-                    CONNECTION_BLUETOOTH,
-                    self._address,
-                )
-            },
-            name=f"Mcw {self._identifier}",
+            connections={(CONNECTION_BLUETOOTH, self._address)},
+            name=f"Magic Caster Wand {self._identifier}",
             manufacturer=MANUFACTURER,
-            model=self._mcw.model if self._mcw is not None else None
+            model=self._mcw.model if self._mcw else None,
         )
 
     @property
-    def icon(self) -> str | None:
-        """Icon of the entity."""
-        return "mdi:tune-vertical"
+    def available(self) -> bool:
+        """Return True if entity is available (device is connected)."""
+        return self._mcw.is_connected() if self._mcw else False
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        self.async_write_ha_state()
 
     async def async_press(self) -> None:
         """Handle the button press."""
-        _LOGGER.info("Calibrating button baseline for wand %s", self._identifier)
-        try:
-            # Ensure we're connected
-            if not self._mcw.is_connected():
-                _LOGGER.error("Cannot calibrate: wand is not connected")
-                return
-
-            # Call the calibration method from the MCW client
-            await self._mcw._mcw.calibrate_button_baseline()
-            _LOGGER.info("Button baseline calibration completed for wand %s", self._identifier)
-        except Exception as e:
-            _LOGGER.error("Failed to calibrate button baseline: %s", e)
+        _LOGGER.debug("Calibration button pressed, resetting calibration sensors and sending calibration packets")
+        
+        # Reset both calibration sensors to Pending
+        self._calibration_coordinator.async_set_updated_data({
+            "calibration_button": "Pending",
+            "calibration_imu": "Pending",
+        })
+        
+        await self._mcw.send_calibration()
+        
+        _LOGGER.debug("Calibration packets sent")

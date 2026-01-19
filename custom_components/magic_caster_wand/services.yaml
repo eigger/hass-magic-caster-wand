@@ -3,11 +3,160 @@ vibrate:
   description: Vibrate Wand
   target:
     device:
-      manufacturer: "Warner Bros. Entertainment Inc."
+      integration: magic_caster_wand
   fields:
     duration:
       name: Duration
-      description: Duration of vibrate
+      description: Duration of vibrate in milliseconds
       required: true
-      example: 500
+      default: 500
+      selector:
+        number:
+          min: 0
+          max: 5000
+          unit_of_measurement: ms
 
+set_led:
+  name: Set LED
+  description: Set the color of a specific LED group on the wand.
+  target:
+    device:
+      integration: magic_caster_wand
+  fields:
+    group:
+      name: LED Group
+      description: The LED group to control.
+      required: true
+      default: TIP
+      selector:
+        select:
+          options:
+            - label: Tip
+              value: TIP
+            - label: Pommel
+              value: POMMEL
+            - label: Mid Lower
+              value: MID_LOWER
+            - label: Mid Upper
+              value: MID_UPPER
+    rgb_color:
+      name: RGB Color
+      description: The color in RGB format.
+      required: true
+      default: [255, 255, 255]
+      selector:
+        color_rgb:
+    duration:
+      name: Duration
+      description: Duration of the light in milliseconds (0 for permanent).
+      required: false
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 30000
+          unit_of_measurement: ms
+
+clear_leds:
+  name: Clear LEDs
+  description: Turn off all LEDs on the wand.
+  target:
+    device:
+      integration: magic_caster_wand
+
+play_spell:
+  name: Play Spell Effect
+  description: Play a pre-defined spell macro effect.
+  target:
+    device:
+      integration: magic_caster_wand
+  fields:
+    spell:
+      name: Spell
+      description: The spell effect to play.
+      required: true
+      selector:
+        select:
+          options:
+            - lumos
+            - nox
+            - protego
+            - stupefy
+            - incendio
+            - expelliarmus
+            - alohomora
+            - aguamenti
+            - wingardium_leviosa
+            - expecto_patronum
+            - avada_kedavra
+            - bombarda
+            - confringo
+            - reducto
+            - finite
+            - revelio
+            - accio
+            - locomotor
+            - diffindo
+            - silencia
+            - impedimenta
+            - petrificus_totalus
+            - rictusempra
+            - expulso
+            - flipendo
+            - depulso
+            - ascendio
+            - descendo
+            - glacius
+            - incendio
+            - meteolojinx
+            - salvio_hexia
+            - protego_totalum
+            - repello_muggletum
+            - muffliato
+            - colloportus
+            - alohomora
+            - flagrate
+            - revelio
+            - specialis_revelio
+            - finite_incantatem
+            - enervate
+            - stupefy
+            - anapneo
+            - episkey
+            - ferula
+            - tergeo
+            - scourgify
+            - aguamenti
+            - orchideous
+            - herbivicus
+            - avis
+            - oppugno
+            - engorgio
+            - reducio
+            - geminio
+            - flagrate
+            - incendio
+            - confringo
+            - bombarda
+            - reducto
+            - expulso
+            - confundo
+            - stupefy
+            - expelliarmus
+            - petrificus_totalus
+            - immobulus
+            - levicorpus
+            - liberacorpus
+            - locomotor_mortis
+            - langlock
+            - rictusempra
+            - tarantallegra
+            - furnunculus
+            - densaugeo
+            - morsmordre
+            - avada_kedavra
+            - crucio
+            - imperio
+            - sectumsempra
+            - spell_success
+            - spell_fail
