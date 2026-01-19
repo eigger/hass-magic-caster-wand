@@ -1,17 +1,3 @@
-"""
-Wand Motion Tracker with AHRS-based Spell Rendering
-
-Uses Madgwick AHRS filter to convert IMU data into stable 2D spell traces.
-
-Axis Mapping:
-- Horizontal (X): -roll (tilt left/right)
-- Vertical (Y): -yaw (rotate wand tip left/right)
-
-TUNING:
-- Adjust TRACE_SCALE (line 21) to change gesture size
-- Enable DEBUG_IMU (line 17) to see raw sensor values
-"""
-
 import asyncio
 import logging
 import numpy as np
@@ -24,19 +10,13 @@ from mcw import McwClient
 from spell_tracker import SpellTracker
 
 # Configuration
-MAC_ADDRESS = "F4:27:7E:29:39:D2"
+MAC_ADDRESS = "<your address here!>"
 CANVAS_WIDTH = 800
 CANVAS_HEIGHT = 600
 TRAIL_LENGTH = 8192  # Number of points to keep in trail
 DEBUG_IMU = False  # Set to True to see IMU values
 
 class SpellRenderer:
-    """
-    AHRS-based spell renderer that converts IMU data to 2D screen coordinates.
-
-    Axis mapping: X = -roll (left/right tilt), Y = -yaw (rotate wand tip)
-    """
-
     def __init__(self, canvas_width=800, canvas_height=600):
         self.canvas_width = canvas_width
         self.canvas_height = canvas_height
