@@ -13,23 +13,22 @@ TUNING:
 """
 
 import asyncio
-from dataclasses import dataclass, field
 import logging
-import math
-import struct
-from spell_tracker import Point, SpellTracker
-from typing import List, Sequence, Tuple
-from bleak import BleakClient
-from mcw import McwClient
+import numpy as np
 import tkinter as tk
+
+from bleak import BleakClient
 from collections import deque
+from dataclasses import dataclass, field
+from mcw import McwClient
+from spell_tracker import SpellTracker
 
 # Configuration
 MAC_ADDRESS = "F4:27:7E:29:39:D2"
 CANVAS_WIDTH = 800
 CANVAS_HEIGHT = 600
-TRAIL_LENGTH = 1000  # Number of points to keep in trail
-DEBUG_IMU = True  # Set to True to see IMU values
+TRAIL_LENGTH = 8192  # Number of points to keep in trail
+DEBUG_IMU = False  # Set to True to see IMU values
 
 class SpellRenderer:
     """
@@ -57,12 +56,12 @@ class SpellRenderer:
         return self.tracker.stop()
 
     def update_imu(self, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z):
-        point: Point | None = self.tracker.update(accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)
+        point: tuple[np.float32, np.float32] | None = self.tracker.update(accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)
 
         if point is None:
             return None
 
-        return [point.x + self.start_x, point.y + self.start_y]
+        return [point[0] + self.start_x, point[1] + self.start_y]
 
 class MotionVisualizer:
     def __init__(self, loop):
@@ -152,7 +151,7 @@ class MotionVisualizer:
 
     def handle_imu_callback(self, imu_data):
         """Handle IMU data updates using AHRS-based spell rendering"""
-        if not self.motion_mode or not imu_data:
+        if not imu_data:
             return
 
         for sample in imu_data:
