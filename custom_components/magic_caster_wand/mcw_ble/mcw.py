@@ -7,9 +7,9 @@ import logging
 import struct
 import asyncio
 from asyncio import Event, sleep, wait_for
-from typing import Any, Callable, TypeVar
-
 from bleak import BleakClient, BleakError
+from macros import LedGroup, Macro
+from typing import Any, Callable, TypeVar
 
 SERVICE_UUID = "57420001-587e-48a0-974c-544d6163c577"
 COMMAND_UUID = "57420002-587e-48a0-974c-544d6163c577"
@@ -81,8 +81,6 @@ MESSAGE_TO_RESPONSE_MAP: dict[int, int] = {
     MESSAGEIDS.WAND_PRODUCT_INFORMATION_READ: RESPONSEIDS.WAND_PRODUCT_INFORMATION,
 }
 
-from .macros import Macro, LedGroup
-
 _LOGGER = logging.getLogger(__name__)
 
 class BleakCharacteristicMissing(BleakError):
@@ -90,6 +88,41 @@ class BleakCharacteristicMissing(BleakError):
 
 class BleakServiceMissing(BleakError):
     """Raised when a service is missing."""
+
+class IMUSample:
+    """Represents a single IMU sensor sample with gyroscope and accelerometer data"""
+
+    # Sensor scale factors (from Android IMUSample.java)
+    _ACCELEROMETER_SCALE = 0.00048828125
+    _GYROSCOPE_SCALE = 0.0010908308
+
+    def __init__(self, gyro_x: int, gyro_y: int, gyro_z: int, accel_x: int, accel_y: int, accel_z: int):
+        self.gyro_x = gyro_x
+        self.gyro_y = gyro_y
+        self.gyro_z = gyro_z
+        self.accel_x = accel_x
+        self.accel_y = accel_y
+        self.accel_z = accel_z
+
+    def get_scaled_accel(self) -> tuple[float, float, float]:
+        """Returns accelerometer data scaled to G-forces"""
+        return (
+            self.accel_x * IMUSample._ACCELEROMETER_SCALE,
+            self.accel_y * IMUSample._ACCELEROMETER_SCALE,
+            self.accel_z * IMUSample._ACCELEROMETER_SCALE
+        )
+
+    def get_scaled_gyro(self) -> tuple[float, float, float]:
+        """Returns gyroscope data scaled to rad/s"""
+        return (
+            self.gyro_x * IMUSample._GYROSCOPE_SCALE,
+            self.gyro_y * IMUSample._GYROSCOPE_SCALE,
+            self.gyro_z * IMUSample._GYROSCOPE_SCALE
+        )
+
+    def __repr__(self):
+        return (f"IMUSample(gyro=({self.gyro_x}, {self.gyro_y}, {self.gyro_z}), "
+                f"accel=({self.accel_x}, {self.accel_y}, {self.accel_z}))")
 
 WrapFuncType = TypeVar("WrapFuncType", bound=Callable[..., Any])
 
@@ -121,6 +154,7 @@ class McwClient:
         self.callback_battery: Callable[[float], None] | None = None
         self.callback_buttons: Callable[[dict[str, bool]], None] | None = None
         self.callback_calibration: Callable[[dict[str, bool]], None] | None = None
+        self.callback_imu: Callable[[list[dict[str, float]]], None] | None = None
         self.lock = asyncio.Lock()
 
         self._box_address: str | None = None
@@ -137,12 +171,20 @@ class McwClient:
         """Check if client is connected."""
         return self.client.is_connected
 
-    def register_callback(self, spell_cb: Callable, battery_cb: Callable, buttons_cb: Callable, calibration_cb: Callable) -> None:
+    def register_callback(
+            self,
+            spell_cb:  Callable[[str], None],
+            battery_cb: Callable[[float], None],
+            buttons_cb: Callable[[dict[str, bool]], None],
+            calibration_cb: Callable[[dict[str, bool]], None],
+            imu_cb: Callable[[list[dict[str, float]]], None]
+    ) -> None:
         """Register callbacks for spell, battery, button, and calibration notifications."""
         self.callback_spell = spell_cb
         self.callback_battery = battery_cb
         self.callback_buttons = buttons_cb
         self.callback_calibration = calibration_cb
+        self.callback_imu = imu_cb
 
     @disconnect_on_missing_services
     async def start_notify(self) -> None:
@@ -201,6 +243,9 @@ class McwClient:
             elif opcode == RESPONSEIDS.SPELL_CAST:
                 self._parse_spell(data)
 
+            elif opcode == RESPONSEIDS.IMU_PAYLOAD:
+                self._parse_imu_payload(data)
+
             elif opcode == RESPONSEIDS.BUTTON_CALIBRATION_BASELINE or opcode == RESPONSEIDS.IMU_CALIBRATION:
                 self._parse_calibration(data)
 
@@ -258,6 +303,7 @@ class McwClient:
                 "button_2": bool(mask & 0x02),
                 "button_3": bool(mask & 0x04),
                 "button_4": bool(mask & 0x08),
+                "button_all": (mask & 0x0F) == 0x0F,
             }
 
             _LOGGER.debug("Button states: %s (mask=0x%02X)", button_states, mask)
@@ -330,6 +376,16 @@ class McwClient:
                     else:
                         raise
 
+    async def imu_streaming_start(self) -> None:
+        """Start IMU data streaming"""
+        _LOGGER.debug("Starting IMU streaming")
+        await self.write_command(struct.pack('BBB', MESSAGEIDS.IMUFLAG_SET, 0x00, 0x01), False)
+
+    async def imu_streaming_stop(self) -> None:
+        """Stop IMU data streaming"""
+        _LOGGER.debug("Stopping IMU streaming")
+        await self.write_command(struct.pack('B', MESSAGEIDS.IMUFLAG_RESET), False)
+
     async def init_wand(self) -> None:
         """Initialize the wand."""
         commands = [
@@ -401,19 +457,28 @@ class McwClient:
             self._wand_type = self._wand_device_id_to_type(await self.get_wand_device_id())
         return self._wand_type or ""
 
+    async def led_on(self, group: LedGroup, r: int, g: int, b: int) -> None:
+        """Set wand LED color"""
+        _LOGGER.debug("Setting LED %s color to R=%d G=%d B=%d", group.name, r, g, b)
+
+        # Macros groups don't match with this - this hacky lets us have a common interface while we figure it out
+        converted_group: int = int(group)
+        match converted_group:
+            case 1:
+                converted_group = 3
+            case 3:
+                converted_group = 1
+
+        await self.write_command(struct.pack('BBBBB', MESSAGEIDS.LIGHT_CONTROL_SET_LED, converted_group, r, g, b))
+
+    async def led_off(self) -> None:
+        """Turn off wand LED"""
+        _LOGGER.debug("Turning off LED")
+        await self.write_command(struct.pack('B', MESSAGEIDS.LIGHT_CONTROL_CLEAR_ALL))
+
     async def send_macro(self, macro: Macro) -> None:
         """Send a macro sequence to the wand."""
         await self.write_command(macro.to_bytes())
-
-    async def set_led(self, group: LedGroup, red: int, green: int, blue: int, duration_ms: int = 0) -> None:
-        """Set LED color on a specific group."""
-        macro = Macro().add_led(group, red, green, blue, duration_ms)
-        await self.send_macro(macro)
-
-    async def clear_leds(self) -> None:
-        """Clear all LEDs."""
-        macro = Macro().add_clear()
-        await self.send_macro(macro)
 
     async def buzz(self, duration_ms: int) -> None:
         """Vibrate the wand."""
@@ -456,6 +521,76 @@ class McwClient:
             self._wand_firmware_version = version
         except Exception as e:
             _LOGGER.error("Error parsing firmware version: %s", e)
+
+    def _parse_imu_payload(self, data: bytearray) -> None:
+        """Parse IMU data message (ID 0x2C)
+
+        Based on Android IMUPayloadMessage.kt:
+        - Byte 0: Message ID (0x2C)
+        - Bytes 1-2: Start index (little-endian short)
+        - Byte 3: Sample count
+        - Bytes 4+: Sample data (12 bytes per sample)
+
+        Each sample contains 6 shorts (little-endian):
+        - gyroX, gyroY, gyroZ, accelX, accelY, accelZ
+        """
+        if len(data) < 4:
+            _LOGGER.warning("Invalid IMU payload length: %d", len(data))
+            return
+
+        # Extract header
+        sample_count = data[3]
+        expected_length = 4 + (sample_count * 12)
+
+        if len(data) < expected_length:
+            _LOGGER.warning("IMU payload too short. Expected %d, got %d",
+                          expected_length, len(data))
+            return
+
+        # Check if payload length is valid (should be divisible by 6 shorts = 12 bytes)
+        payload_length = len(data) - 4
+        if payload_length % 12 != 0:
+            _LOGGER.warning("IMU payload length not divisible by 12: %d", payload_length)
+            return
+
+        samples = []
+        offset = 4
+
+        for i in range(sample_count):
+            try:
+                # Parse 6 shorts (little-endian) - 12 bytes total
+                gyro_x = struct.unpack_from('<h', data, offset)[0]
+                gyro_y = struct.unpack_from('<h', data, offset+2)[0]
+                gyro_z = struct.unpack_from('<h', data, offset+4)[0]
+                accel_x = struct.unpack_from('<h', data, offset+6)[0]
+                accel_y = struct.unpack_from('<h', data, offset+8)[0]
+                accel_z = struct.unpack_from('<h', data, offset+10)[0]
+
+                sample = IMUSample(gyro_x, gyro_y, gyro_z, accel_x, accel_y, accel_z)
+                samples.append(sample)
+
+                offset += 12
+            except Exception as e:
+                _LOGGER.error("Error parsing IMU sample %d: %s", i, e)
+                break
+
+        if samples:
+            _LOGGER.debug("Parsed %d IMU samples", len(samples))
+            if self.callback_imu:
+                # Send scaled data
+                imu_data = []
+                for sample in samples:
+                    accel = sample.get_scaled_accel()
+                    gyro = sample.get_scaled_gyro()
+                    imu_data.append({
+                        'accel_x': accel[0],
+                        'accel_y': accel[1],
+                        'accel_z': accel[2],
+                        'gyro_x': gyro[0],
+                        'gyro_y': gyro[1],
+                        'gyro_z': gyro[2],
+                    })
+                self.callback_imu(imu_data)
 
     def _parse_wand_information(self, data: bytearray) -> None:
         """Parse wand information message (ID 0x0E)"""

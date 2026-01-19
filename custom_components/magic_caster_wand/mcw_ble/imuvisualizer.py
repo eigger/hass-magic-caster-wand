@@ -5,12 +5,12 @@ import tkinter as tk
 
 from bleak import BleakClient
 from collections import deque
-from dataclasses import dataclass, field
+from macros import LedGroup
 from mcw import McwClient
 from spell_tracker import SpellTracker
 
 # Configuration
-MAC_ADDRESS = "<your address here!>"
+MAC_ADDRESS = "F4:27:7E:29:39:D2"
 CANVAS_WIDTH = 800
 CANVAS_HEIGHT = 600
 TRAIL_LENGTH = 8192  # Number of points to keep in trail
@@ -68,11 +68,11 @@ class MotionVisualizer:
 
         # Button state tracking
         self.button_state = {
-            'pad1': False,
-            'pad2': False,
-            'pad3': False,
-            'pad4': False,
-            'full_touch': False
+            'button_1': False,
+            'button_2': False,
+            'button_3': False,
+            'button_4': False,
+            'button_all': False
         }
 
         # Running flag
@@ -109,27 +109,27 @@ class MotionVisualizer:
 
         self.ui_ready = True
 
-    def handle_button_callback(self, button_data):
+    def handle_button_callback(self, button_data: dict[str, bool]):
         """Handle button state updates"""
-        prev_full_touch = self.button_state['full_touch']
+        prev_button_all = self.button_state['button_all']
         self.button_state = button_data
 
         # Update button indicators
-        for i, (pad_key, label) in enumerate(zip(['pad1', 'pad2', 'pad3', 'pad4'], self.button_labels)):
+        for i, (pad_key, label) in enumerate(zip(['button_1', 'button_2', 'button_3', 'button_4'], self.button_labels)):
             color = 'green' if button_data[pad_key] else 'gray'
             label.config(fg=color)
 
         # Check if entering motion mode (all buttons pressed)
-        if button_data['full_touch'] and not prev_full_touch:
+        if button_data['button_all'] and not prev_button_all:
             print("Entering motion mode - all buttons pressed")
             self.enter_motion_mode()
 
         # Check if exiting motion mode (any button released)
-        elif prev_full_touch and not button_data['full_touch']:
+        elif prev_button_all and not button_data['button_all']:
             print("Exiting motion mode - button released")
             self.exit_motion_mode()
 
-    def handle_imu_callback(self, imu_data):
+    def handle_imu_callback(self, imu_data: list[dict[str, float]]):
         """Handle IMU data updates using AHRS-based spell rendering"""
         if not imu_data:
             return
@@ -191,7 +191,7 @@ class MotionVisualizer:
 
         # Set LEDs to red
         if self.mcw:
-            asyncio.create_task(self.mcw.led_on(255, 0, 0))
+            asyncio.create_task(self.mcw.led_on(LedGroup.TIP, 255, 0, 0))
 
     def exit_motion_mode(self):
         """Exit motion mode"""
@@ -286,18 +286,17 @@ async def wand_connection(visualizer):
         mcw = McwClient(client)
         visualizer.mcw = mcw  # Pass mcw to visualizer for LED control
 
-        mcw.register_callbacks(
+        mcw.register_callback(
             spell_cb=None,
             battery_cb=None,
-            button_cb=visualizer.handle_button_callback,
+            buttons_cb=visualizer.handle_button_callback,
+            calibration_cb=None,
             imu_cb=visualizer.handle_imu_callback
         )
 
         # Start notifications
         print("Starting notifications...")
         await mcw.start_notify()
-
-        await mcw.keep_alive()
 
         # Start IMU streaming
         print("Starting IMU streaming...")
