@@ -102,7 +102,6 @@ class SpellTrackerState:
     inv_quat_q2: np.float32 = 0.0
     inv_quat_q3: np.float32 = 0.0
 
-@dataclass
 class SpellTracker:
     _CONST_NEG_2_0 = np.float32(-2.0)
     _CONST_NEG_1_0 = np.float32(-1.0)
@@ -120,14 +119,10 @@ class SpellTracker:
     _CONST_MILLIMETERMOVETHRESHOLD = np.float32(8.0)
     _CONST_PI = np.float32(np.pi)
 
-    _interpreter: tf.lite.Interpreter = field(default_factory=lambda: SpellTracker._create_interpeter(), repr=False)
-    _state: SpellTrackerState = field(default_factory=lambda: SpellTrackerState())
-
-    @staticmethod
-    def _create_interpeter() -> tf.lite.Interpreter:
-        interpreter = tf.lite.Interpreter(model_path="model.tflite")
-        interpreter.allocate_tensors()
-        return interpreter
+    def __init__(self, model_path: str) -> None:
+        self._interpreter = tf.lite.Interpreter(model_path=model_path)
+        self._interpreter.allocate_tensors()
+        self._state = SpellTrackerState()
 
     @staticmethod
     def _inv_sqrt(x: np.float32) -> np.float32:

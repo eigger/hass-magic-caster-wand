@@ -48,6 +48,7 @@ async def async_setup_entry(
     entities = [
         McwSpellSensor(address, mcw, spell_coordinator),
         McwBatterySensor(address, mcw, battery_coordinator),
+        McwSpellModeSensor(address, mcw),
     ]
 
     # Add calibration sensors
@@ -161,6 +162,23 @@ class McwBatterySensor(
             _LOGGER.debug("Battery level: %s%%", self.coordinator.data)
             self._battery = self.coordinator.data
         self.async_write_ha_state()
+
+
+class McwSpellModeSensor(McwBaseSensor):
+    """Sensor entity for showing spell detection mode."""
+
+    def __init__(self, address: str, mcw) -> None:
+        """Initialize the spell mode sensor."""
+        McwBaseSensor.__init__(self, address, mcw)
+
+        self._attr_name = "Spell Detection Mode"
+        self._attr_unique_id = f"mcw_{self._identifier}_spell_mode"
+        self._attr_icon = "mdi:auto-fix"
+
+    @property
+    def native_value(self) -> StateType:
+        """Return the spell detection mode."""
+        return self._mcw.spell_detection_mode if self._mcw else "Unknown"
 
 
 class McwCalibrationSensor(

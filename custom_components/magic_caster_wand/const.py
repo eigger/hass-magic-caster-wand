@@ -3,3 +3,17 @@
 DOMAIN = "magic_caster_wand"
 MANUFACTURER = "Warner Bros. Entertainment Inc."
 DEFAULT_SCAN_INTERVAL = 300
+
+# Casting LED color options (name -> RGB tuple)
+CASTING_LED_COLORS = {
+    "White": (255, 255, 255),
+    "Red": (255, 0, 0),
+    "Green": (0, 255, 0),
+    "Blue": (0, 0, 255),
+    "Yellow": (255, 255, 0),
+    "Cyan": (0, 255, 255),
+    "Magenta": (255, 0, 255),
+    "Orange": (255, 165, 0),
+    "Purple": (128, 0, 128),
+}
+DEFAULT_CASTING_LED_COLOR = "White"

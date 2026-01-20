@@ -25,7 +25,7 @@ class SpellRenderer:
         self.start_x = canvas_width / 2
         self.start_y = canvas_height / 2
 
-        self.tracker: SpellTracker = SpellTracker()
+        self.tracker: SpellTracker = SpellTracker("model.tflite")
 
     def start_spell(self) -> None:
         """Start a new spell gesture"""
