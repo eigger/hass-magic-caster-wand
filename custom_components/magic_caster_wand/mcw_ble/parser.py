@@ -51,8 +51,10 @@ class McwDevice:
         self._coordinator_calibration = None
 
         # Server-side spell tracking
-        self._spell_tracker: SpellTracker | None = None
         self._button_all_pressed: bool = False
+        self._spell_timeout_seconds: float = 1.0
+        self._spell_timeout_task: asyncio.Task | None = None
+        self._spell_tracker: SpellTracker | None = None
 
         # Casting LED configuration
         self._casting_led_color: tuple[int, int, int] = (255, 255, 255)  # Default white
@@ -112,6 +114,7 @@ class McwDevice:
             # Transition: not pressed -> pressed = start tracking
             if button_all and not self._button_all_pressed:
                 _LOGGER.debug("All buttons pressed, starting spell tracking")
+                self._cancel_spell_timeout()
                 asyncio.create_task(self._turn_on_casting_led())
                 self._spell_tracker.start()
 
@@ -123,8 +126,26 @@ class McwDevice:
                 if spell_name and self._coordinator_spell:
                     _LOGGER.debug("Server-side spell detected: %s", spell_name)
                     self._coordinator_spell.async_set_updated_data(spell_name)
+                # Start timeout to reset spell back to default state
+                self._spell_timeout_task = asyncio.create_task(self._spell_reset_timeout())
 
             self._button_all_pressed = button_all
+
+    def _cancel_spell_timeout(self) -> None:
+        """Cancel any pending spell reset timeout task."""
+        if self._spell_timeout_task is not None:
+            self._spell_timeout_task.cancel()
+            self._spell_timeout_task = None
+
+    async def _spell_reset_timeout(self) -> None:
+        """Reset spell to default state after configured duration."""
+        try:
+            await asyncio.sleep(self._spell_timeout_seconds)
+            _LOGGER.debug("Resetting spell to default state after %.1f seconds", self._spell_timeout_seconds)
+            if self._coordinator_spell:
+                self._coordinator_spell.async_set_updated_data("awaiting")
+        except asyncio.CancelledError:
+            pass
 
     async def _turn_on_casting_led(self) -> None:
         """Turn on the casting LED with configured color."""
