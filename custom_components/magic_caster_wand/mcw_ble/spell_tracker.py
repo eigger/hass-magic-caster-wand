@@ -2,11 +2,7 @@ import numpy as np
 
 from dataclasses import dataclass, field
 
-# Since imuvisualizer is not a package, we need to handle imports accordingly.
-try:
-    from .spell_detector import SpellDetector
-except ImportError:
-    from spell_detector import SpellDetector
+from .spell_detector import SpellDetector
 
 @dataclass
 class SpellTrackerState:
