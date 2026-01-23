@@ -23,7 +23,7 @@ except ImportError:
 from spell_tracker import SpellTracker
 
 # Configuration
-MAC_ADDRESS = "F4:27:7E:29:39:D2"
+MAC_ADDRESS = "E0:F8:53:63:F8:EA"
 MODEL_PATH = "model.tflite" # Obtained from APK
 CANVAS_WIDTH = 800
 CANVAS_HEIGHT = 600

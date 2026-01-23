@@ -44,13 +44,15 @@ class McwDevice:
         self._coordinator_battery = None
         self._coordinator_buttons = None
         self._coordinator_calibration = None
+        self._coordinator_imu = None
 
-    def register_coordinator(self, cn_spell, cn_battery, cn_buttons, cn_calibration=None) -> None:
+    def register_coordinator(self, cn_spell, cn_battery, cn_buttons, cn_calibration=None, cn_imu=None) -> None:
         """Register coordinators for spell, battery, button, and calibration updates."""
         self._coordinator_spell = cn_spell
         self._coordinator_battery = cn_battery
         self._coordinator_buttons = cn_buttons
         self._coordinator_calibration = cn_calibration
+        self._coordinator_imu = cn_imu
 
     def _callback_spell(self, data: str) -> None:
         """Handle spell detection callback."""
@@ -71,6 +73,11 @@ class McwDevice:
         """Handle calibration state update callback."""
         if self._coordinator_calibration:
             self._coordinator_calibration.async_set_updated_data(data)
+
+    def _callback_imu(self, data: list[dict[str, float]]) -> None:
+        """Handle IMU data update callback."""
+        if self._coordinator_imu:
+            self._coordinator_imu.async_set_updated_data(data)
 
     def is_connected(self) -> bool:
         """Check if the device is currently connected."""
@@ -102,7 +109,13 @@ class McwDevice:
             if not self._data.identifier:
                 self._data.identifier = ble_device.address.replace(":", "")[-8:]
             self._mcw = McwClient(self.client)
-            self._mcw.register_callback(self._callback_spell, self._callback_battery, self._callback_buttons, self._callback_calibration)
+            self._mcw.register_callback(
+                self._callback_spell, 
+                self._callback_battery, 
+                self._callback_buttons, 
+                self._callback_calibration,
+                self._callback_imu
+            )
             await self._mcw.start_notify()
             if not self.model:
                 self.model = await self._mcw.get_wand_device_id()
@@ -120,19 +133,25 @@ class McwDevice:
             try:
                 if self.client.is_connected:
                     if self._mcw:
+                        # Stop IMU streaming before disconnecting
+                        try:
+                            await self._mcw.imu_streaming_stop()
+                        except Exception as imu_err:
+                            _LOGGER.debug("Failed to stop IMU streaming during disconnect: %s", imu_err)
                         await self._mcw.stop_notify()
                     await self.client.disconnect()
                     _LOGGER.debug("Disconnected from Magic Caster Wand")
             except Exception as err:
                 _LOGGER.warning("Error during disconnect: %s", err)
             finally:
-                # Reset all button states to OFF on disconnect
+                # Reset all states on disconnect
                 if self._coordinator_buttons:
                     self._coordinator_buttons.async_set_updated_data({
                         "button_1": False,
                         "button_2": False,
                         "button_3": False,
                         "button_4": False,
+                        "button_all": False,
                     })
 
     async def update_device(self, ble_device: BLEDevice) -> BLEData:
@@ -175,6 +194,16 @@ class McwDevice:
         """Send calibration packet."""
         if self.is_connected() and self._mcw:
             await self._mcw.calibration()
+
+    async def imu_streaming_start(self) -> None:
+        """Start IMU streaming."""
+        if self.is_connected() and self._mcw:
+            await self._mcw.imu_streaming_start()
+
+    async def imu_streaming_stop(self) -> None:
+        """Stop IMU streaming."""
+        if self.is_connected() and self._mcw:
+            await self._mcw.imu_streaming_stop()
 
 
 class McwBluetoothDeviceData(BluetoothData):
