@@ -1,83 +1,12 @@
 import numpy as np
-import tensorflow as tf
 
 from dataclasses import dataclass, field
 
-SPELL_NAMES = [
-    "The_Force_Spell",
-    "Colloportus",
-    "Colloshoo",
-    "The_Hour_Reversal_Reversal_Charm",
-    "Evanesco",
-    "Herbivicus",
-    "Orchideous",
-    "Brachiabindo",
-    "Meteolojinx",
-    "Riddikulus",
-    "Silencio",
-    "Immobulus",
-    "Confringo",
-    "Petrificus_Totalus",
-    "Flipendo",
-    "The_Cheering_Charm",
-    "Salvio_Hexia",
-    "Pestis_Incendium",
-    "Alohomora",
-    "Protego",
-    "Langlock",
-    "Mucus_Ad_Nauseum",
-    "Flagrate",
-    "Glacius",
-    "Finite",
-    "Anteoculatia",
-    "Expelliarmus",
-    "Expecto_Patronum",
-    "Descendo",
-    "Depulso",
-    "Reducto",
-    "Colovaria",
-    "Aberto",
-    "Confundo",
-    "Densaugeo",
-    "The_Stretching_Jinx",
-    "Entomorphis",
-    "The_Hair_Thickening_Growing_Charm",
-    "Bombarda",
-    "Finestra",
-    "The_Sleeping_Charm",
-    "Rictusempra",
-    "Piertotum_Locomotor",
-    "Expulso",
-    "Impedimenta",
-    "Ascendio",
-    "Incarcerous",
-    "Ventus",
-    "Revelio",
-    "Accio",
-    "Melefors",
-    "Scourgify",
-    "Wingardium_Leviosa",
-    "Nox",
-    "Stupefy",
-    "Spongify",
-    "Lumos",
-    "Appare_Vestigium",
-    "Verdimillious",
-    "Fulgari",
-    "Reparo",
-    "Locomotor",
-    "Quietus",
-    "Everte_Statum",
-    "Incendio",
-    "Aguamenti",
-    "Sonorus",
-    "Cantis",
-    "Arania_Exumai",
-    "Calvorio",
-    "The_Hour_Reversal_Charm",
-    "Vermillious",
-    "The_Pepper-Breath_Hex",
-]
+# Since imuvisualizer is not a package, we need to handle imports accordingly.
+try:
+    from .spell_detector import SpellDetector
+except ImportError:
+    from spell_detector import SpellDetector
 
 @dataclass
 class SpellTrackerState:
@@ -102,7 +31,6 @@ class SpellTrackerState:
     inv_quat_q2: np.float32 = 0.0
     inv_quat_q3: np.float32 = 0.0
 
-@dataclass
 class SpellTracker:
     _CONST_NEG_2_0 = np.float32(-2.0)
     _CONST_NEG_1_0 = np.float32(-1.0)
@@ -120,14 +48,9 @@ class SpellTracker:
     _CONST_MILLIMETERMOVETHRESHOLD = np.float32(8.0)
     _CONST_PI = np.float32(np.pi)
 
-    _interpreter: tf.lite.Interpreter = field(default_factory=lambda: SpellTracker._create_interpeter(), repr=False)
-    _state: SpellTrackerState = field(default_factory=lambda: SpellTrackerState())
-
-    @staticmethod
-    def _create_interpeter() -> tf.lite.Interpreter:
-        interpreter = tf.lite.Interpreter(model_path="model.tflite")
-        interpreter.allocate_tensors()
-        return interpreter
+    def __init__(self, detector: SpellDetector | None):
+        self._detector: SpellDetector | None = detector
+        self._state: SpellTrackerState = SpellTrackerState()
 
     @staticmethod
     def _inv_sqrt(x: np.float32) -> np.float32:
@@ -379,21 +302,27 @@ class SpellTracker:
     ) -> str | int:
         """
         Recognize a spell/gesture from recorded positions.
-        
+
         Returns:
-            Tuple of (recognized_class_index, probabilities_array)
-            - Returns (-1, None) if no movement detected
-            - Returns (-2, None) if not enough data points (need > 99)
+            The recognized spell name as a string, or a negative integer error code:
+            -1: No movement detected
+            -2: Not enough data points (need > 99)
+            -3: No spell recognized with sufficient confidence
+            -4: No detector configured
         """
+
+        if self._detector is None:
+            return -4  # No detector configured
+
         positions: np.ndarray = self._state.positions
         position_count: int = self._state.position_count
-        
+
         # Phase 1: Calculate bounding box (min/max X and Y)
         min_x: np.float32 = np.float32(np.inf)
         max_x: np.float32 = np.float32(-np.inf)
         min_y: np.float32 = np.float32(np.inf)
         max_y: np.float32 = np.float32(-np.inf)
-        
+
         for i in range(position_count):
             x: np.float32 = positions[i, 0]
             y: np.float32 = positions[i, 1]
@@ -405,16 +334,16 @@ class SpellTracker:
                 min_y: np.float32 = y
             if y > max_y:
                 max_y: np.float32 = y
-        
+
         # Compute bounding box size (larger of width or height)
         width: np.float32 = max_x - min_x
         height: np.float32 = max_y - min_y
         bbox_size: np.float32 = np.maximum(width, height)
-        
+
         # Phase 2: Early exit checks
         if bbox_size <= SpellTracker._CONST_0_0:
             return -1  # No movement detected
-        
+
         if position_count <= 99:
             return -2  # Not enough data points
         
@@ -479,24 +408,9 @@ class SpellTracker:
             
             sample_pos += step
         
-        # Phase 6: TensorFlow Lite inference (if interpreter provided)
-        # Get input tensor and copy data
-        input_tensor = self._interpreter.get_input_details()[0]
-        self._interpreter.set_tensor(input_tensor['index'], pos_inputs.reshape(1, 50, 2))
-        
-        # Run inference
-        self._interpreter.invoke()
-        
-        # Get output probabilities
-        output_tensor = self._interpreter.get_output_details()[0]
-        probabilities = self._interpreter.get_tensor(output_tensor['index'])[0]
-        
-        # Phase 7: Find best match (highest probability)
-        best_index = np.argmax(probabilities)
-        best_prob = probabilities[best_index]
-
-        if best_prob < confidence_threshold:
+        # Phase 6: Run spell detection via the configured detector
+        spell_name: str | None = self._detector.detect(pos_inputs, confidence_threshold)
+        if spell_name is None:
             return -3  # No spell recognized with sufficient confidence
-
-        print(f"Recognized spell: {SPELL_NAMES[best_index]} with probability {best_prob:.4f}")
-        return SPELL_NAMES[best_index]
+        
+        return spell_name
