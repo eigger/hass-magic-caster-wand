@@ -49,44 +49,15 @@ class McwDevice:
         self._coordinator_battery = None
         self._coordinator_buttons = None
         self._coordinator_calibration = None
+        self._coordinator_imu = None
 
-        # Server-side spell tracking
-        self._button_all_pressed: bool = False
-        self._spell_reset_timeout_task: asyncio.Task | None = None
-        self._spell_tracker: SpellTracker | None = None
-
-        # Casting LED configuration
-        self._casting_led_color: tuple[int, int, int] = (255, 255, 255)  # Default white
-
-        # Initialize SpellTracker if model file exists
-        if _MODEL_PATH.exists():
-            _LOGGER.info("Found spell model at %s, enabling server-side spell detection", _MODEL_PATH)
-            self._spell_tracker = SpellTracker(str(_MODEL_PATH))
-        else:
-            _LOGGER.debug("No spell model found at %s, using wand-native spell detection", _MODEL_PATH)
-
-    @property
-    def casting_led_color(self) -> tuple[int, int, int]:
-        """Return the current casting LED color."""
-        return self._casting_led_color
-
-    @casting_led_color.setter
-    def casting_led_color(self, color: tuple[int, int, int]) -> None:
-        """Set the casting LED color."""
-        _LOGGER.debug("Casting LED color set: %s", color)
-        self._casting_led_color = color
-
-    @property
-    def spell_detection_mode(self) -> str:
-        """Return the current spell detection mode."""
-        return "Server" if self._spell_tracker is not None else "Wand"
-
-    def register_coordinator(self, cn_spell, cn_battery, cn_buttons, cn_calibration=None) -> None:
+    def register_coordinator(self, cn_spell, cn_battery, cn_buttons, cn_calibration=None, cn_imu=None) -> None:
         """Register coordinators for spell, battery, button, and calibration updates."""
         self._coordinator_spell = cn_spell
         self._coordinator_battery = cn_battery
         self._coordinator_buttons = cn_buttons
         self._coordinator_calibration = cn_calibration
+        self._coordinator_imu = cn_imu
 
     def _callback_spell(self, data: str) -> None:
         """Handle spell detection callback from wand-native detection."""
@@ -172,20 +143,9 @@ class McwDevice:
             self._coordinator_calibration.async_set_updated_data(data)
 
     def _callback_imu(self, data: list[dict[str, float]]) -> None:
-        """Handle IMU data callback for server-side spell tracking."""
-        if self._spell_tracker is None:
-            return
-
-        for sample in data:
-            # Apply axis remapping (same as imuvisualizer.py)
-            self._spell_tracker.update(
-                ax=sample['accel_y'],
-                ay=-sample['accel_x'],
-                az=sample['accel_z'],
-                gx=sample['gyro_y'],
-                gy=-sample['gyro_x'],
-                gz=sample['gyro_z'],
-            )
+        """Handle IMU data update callback."""
+        if self._coordinator_imu:
+            self._coordinator_imu.async_set_updated_data(data)
 
     def is_connected(self) -> bool:
         """Check if the device is currently connected."""
@@ -218,11 +178,11 @@ class McwDevice:
                 self._data.identifier = ble_device.address.replace(":", "")[-8:]
             self._mcw = McwClient(self.client)
             self._mcw.register_callback(
-                self._callback_spell,
-                self._callback_battery,
-                self._callback_buttons,
+                self._callback_spell, 
+                self._callback_battery, 
+                self._callback_buttons, 
                 self._callback_calibration,
-                self._callback_imu,
+                self._callback_imu
             )
             await self._mcw.start_notify()
             if not self.model:
@@ -247,24 +207,25 @@ class McwDevice:
             try:
                 if self.client.is_connected:
                     if self._mcw:
-                        # Stop IMU streaming if using server-side spell detection
-                        if self._spell_tracker is not None:
+                        # Stop IMU streaming before disconnecting
+                        try:
                             await self._mcw.imu_streaming_stop()
+                        except Exception as imu_err:
+                            _LOGGER.debug("Failed to stop IMU streaming during disconnect: %s", imu_err)
                         await self._mcw.stop_notify()
                     await self.client.disconnect()
                     _LOGGER.debug("Disconnected from Magic Caster Wand")
             except Exception as err:
                 _LOGGER.warning("Error during disconnect: %s", err)
             finally:
-                # Reset button tracking state
-                self._button_all_pressed = False
-                # Reset all button states to OFF on disconnect
+                # Reset all states on disconnect
                 if self._coordinator_buttons:
                     self._coordinator_buttons.async_set_updated_data({
                         "button_1": False,
                         "button_2": False,
                         "button_3": False,
                         "button_4": False,
+                        "button_all": False,
                     })
 
     async def update_device(self, ble_device: BLEDevice) -> BLEData:
@@ -307,6 +268,16 @@ class McwDevice:
         """Send calibration packet."""
         if self.is_connected() and self._mcw:
             await self._mcw.calibration()
+
+    async def imu_streaming_start(self) -> None:
+        """Start IMU streaming."""
+        if self.is_connected() and self._mcw:
+            await self._mcw.imu_streaming_start()
+
+    async def imu_streaming_stop(self) -> None:
+        """Stop IMU streaming."""
+        if self.is_connected() and self._mcw:
+            await self._mcw.imu_streaming_stop()
 
 
 class McwBluetoothDeviceData(BluetoothData):

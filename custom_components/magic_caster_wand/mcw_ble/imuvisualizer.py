@@ -1,16 +1,30 @@
+# Allow running as a standalone script (bypasses package __init__.py)
+if __name__ == "__main__":
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 import asyncio
 import logging
 import numpy as np
 import tkinter as tk
+from pathlib import Path
 
 from bleak import BleakClient
 from collections import deque
 from macros import LedGroup
 from mcw import McwClient
+
+try:
+    from local_tensor_spell_detector import LocalTensorSpellDetector
+except ImportError:
+    LocalTensorSpellDetector = None
+
 from spell_tracker import SpellTracker
 
 # Configuration
-MAC_ADDRESS = "F4:27:7E:29:39:D2"
+MAC_ADDRESS = "E0:F8:53:63:F8:EA"
+MODEL_PATH = "model.tflite" # Obtained from APK
 CANVAS_WIDTH = 800
 CANVAS_HEIGHT = 600
 TRAIL_LENGTH = 8192  # Number of points to keep in trail
@@ -25,7 +39,18 @@ class SpellRenderer:
         self.start_x = canvas_width / 2
         self.start_y = canvas_height / 2
 
-        self.tracker: SpellTracker = SpellTracker("model.tflite")
+        if LocalTensorSpellDetector is None:
+            print("Warning: LocalTensorSpellDetector not available. Spell detection disabled.")
+            detector = None
+        else:
+            model_path = Path(MODEL_PATH)
+            if not model_path.exists():
+                print(f"Warning: Model file {MODEL_PATH} does not exist. Spell detection disabled.")
+                detector = None
+            else:
+                detector = LocalTensorSpellDetector(MODEL_PATH)
+
+        self.tracker: SpellTracker = SpellTracker(detector=detector)
 
     def start_spell(self) -> None:
         """Start a new spell gesture"""
@@ -59,8 +84,6 @@ class MotionVisualizer:
             canvas_width=CANVAS_WIDTH,
             canvas_height=CANVAS_HEIGHT,
         )
-
-        # Motion tracking
         self.motion_mode = False
         self.trail = deque(maxlen=TRAIL_LENGTH)
         self.current_pos = [CANVAS_WIDTH // 2, CANVAS_HEIGHT // 2]

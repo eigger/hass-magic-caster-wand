@@ -61,13 +61,15 @@ repository into the `custom_components/magic_caster_wand` directory.
 >[!IMPORTANT]
 >You must connect to the wand via Bluetooth(Switch) first in order to receive the spell values.
 
-⬆ ⬇ ⬅ ➡ ⬈ ⬉ ⬊ ⬋
-| Spell | Motion | Description |
-|------|--------|-------------|
-| Protego | ⬇ | Downward hand motion (arrow-like) |
-| Serpensortia | ⬆ | Upward hand motion |
-| Lumos | ⬅ ⬈ ⬊ | Draw a triangular motion: move left, then diagonally up to the right, then straight down |
-| ... |  | If you know the spell motion or have an easier way to perform it, please share it here. |
+## Built-in Spell Gestures for the Wand
+<table>
+  <tr>
+    <td colspan="2" align="center">
+      <img width="940" alt="mcw" src="./docs/images/default_spell.png" />
+    </td>
+  </tr>
+</table>
+
 
 ## Spell Gestures
 <table>
@@ -175,6 +177,23 @@ repository into the `custom_components/magic_caster_wand` directory.
   </tr>
 </table>
 
+
+## Spell Canvas
+The Spell Canvas provides real-time visualization of your wand's movements.
+
+>[!TIP]
+>If the spell canvas screen does not appear or update, try turning the **Spell Tracking** switch off and then back on.
+
+- **Spell Tracking**: Turn on the **Spell Tracking** switch to start receiving IMU data from the wand.
+- **Drawing**: Drawing on the canvas begins automatically when the wand's button is pressed and all button states are detected.
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="./docs/images/spell_canvas.png" width="600" alt="Spell Canvas Demo"/>
+    </td>
+  </tr>
+</table>
 
 ## Automation Example
 ```yaml
