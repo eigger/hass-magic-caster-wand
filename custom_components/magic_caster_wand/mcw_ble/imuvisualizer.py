@@ -1,7 +1,10 @@
 # Visualizer for wand motion with spell detection when model is available.
 # To launch, use the following steps:
 #   1. Change to the custom_components/magic_caster_wand/mcw_ble directory
-#   2. Run "python -m mcw_ble.imuvisualizer"
+#   2. If necessary create a venv (python -m venv venv)
+#   3. Make sure your venv is activated
+#   4. If necessary install dependencies (pip install -r imuvisualizer.txt)
+#   5. Run "python -m mcw_ble.imuvisualizer"
 
 import asyncio
 import logging
