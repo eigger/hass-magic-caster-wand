@@ -28,12 +28,13 @@ async def async_setup_entry(
     calibration_coordinator = data["calibration_coordinator"]
 
     async_add_entities([
-        McwCalibrationButton(address, mcw, coordinator, calibration_coordinator),
+        McwButtonCalibration(address, mcw, coordinator, calibration_coordinator),
+        McwImuCalibration(address, mcw, coordinator, calibration_coordinator),
     ])
 
 
-class McwCalibrationButton(CoordinatorEntity[DataUpdateCoordinator[BLEData]], ButtonEntity):
-    """Button entity for wand calibration."""
+class McwBaseCalibrationButton(CoordinatorEntity[DataUpdateCoordinator[BLEData]], ButtonEntity):
+    """Base class for wand calibration buttons."""
 
     _attr_has_entity_name = True
 
@@ -51,10 +52,6 @@ class McwCalibrationButton(CoordinatorEntity[DataUpdateCoordinator[BLEData]], Bu
         self._identifier = address.replace(":", "")[-8:]
         self._calibration_coordinator = calibration_coordinator
 
-        self._attr_name = "Calibration"
-        self._attr_unique_id = f"mcw_{self._identifier}_calibration"
-        self._attr_icon = "mdi:compass-outline"
-
     @property
     def device_info(self) -> DeviceInfo:
         """Return device info."""
@@ -65,26 +62,43 @@ class McwCalibrationButton(CoordinatorEntity[DataUpdateCoordinator[BLEData]], Bu
             model=self._mcw.model if self._mcw else None,
         )
 
-    @property
-    def available(self) -> bool:
-        """Return True if entity is available (device is connected)."""
-        return self._mcw.is_connected() if self._mcw else False
-
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         self.async_write_ha_state()
 
+
+class McwButtonCalibration(McwBaseCalibrationButton):
+    """Button entity for wand button calibration."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._attr_name = "Calibration Button"
+        self._attr_unique_id = f"mcw_{self._identifier}_calibration_button"
+        self._attr_icon = "mdi:gesture-tap-button"
+
     async def async_press(self) -> None:
         """Handle the button press."""
-        _LOGGER.debug("Calibration button pressed, resetting calibration sensors and sending calibration packets")
-        
-        # Reset both calibration sensors to Pending
+        _LOGGER.debug("Button calibration pressed")
         self._calibration_coordinator.async_set_updated_data({
             "calibration_button": "Pending",
+        })
+        await self._mcw.send_button_calibration()
+
+
+class McwImuCalibration(McwBaseCalibrationButton):
+    """Button entity for wand IMU calibration."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._attr_name = "Calibration IMU"
+        self._attr_unique_id = f"mcw_{self._identifier}_calibration_imu"
+        self._attr_icon = "mdi:compass-outline"
+
+    async def async_press(self) -> None:
+        """Handle the button press."""
+        _LOGGER.debug("IMU calibration pressed")
+        self._calibration_coordinator.async_set_updated_data({
             "calibration_imu": "Pending",
         })
-        
-        await self._mcw.send_calibration()
-        
-        _LOGGER.debug("Calibration packets sent")
+        await self._mcw.send_imu_calibration()

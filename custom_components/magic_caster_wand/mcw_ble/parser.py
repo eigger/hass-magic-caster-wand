@@ -283,10 +283,15 @@ class McwDevice:
         if self.is_connected() and self._mcw:
             await self._mcw.clear_leds()
 
-    async def send_calibration(self) -> None:
-        """Send calibration packet."""
+    async def send_button_calibration(self) -> None:
+        """Send button calibration packet."""
         if self.is_connected() and self._mcw:
-            await self._mcw.calibration()
+            await self._mcw.calibration_button()
+
+    async def send_imu_calibration(self) -> None:
+        """Send IMU calibration packet."""
+        if self.is_connected() and self._mcw:
+            await self._mcw.calibration_imu()
 
     async def imu_streaming_start(self) -> None:
         """Start IMU streaming."""
