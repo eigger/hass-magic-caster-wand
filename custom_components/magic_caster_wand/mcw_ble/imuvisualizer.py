@@ -1,3 +1,11 @@
+# Visualizer for wand motion with spell detection when model is available.
+# To launch, use the following steps:
+#   1. Change to the custom_components/magic_caster_wand/mcw_ble directory
+#   2. If necessary create a venv (python -m venv venv)
+#   3. Make sure your venv is activated
+#   4. If necessary install dependencies (pip install -r imuvisualizer.txt)
+#   5. Run "python -m mcw_ble.imuvisualizer"
+
 import asyncio
 import logging
 import numpy as np
@@ -5,12 +13,24 @@ import tkinter as tk
 
 from bleak import BleakClient
 from collections import deque
-from macros import LedGroup
-from mcw import McwClient
-from spell_tracker import SpellTracker
+from pathlib import Path
+
+try:
+    from .local_tensor_spell_detector import LocalTensorSpellDetector
+except ImportError:
+    LocalTensorSpellDetector = None
+    try:
+        from .remote_tensor_spell_detector import RemoteTensorSpellDetector
+    except ImportError:
+        RemoteTensorSpellDetector = None
+
+from .macros import LedGroup
+from .mcw import McwClient
+from .spell_tracker import SpellTracker
 
 # Configuration
-MAC_ADDRESS = "F4:27:7E:29:39:D2"
+MAC_ADDRESS = "E0:F8:53:63:F8:EA"
+MODEL_PATH = Path(__file__).parent / "model.tflite"  # Obtained from APK
 CANVAS_WIDTH = 800
 CANVAS_HEIGHT = 600
 TRAIL_LENGTH = 8192  # Number of points to keep in trail
@@ -25,7 +45,25 @@ class SpellRenderer:
         self.start_x = canvas_width / 2
         self.start_y = canvas_height / 2
 
-        self.tracker: SpellTracker = SpellTracker()
+        detector = None
+        if not MODEL_PATH.exists():
+            print(f"Warning: Model file {MODEL_PATH} does not exist. Spell detection disabled.")
+        elif LocalTensorSpellDetector is not None:
+            try:
+                detector = LocalTensorSpellDetector(MODEL_PATH)
+                print("Using LocalTensorSpellDetector for spell detection.")
+            except:
+                print("Warning: Failed to initialize LocalTensorSpellDetector. Spell detection disabled.")
+        elif RemoteTensorSpellDetector is not None:
+            try:
+                detector = RemoteTensorSpellDetector(MODEL_PATH, "http://localhost:8000/")
+                print("Using RemoteTensorSpellDetector for spell detection.")
+            except:
+                print("Warning: Failed to initialize RemoteTensorSpellDetector. Spell detection disabled.")
+        else:
+            print("Warning: No spell detector available. Spell detection disabled.")
+
+        self.tracker: SpellTracker = SpellTracker(detector=detector)
 
     def start_spell(self) -> None:
         """Start a new spell gesture"""
@@ -59,8 +97,6 @@ class MotionVisualizer:
             canvas_width=CANVAS_WIDTH,
             canvas_height=CANVAS_HEIGHT,
         )
-
-        # Motion tracking
         self.motion_mode = False
         self.trail = deque(maxlen=TRAIL_LENGTH)
         self.current_pos = [CANVAS_WIDTH // 2, CANVAS_HEIGHT // 2]

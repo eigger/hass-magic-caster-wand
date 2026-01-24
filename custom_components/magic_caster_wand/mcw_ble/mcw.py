@@ -8,7 +8,7 @@ import struct
 import asyncio
 from asyncio import Event, sleep, wait_for
 from bleak import BleakClient, BleakError
-from macros import LedGroup, Macro
+from .macros import LedGroup, Macro
 from typing import Any, Callable, TypeVar
 
 SERVICE_UUID = "57420001-587e-48a0-974c-544d6163c577"
@@ -379,7 +379,9 @@ class McwClient:
     async def imu_streaming_start(self) -> None:
         """Start IMU data streaming"""
         _LOGGER.debug("Starting IMU streaming")
-        await self.write_command(struct.pack('BBB', MESSAGEIDS.IMUFLAG_SET, 0x00, 0x01), False)
+        await self.write_command(struct.pack('B', MESSAGEIDS.IMUFLAG_RESET), False)
+        await sleep(0.1)
+        await self.write_command(struct.pack('BBB', MESSAGEIDS.IMUFLAG_SET, 0x01, 0x01), False)
 
     async def imu_streaming_stop(self) -> None:
         """Stop IMU data streaming"""
