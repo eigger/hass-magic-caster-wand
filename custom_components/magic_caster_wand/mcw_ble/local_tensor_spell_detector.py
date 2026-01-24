@@ -16,7 +16,7 @@ class LocalTensorSpellDetector(SpellDetector):
         self._interpreter = tf.lite.Interpreter(model_path=model_path)
         self._interpreter.allocate_tensors()
 
-    def detect(self, positions: np.ndarray, confidence_threshold: np.float32) -> str | None:
+    async def detect(self, positions: np.ndarray, confidence_threshold: np.float32) -> str | None:
         """
         Detect a spell from normalized position data using TensorFlow Lite.
 

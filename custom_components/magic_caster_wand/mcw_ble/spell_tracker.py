@@ -1,8 +1,11 @@
+import logging
 import numpy as np
 
 from dataclasses import dataclass, field
 
 from .spell_detector import SpellDetector
+
+_LOGGER = logging.getLogger(__name__)
 
 @dataclass
 class SpellTrackerState:
@@ -124,11 +127,11 @@ class SpellTracker:
         self._state.position_count = 1
         self._state.tracking_active = 1
 
-    def stop(
+    async def stop(
         self
     ) -> str | None:
         self._state.tracking_active = 0
-        result = self._recognize_spell()
+        result = await self._recognize_spell()
         return result if isinstance(result, str) else None
 
     def update(
@@ -292,10 +295,11 @@ class SpellTracker:
         self._state.ahrs_quat_q2 = fVar5 * fVar1
         self._state.ahrs_quat_q3 = fVar1 * fVar4
 
-    def _recognize_spell(
+    async def _recognize_spell(
         self,
         confidence_threshold: np.float32 = _CONST_0_99
     ) -> str | int:
+        _LOGGER.debug("Spell recognition started with %d positions", self._state.position_count)
         """
         Recognize a spell/gesture from recorded positions.
 
@@ -405,7 +409,7 @@ class SpellTracker:
             sample_pos += step
         
         # Phase 6: Run spell detection via the configured detector
-        spell_name: str | None = self._detector.detect(pos_inputs, confidence_threshold)
+        spell_name: str | None = await self._detector.detect(pos_inputs, confidence_threshold)
         if spell_name is None:
             return -3  # No spell recognized with sufficient confidence
         

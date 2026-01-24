@@ -82,7 +82,7 @@ class SpellDetector(ABC):
     ]
 
     @abstractmethod
-    def detect(self, positions: np.ndarray, confidence_threshold: np.float32) -> str | None:
+    async def detect(self, positions: np.ndarray, confidence_threshold: np.float32) -> str | None:
         """
         Detect a spell from normalized position data.
 

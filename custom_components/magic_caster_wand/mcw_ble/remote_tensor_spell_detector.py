@@ -1,6 +1,7 @@
 import logging
+import asyncio
 import numpy as np
-import requests
+import aiohttp
 
 from pathlib import Path
 from typing import Any, Optional
@@ -17,9 +18,12 @@ class RemoteTensorSpellDetector(SpellDetector):
         model_path: str | Path,
         base_url: str,
         timeout: float = 5.0,
+        session: Optional[aiohttp.ClientSession] = None,
     ) -> None:
         self._base_url: str = base_url.rstrip("/")
         self._timeout: float = timeout
+        self._session: Optional[aiohttp.ClientSession] = session
+        self._is_external_session: bool = session is not None
 
         self._model_path: Path = Path(model_path) if model_path else Path(__file__).with_name("model.tflite")
         self._model_name: str = self._model_path.name
@@ -27,19 +31,43 @@ class RemoteTensorSpellDetector(SpellDetector):
         if not self._model_path.exists():
             raise FileNotFoundError(f"Model file not found: {self._model_path}")
 
-        self._session: requests.Session = requests.Session()
-        self._upload_model()
+        self._model_uploaded: bool = False
+
+    async def async_init(self) -> None:
+        """Initialize the detector asynchronously."""
+        if self._session is None:
+            self._session = aiohttp.ClientSession()
+        
+        await self._upload_model()
+
+    async def close(self) -> None:
+        """Close the session if it was created internally."""
+        if not self._is_external_session and self._session:
+            await self._session.close()
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
-    def detect(self, positions: np.ndarray, confidence_threshold: np.float32) -> str | None:
+    async def detect(self, positions: np.ndarray, confidence_threshold: np.float32) -> str | None:
         """Detect a spell by invoking the remote TFLite server.
 
         Args:
             positions: A (50, 2) float32 array of normalized positions in [0, 1].
             confidence_threshold: Minimum confidence required for a valid detection.
         """
+        _LOGGER.debug("Remote detect called with %d positions, threshold: %.2f", len(positions), confidence_threshold)
+        
+        # Ensure session is initialized
+        if self._session is None:
+            self._session = aiohttp.ClientSession()
+
+        # Ensure model is uploaded
+        if not self._model_uploaded:
+            try:
+                await self._upload_model()
+            except Exception as exc:
+                _LOGGER.error("Failed to upload model before detection: %s", exc)
+                return None
 
         try:
             payload = {
@@ -51,7 +79,7 @@ class RemoteTensorSpellDetector(SpellDetector):
             _LOGGER.error("Failed to prepare payload: %s", exc)
             return None
 
-        outputs = self._invoke(payload)
+        outputs = await self._invoke(payload)
         if not outputs:
             return None
 
@@ -80,22 +108,29 @@ class RemoteTensorSpellDetector(SpellDetector):
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _upload_model(self) -> None:
+    async def _upload_model(self) -> None:
         url = f"{self._base_url}/models/{self._model_name}"
-        data = self._model_path.read_bytes()
+        # Use to_thread to avoid blocking the event loop with file I/O
+        data = await asyncio.to_thread(self._model_path.read_bytes)
         headers = {"Content-Type": "application/octet-stream"}
-        resp = self._session.put(url, data=data, headers=headers, timeout=self._timeout)
-        resp.raise_for_status()
+        
+        _LOGGER.debug("Uploading model to %s (%d bytes)", url, len(data))
+        async with self._session.put(url, data=data, headers=headers, timeout=self._timeout) as resp:
+            resp.raise_for_status()
+            self._model_uploaded = True
+            _LOGGER.info("Model %s uploaded successfully to %s", self._model_name, self._base_url)
 
-    def _invoke(self, payload: dict[str, Any]) -> Optional[list[dict[str, Any]]]:
+    async def _invoke(self, payload: dict[str, Any]) -> Optional[list[dict[str, Any]]]:
         url = f"{self._base_url}/invoke"
         try:
-            resp = self._session.post(url, json=payload, timeout=self._timeout)
-            resp.raise_for_status()
-            body = resp.json()
+            _LOGGER.debug("Sending remote invoke request to %s: %s", url, payload)
+            async with self._session.post(url, json=payload, timeout=self._timeout) as resp:
+                resp.raise_for_status()
+                body = await resp.json()
+                _LOGGER.debug("Received remote invoke response: %s", body)
 
-            outputs = body.get("outputs") if isinstance(body, dict) else None
-            return outputs if isinstance(outputs, list) else None
+                outputs = body.get("outputs") if isinstance(body, dict) else None
+                return outputs if isinstance(outputs, list) else None
         except Exception as exc:
             _LOGGER.warning("Remote invoke failed: %s", exc)
             return None
