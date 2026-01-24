@@ -9,9 +9,10 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
 
-from .const import DOMAIN, MANUFACTURER
+from .const import DOMAIN, MANUFACTURER, SIGNAL_SPELL_MODE_CHANGED
 from .mcw_ble import BLEData
 
 _LOGGER = logging.getLogger(__name__)
@@ -136,8 +137,10 @@ class McwSpellTrackingSwitch(CoordinatorEntity, SwitchEntity):
     async def async_turn_on(self, **kwargs) -> None:
         """Start IMU streaming."""
         if self._mcw and self._mcw.is_connected():
+            await self._mcw.async_spell_tracker_init()
             await self._mcw.imu_streaming_start()
             self._is_on = True
+            async_dispatcher_send(self._hass, SIGNAL_SPELL_MODE_CHANGED)
             self.async_write_ha_state()
         elif not self._mcw.is_connected():
             _LOGGER.warning("Cannot start tracking: Magic Caster Wand is not connected")
@@ -147,5 +150,7 @@ class McwSpellTrackingSwitch(CoordinatorEntity, SwitchEntity):
         if self._mcw:
             if self._mcw.is_connected():
                 await self._mcw.imu_streaming_stop()
+                await self._mcw.async_spell_tracker_close()
             self._is_on = False
+            async_dispatcher_send(self._hass, SIGNAL_SPELL_MODE_CHANGED)
             self.async_write_ha_state()

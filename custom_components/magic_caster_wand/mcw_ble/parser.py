@@ -58,13 +58,15 @@ class McwDevice:
 
         if _MODEL_PATH.exists():
             try:
+                # Persistent detector and tracker
                 self._spell_tracker = SpellTracker(
                     RemoteTensorSpellDetector(
                         model_path=_MODEL_PATH,
                         base_url="http://b5e3f765-tflite-server:8000/",
                     ))
+                _LOGGER.debug("Persistent spell tracker created")
             except Exception as err:
-                _LOGGER.warning("Failed to initialize remote spell detector: %s", err)
+                _LOGGER.warning("Failed to create spell detector: %s", err)
 
     def register_coordinator(self, cn_spell, cn_battery, cn_buttons, cn_calibration=None, cn_imu=None) -> None:
         """Register coordinators for spell, battery, button, and calibration updates."""
@@ -263,8 +265,9 @@ class McwDevice:
     def spell_detection_mode(self) -> str:
         """Get the current spell detection mode."""
         if self._spell_tracker is not None:
-            return "server"
-        return "wand"
+            if self._spell_tracker.is_active:
+                return "Server"
+        return "Wand"
 
     async def buzz(self, duration: int) -> None:
         """Vibrate the wand."""
@@ -295,6 +298,31 @@ class McwDevice:
         """Stop IMU streaming."""
         if self.is_connected() and self._mcw:
             await self._mcw.imu_streaming_stop()
+
+    async def async_spell_tracker_init(self) -> None:
+        """Initialize spell tracker and detector session."""
+        if self._spell_tracker is None:
+            _LOGGER.warning("Spell tracker not created, cannot initialize")
+            return
+
+        try:
+            # Perform connectivity check before opening full session
+            if await self._spell_tracker.detector.check_connectivity():
+                # async_init will handle session creation and one-time upload
+                await self._spell_tracker.detector.async_init()
+                _LOGGER.debug("Spell tracker session initialized and verified")
+            else:
+                _LOGGER.warning("TFLite server at %s is not reachable. Spell detection will not be available.", 
+                               self._spell_tracker.detector._base_url)
+        except Exception as err:
+            _LOGGER.warning("Failed to initialize remote spell detector session: %s", err)
+
+    async def async_spell_tracker_close(self) -> None:
+        """Close spell tracker session but keep the object."""
+        if self._spell_tracker is not None:
+            _LOGGER.debug("Closing spell tracker session")
+            await self._spell_tracker.close()
+            # Do NOT set self._spell_tracker = None to keep upload state
 
 
 class McwBluetoothDeviceData(BluetoothData):

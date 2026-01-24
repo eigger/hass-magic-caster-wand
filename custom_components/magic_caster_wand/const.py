@@ -17,3 +17,6 @@ CASTING_LED_COLORS = {
     "Purple": (128, 0, 128),
 }
 DEFAULT_CASTING_LED_COLOR = "White"
+
+# Dispatcher signals
+SIGNAL_SPELL_MODE_CHANGED = f"{DOMAIN}_spell_mode_changed"

@@ -172,12 +172,12 @@ class McwSpellCamera(CoordinatorEntity, Camera):
         # Assuming default font size is roughly 6x10 per char
         # A more robust way without font is to use the text bbox if available, 
         # but since we draw small and upscale, we can just estimate or use a helper
-        tw = len(status_text) * 6 # approximate width
+        tw = (len(status_text) * 6) + 4 # Added padding
         
         # Create a small image for text that fits the text
         txt_img = Image.new("RGBA", (tw, 15), (0, 0, 0, 0))
         txt_draw = ImageDraw.Draw(txt_img)
-        txt_draw.text((0, 0), status_text, fill=text_color)
+        txt_draw.text((2, 0), status_text, fill=text_color) # Offset x to avoid left cutoff
         
         # Scale up (e.g., 4x for big effect)
         scale_factor = 4
@@ -190,10 +190,10 @@ class McwSpellCamera(CoordinatorEntity, Camera):
         # Add Spell Name if detected and NOT currently tracking
         if spell_name and not button_all:
             # Draw spell name in the center
-            spell_tw = len(spell_name) * 6
+            spell_tw = (len(spell_name) * 8) + 20 # Safer width and more padding
             spell_img = Image.new("RGBA", (spell_tw, 15), (0, 0, 0, 0))
             spell_draw = ImageDraw.Draw(spell_img)
-            spell_draw.text((0, 0), spell_name, fill="gold")
+            spell_draw.text((10, 0), spell_name, fill="gold") # More horizontal offset
             
             # Scale up big
             spell_scale = 5

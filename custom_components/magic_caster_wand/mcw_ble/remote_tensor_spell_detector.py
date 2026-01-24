@@ -33,6 +33,11 @@ class RemoteTensorSpellDetector(SpellDetector):
 
         self._model_uploaded: bool = False
 
+    @property
+    def is_active(self) -> bool:
+        """Check if the session is active."""
+        return self._session is not None and not self._session.closed
+
     async def async_init(self) -> None:
         """Initialize the detector asynchronously."""
         if self._session is None:
@@ -44,6 +49,33 @@ class RemoteTensorSpellDetector(SpellDetector):
         """Close the session if it was created internally."""
         if not self._is_external_session and self._session:
             await self._session.close()
+            self._session = None
+
+    async def check_connectivity(self) -> bool:
+        """Check if the remote server is reachable.
+        
+        Returns:
+            True if reachable, False otherwise.
+        """
+        temp_session = False
+        if self._session is None:
+            self._session = aiohttp.ClientSession()
+            temp_session = True
+        
+        try:
+            # Try to get the base URL to check if the server is alive
+            # Using a short timeout for the connectivity check
+            async with self._session.get(self._base_url, timeout=2.0) as resp:
+                # We don't necessarily need 200 OK, just a response from the server
+                # though the tflite-server typically returns something at root.
+                return resp.status < 500
+        except Exception as exc:
+            _LOGGER.debug("Connectivity check failed for %s: %s", self._base_url, exc)
+            return False
+        finally:
+            if temp_session:
+                await self._session.close()
+                self._session = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -109,6 +141,10 @@ class RemoteTensorSpellDetector(SpellDetector):
     # ------------------------------------------------------------------
 
     async def _upload_model(self) -> None:
+        if self._model_uploaded:
+            _LOGGER.debug("Model %s already uploaded, skipping", self._model_name)
+            return
+
         url = f"{self._base_url}/models/{self._model_name}"
         # Use to_thread to avoid blocking the event loop with file I/O
         data = await asyncio.to_thread(self._model_path.read_bytes)

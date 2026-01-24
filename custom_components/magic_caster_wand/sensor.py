@@ -13,13 +13,14 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import StateType
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
 )
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, MANUFACTURER
+from .const import DOMAIN, MANUFACTURER, SIGNAL_SPELL_MODE_CHANGED
 from .mcw_ble import McwDevice
 
 _LOGGER = logging.getLogger(__name__)
@@ -179,6 +180,17 @@ class McwSpellModeSensor(McwBaseSensor):
     def native_value(self) -> StateType:
         """Return the spell detection mode."""
         return self._mcw.spell_detection_mode if self._mcw else "Unknown"
+
+    async def async_added_to_hass(self) -> None:
+        """Register callbacks."""
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                SIGNAL_SPELL_MODE_CHANGED,
+                self.async_write_ha_state,
+            )
+        )
 
 
 class McwCalibrationSensor(

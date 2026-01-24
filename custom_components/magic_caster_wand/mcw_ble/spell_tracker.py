@@ -134,6 +134,21 @@ class SpellTracker:
         result = await self._recognize_spell()
         return result if isinstance(result, str) else None
 
+    async def close(self) -> None:
+        """Close the underlying detector."""
+        if hasattr(self._detector, "close"):
+            await self._detector.close()
+
+    @property
+    def is_active(self) -> bool:
+        """Check if the underlying detector is active."""
+        return getattr(self._detector, "is_active", False)
+
+    @property
+    def detector(self) -> SpellDetector | None:
+        """Return the underlying detector."""
+        return self._detector
+
     def update(
         self,
         ax: np.float32,
