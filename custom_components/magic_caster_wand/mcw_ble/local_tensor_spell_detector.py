@@ -1,11 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-# Since imuvisualizer is not a package, we need to handle imports accordingly.
-try:
-    from .spell_detector import SpellDetector
-except ImportError:
-    from spell_detector import SpellDetector
+from .spell_detector import SpellDetector
 
 class LocalTensorSpellDetector(SpellDetector):
     """Spell detector implementation using TensorFlow Lite for local inference."""
