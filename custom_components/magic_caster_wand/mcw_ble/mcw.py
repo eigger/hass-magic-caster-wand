@@ -408,20 +408,15 @@ class McwClient:
         await self.write_command(struct.pack("B", MESSAGEIDS.CHALLENGE))
         return self._wand_challenge or 0
     
-    async def calibration(self) -> None:
-        """Send calibration commands.
-        
-        Sends FE 55 AA to start calibration, then FB and FC commands.
-        Responses are parsed in _handler via _parse_calibration and 
-        trigger callbacks for button_calibrated and imu_calibrated sensors.
-        """
+    async def calibration_button(self) -> None:
+        """Send button calibration commands."""
         await self.write_command(struct.pack("BBB", MESSAGEIDS.FACTORY_UNLOCK, 0x55, 0xAA))
-        await sleep(0.5)
-        await self.write_command(struct.pack("B", MESSAGEIDS.IMU_CALIBRATION))
-        await sleep(1.5)
-        await self.write_command(struct.pack("BBB", MESSAGEIDS.FACTORY_UNLOCK, 0x55, 0xAA))
-        await sleep(0.5)
         await self.write_command(struct.pack("B", MESSAGEIDS.BUTTON_CALIBRATION_BASELINE))
+
+    async def calibration_imu(self) -> None:
+        """Send IMU calibration commands."""
+        await self.write_command(struct.pack("BBB", MESSAGEIDS.FACTORY_UNLOCK, 0x55, 0xAA))
+        await self.write_command(struct.pack("B", MESSAGEIDS.IMU_CALIBRATION))
 
     async def get_box_address(self) -> str:
         """Get box BLE address."""
