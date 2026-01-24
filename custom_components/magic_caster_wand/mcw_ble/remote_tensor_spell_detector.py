@@ -1,5 +1,3 @@
-import hashlib
-import json
 import logging
 import numpy as np
 import requests

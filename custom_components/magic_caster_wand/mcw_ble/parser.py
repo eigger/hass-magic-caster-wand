@@ -12,6 +12,7 @@ from bluetooth_sensor_state_data import BluetoothData
 from home_assistant_bluetooth import BluetoothServiceInfoBleak
 
 from .mcw import McwClient, LedGroup, Macro
+from .remote_tensor_spell_detector import RemoteTensorSpellDetector
 from .spell_tracker import SpellTracker
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,6 +51,17 @@ class McwDevice:
         self._coordinator_buttons = None
         self._coordinator_calibration = None
         self._coordinator_imu = None
+        self._spell_tracker: SpellTracker | None = None
+
+        try:
+            if _MODEL_PATH.exists():
+                self._spell_tracker = SpellTracker(
+                    RemoteTensorSpellDetector(
+                        model_path=_MODEL_PATH,
+                        base_url="http://b5e3f765-tflite-server.local.hass.io:8000/",
+                    ))
+        except:
+            pass
 
     def register_coordinator(self, cn_spell, cn_battery, cn_buttons, cn_calibration=None, cn_imu=None) -> None:
         """Register coordinators for spell, battery, button, and calibration updates."""
