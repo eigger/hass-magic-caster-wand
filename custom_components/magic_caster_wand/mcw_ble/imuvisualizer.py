@@ -1,30 +1,25 @@
-# Allow running as a standalone script (bypasses package __init__.py)
-if __name__ == "__main__":
-    import sys
-    from pathlib import Path
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
+# Visualizer for wand motion with spell detection when model is available.
+# To launch, use the following steps:
+#   1. Change to the custom_components/magic_caster_wand/mcw_ble directory
+#   2. Run "python -m mcw_ble.imuvisualizer"
 
 import asyncio
 import logging
 import numpy as np
 import tkinter as tk
-from pathlib import Path
 
 from bleak import BleakClient
 from collections import deque
-from macros import LedGroup
-from mcw import McwClient
+from pathlib import Path
 
-try:
-    from local_tensor_spell_detector import LocalTensorSpellDetector
-except ImportError:
-    LocalTensorSpellDetector = None
-
-from spell_tracker import SpellTracker
+from .local_tensor_spell_detector import LocalTensorSpellDetector
+from .macros import LedGroup
+from .mcw import McwClient
+from .spell_tracker import SpellTracker
 
 # Configuration
 MAC_ADDRESS = "E0:F8:53:63:F8:EA"
-MODEL_PATH = "model.tflite" # Obtained from APK
+MODEL_PATH = Path(__file__).parent / "model.tflite"  # Obtained from APK
 CANVAS_WIDTH = 800
 CANVAS_HEIGHT = 600
 TRAIL_LENGTH = 8192  # Number of points to keep in trail
@@ -43,8 +38,7 @@ class SpellRenderer:
             print("Warning: LocalTensorSpellDetector not available. Spell detection disabled.")
             detector = None
         else:
-            model_path = Path(MODEL_PATH)
-            if not model_path.exists():
+            if not MODEL_PATH.exists():
                 print(f"Warning: Model file {MODEL_PATH} does not exist. Spell detection disabled.")
                 detector = None
             else:
