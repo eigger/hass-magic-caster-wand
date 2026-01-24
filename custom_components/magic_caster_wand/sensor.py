@@ -20,7 +20,7 @@ from homeassistant.helpers.update_coordinator import (
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, MANUFACTURER
-from .mcw_ble import BLEData
+from .mcw_ble import McwDevice
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ class McwBaseSensor(SensorEntity):
 
     _attr_has_entity_name = True
 
-    def __init__(self, address: str, mcw) -> None:
+    def __init__(self, address: str, mcw: McwDevice) -> None:
         """Initialize the base sensor."""
         self._address = address
         self._mcw = mcw

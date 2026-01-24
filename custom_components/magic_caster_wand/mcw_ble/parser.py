@@ -266,6 +266,13 @@ class McwDevice:
         if self.is_connected() and self._mcw:
             await self._mcw.set_led(group, r, g, b, duration)
 
+    @property
+    def spell_detection_mode(self) -> str:
+        """Get the current spell detection mode."""
+        if self._spell_tracker is not None:
+            return "server"
+        return "wand"
+
     async def buzz(self, duration: int) -> None:
         """Vibrate the wand."""
         if self.is_connected() and self._mcw:
