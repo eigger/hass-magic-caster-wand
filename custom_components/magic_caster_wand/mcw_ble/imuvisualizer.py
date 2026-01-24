@@ -1,7 +1,10 @@
 # Visualizer for wand motion with spell detection when model is available.
 # To launch, use the following steps:
 #   1. Change to the custom_components/magic_caster_wand/mcw_ble directory
-#   2. Run "python -m mcw_ble.imuvisualizer"
+#   2. If necessary create a venv (python -m venv venv)
+#   3. Make sure your venv is activated
+#   4. If necessary install dependencies (pip install -r imuvisualizer.txt)
+#   5. Run "python -m mcw_ble.imuvisualizer"
 
 import asyncio
 import logging
@@ -12,7 +15,15 @@ from bleak import BleakClient
 from collections import deque
 from pathlib import Path
 
-from .local_tensor_spell_detector import LocalTensorSpellDetector
+try:
+    from .local_tensor_spell_detector import LocalTensorSpellDetector
+except ImportError:
+    LocalTensorSpellDetector = None
+    try:
+        from .remote_tensor_spell_detector import RemoteTensorSpellDetector
+    except ImportError:
+        RemoteTensorSpellDetector = None
+
 from .macros import LedGroup
 from .mcw import McwClient
 from .spell_tracker import SpellTracker
@@ -34,15 +45,23 @@ class SpellRenderer:
         self.start_x = canvas_width / 2
         self.start_y = canvas_height / 2
 
-        if LocalTensorSpellDetector is None:
-            print("Warning: LocalTensorSpellDetector not available. Spell detection disabled.")
-            detector = None
-        else:
-            if not MODEL_PATH.exists():
-                print(f"Warning: Model file {MODEL_PATH} does not exist. Spell detection disabled.")
-                detector = None
-            else:
+        detector = None
+        if not MODEL_PATH.exists():
+            print(f"Warning: Model file {MODEL_PATH} does not exist. Spell detection disabled.")
+        elif LocalTensorSpellDetector is not None:
+            try:
                 detector = LocalTensorSpellDetector(MODEL_PATH)
+                print("Using LocalTensorSpellDetector for spell detection.")
+            except:
+                print("Warning: Failed to initialize LocalTensorSpellDetector. Spell detection disabled.")
+        elif RemoteTensorSpellDetector is not None:
+            try:
+                detector = RemoteTensorSpellDetector(MODEL_PATH, "http://localhost:8000/")
+                print("Using RemoteTensorSpellDetector for spell detection.")
+            except:
+                print("Warning: Failed to initialize RemoteTensorSpellDetector. Spell detection disabled.")
+        else:
+            print("Warning: No spell detector available. Spell detection disabled.")
 
         self.tracker: SpellTracker = SpellTracker(detector=detector)
 
