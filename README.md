@@ -186,6 +186,10 @@ The Spell Canvas provides real-time visualization of your wand's movements.
 
 - **Spell Tracking**: Turn on the **Spell Tracking** switch to start receiving IMU data from the wand.
 - **Drawing**: Drawing on the canvas begins automatically when the wand's button is pressed and all button states are detected.
+- **Spell Recognition**: To use spell recognition, you must install the [hass-tflite](https://github.com/ificator/hass-tflite) addon. Additionally, you need to place the `model.tflite` file in the `custom_components/magic_caster_wand/mcw_ble/` directory. 
+  > [!NOTE]
+  > The `model.tflite` file is not shared publicly at this time due to potential issues and to ensure compatibility.
+
 
 <table>
   <tr>
