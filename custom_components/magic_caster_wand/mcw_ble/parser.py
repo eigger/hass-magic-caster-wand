@@ -1,7 +1,9 @@
 """Parser for Magic Caster Wand BLE devices."""
 
+import asyncio
 import dataclasses
 import logging
+from pathlib import Path
 
 from bleak import BleakClient
 from bleak.backends.device import BLEDevice
@@ -10,9 +12,13 @@ from bluetooth_sensor_state_data import BluetoothData
 from home_assistant_bluetooth import BluetoothServiceInfoBleak
 
 from .mcw import McwClient, LedGroup, Macro
+from .remote_tensor_spell_detector import RemoteTensorSpellDetector
+from .spell_tracker import SpellTracker
 
 _LOGGER = logging.getLogger(__name__)
 
+# Path to the TFLite model for server-side spell detection
+_MODEL_PATH = Path(__file__).parent / "model.tflite"
 
 @dataclasses.dataclass
 class BLEData:
@@ -45,6 +51,17 @@ class McwDevice:
         self._coordinator_buttons = None
         self._coordinator_calibration = None
         self._coordinator_imu = None
+        self._spell_tracker: SpellTracker | None = None
+
+        try:
+            if _MODEL_PATH.exists():
+                self._spell_tracker = SpellTracker(
+                    RemoteTensorSpellDetector(
+                        model_path=_MODEL_PATH,
+                        base_url="http://b5e3f765-tflite-server.local.hass.io:8000/",
+                    ))
+        except:
+            pass
 
     def register_coordinator(self, cn_spell, cn_battery, cn_buttons, cn_calibration=None, cn_imu=None) -> None:
         """Register coordinators for spell, battery, button, and calibration updates."""
@@ -55,7 +72,10 @@ class McwDevice:
         self._coordinator_imu = cn_imu
 
     def _callback_spell(self, data: str) -> None:
-        """Handle spell detection callback."""
+        """Handle spell detection callback from wand-native detection."""
+        # Ignore native spell detection if using server-side tracking
+        if self._spell_tracker is not None:
+            return
         if self._coordinator_spell:
             self._coordinator_spell.async_set_updated_data(data)
 
@@ -68,6 +88,66 @@ class McwDevice:
         """Handle button state update callback."""
         if self._coordinator_buttons:
             self._coordinator_buttons.async_set_updated_data(data)
+
+        # Handle spell tracking start/stop when using server-side detection
+        if self._spell_tracker is not None:
+            button_all = data.get("button_all", False)
+
+            # Transition: not pressed -> pressed = start tracking
+            if button_all and not self._button_all_pressed:
+                _LOGGER.debug("All buttons pressed, starting spell tracking")
+                self._cancel_spell_reset_timeout()
+                asyncio.create_task(self._turn_on_casting_led())
+                self._spell_tracker.start()
+
+            # Transition: pressed -> not pressed = stop tracking and detect spell
+            elif not button_all and self._button_all_pressed:
+                _LOGGER.debug("Buttons released, stopping spell tracking")
+                asyncio.create_task(self._turn_off_casting_led())
+                spell_name = self._spell_tracker.stop()
+                if spell_name and self._coordinator_spell:
+                    _LOGGER.debug("Server-side spell detected: %s", spell_name)
+                    self._coordinator_spell.async_set_updated_data(spell_name)
+                # Start timeout to reset spell back to default state
+                self._spell_reset_timeout_task = asyncio.create_task(self._spell_reset_timeout())
+
+            self._button_all_pressed = button_all
+
+    def _cancel_spell_reset_timeout(self) -> None:
+        """Cancel any pending spell reset timeout task."""
+        if self._spell_reset_timeout_task is not None:
+            self._spell_reset_timeout_task.cancel()
+            self._spell_reset_timeout_task = None
+
+    async def _spell_reset_timeout(self) -> None:
+        """Reset spell to default state after configured duration."""
+        try:
+            timeout = 1.0 # seconds
+            await asyncio.sleep(timeout)
+            _LOGGER.debug("Resetting spell to default state after %.1f seconds", timeout)
+            if self._coordinator_spell:
+                self._coordinator_spell.async_set_updated_data("awaiting")
+        except asyncio.CancelledError:
+            pass
+
+    async def _turn_on_casting_led(self) -> None:
+        """Turn on the casting LED with configured color."""
+        if self._mcw:
+            try:
+                r, g, b = self._casting_led_color
+                await self._mcw.led_on(LedGroup.TIP, r, g, b)
+                _LOGGER.debug("Casting LED turned on with color: (%d, %d, %d)", r, g, b)
+            except Exception as err:
+                _LOGGER.warning("Failed to turn on casting LED: %s", err)
+
+    async def _turn_off_casting_led(self) -> None:
+        """Turn off the casting LED."""
+        if self._mcw:
+            try:
+                await self._mcw.led_off()
+                _LOGGER.debug("Casting LED turned off")
+            except Exception as err:
+                _LOGGER.warning("Failed to turn off casting LED: %s", err)
 
     def _callback_calibration(self, data: dict[str, bool]) -> None:
         """Handle calibration state update callback."""
@@ -120,6 +200,12 @@ class McwDevice:
             if not self.model:
                 self.model = await self._mcw.get_wand_device_id()
                 await self._mcw.init_wand()
+
+            # Start IMU streaming if using server-side spell detection
+            if self._spell_tracker is not None:
+                _LOGGER.debug("Starting IMU streaming for server-side spell detection")
+                await self._mcw.imu_streaming_start()
+
             _LOGGER.debug("Connected to Magic Caster Wand: %s, %s", ble_device.address, self.model)
             return True
 
@@ -179,6 +265,13 @@ class McwDevice:
         """Set LED color."""
         if self.is_connected() and self._mcw:
             await self._mcw.set_led(group, r, g, b, duration)
+
+    @property
+    def spell_detection_mode(self) -> str:
+        """Get the current spell detection mode."""
+        if self._spell_tracker is not None:
+            return "server"
+        return "wand"
 
     async def buzz(self, duration: int) -> None:
         """Vibrate the wand."""
