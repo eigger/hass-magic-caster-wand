@@ -36,8 +36,9 @@ async def async_setup_entry(
     mcw = data["mcw"]
     imu_coordinator = data["imu_coordinator"]
     buttons_coordinator = data["buttons_coordinator"]
+    spell_coordinator = data["spell_coordinator"]
 
-    async_add_entities([McwSpellCamera(hass, address, mcw, imu_coordinator, buttons_coordinator)])
+    async_add_entities([McwSpellCamera(hass, address, mcw, imu_coordinator, buttons_coordinator, spell_coordinator)])
 
 
 class McwSpellCamera(CoordinatorEntity, Camera):
@@ -51,7 +52,8 @@ class McwSpellCamera(CoordinatorEntity, Camera):
         address: str, 
         mcw, 
         coordinator: DataUpdateCoordinator[list[dict[str, float]]],
-        buttons_coordinator: DataUpdateCoordinator[dict[str, bool]]
+        buttons_coordinator: DataUpdateCoordinator[dict[str, bool]],
+        spell_coordinator: DataUpdateCoordinator[str]
     ) -> None:
         """Initialize the spell camera."""
         super().__init__(coordinator)
@@ -60,6 +62,7 @@ class McwSpellCamera(CoordinatorEntity, Camera):
         self._address = address
         self._mcw = mcw
         self._buttons_coordinator = buttons_coordinator
+        self._spell_coordinator = spell_coordinator
         self._identifier = address.replace(":", "")[-8:]
         self._attr_name = "Spell Canvas"
         self._attr_unique_id = f"mcw_{self._identifier}_camera"
@@ -150,6 +153,13 @@ class McwSpellCamera(CoordinatorEntity, Camera):
         img = Image.new("RGB", (CANVAS_WIDTH, CANVAS_HEIGHT), "black")
         draw = ImageDraw.Draw(img)
         
+        # Get detected spell name
+        spell_name = self._spell_coordinator.data or "awaiting"
+        if spell_name == "awaiting":
+            spell_name = ""
+        else:
+            spell_name = spell_name.replace("_", " ").upper()
+
         # Add status text (Perfectly Centered)
         status_text = "TRACKING" if button_all else "READY"
         # Since we might not have a font, we draw small and upscale
@@ -176,6 +186,22 @@ class McwSpellCamera(CoordinatorEntity, Camera):
         # Calculate center position
         txt_x = (CANVAS_WIDTH - (tw * scale_factor)) // 2
         img.paste(scaled_txt, (txt_x, 20), scaled_txt)
+
+        # Add Spell Name if detected and NOT currently tracking
+        if spell_name and not button_all:
+            # Draw spell name in the center
+            spell_tw = len(spell_name) * 6
+            spell_img = Image.new("RGBA", (spell_tw, 15), (0, 0, 0, 0))
+            spell_draw = ImageDraw.Draw(spell_img)
+            spell_draw.text((0, 0), spell_name, fill="gold")
+            
+            # Scale up big
+            spell_scale = 5
+            scaled_spell = spell_img.resize((spell_tw * spell_scale, 15 * spell_scale), resample=Image.NEAREST)
+            
+            spell_x = (CANVAS_WIDTH - (spell_tw * spell_scale)) // 2
+            spell_y = 90  # Just below the status text (which is at y=20 and scaled up)
+            img.paste(scaled_spell, (spell_x, spell_y), scaled_spell)
         
         # Add bottom description (Centered)
         desc_text = "PRESS ALL BUTTONS TO DRAW"

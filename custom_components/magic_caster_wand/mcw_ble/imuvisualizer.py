@@ -69,9 +69,9 @@ class SpellRenderer:
         """Start a new spell gesture"""
         self.tracker.start()
 
-    def end_spell(self) -> str | None:
+    async def end_spell(self) -> str | None:
         """End the current spell gesture and return the recognized spell name."""
-        return self.tracker.stop()
+        return await self.tracker.stop()
 
     def update_imu(self, accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z):
         point: tuple[np.float32, np.float32] | None = self.tracker.update(accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z)
@@ -163,7 +163,7 @@ class MotionVisualizer:
         # Check if exiting motion mode (any button released)
         elif prev_button_all and not button_data['button_all']:
             print("Exiting motion mode - button released")
-            self.exit_motion_mode()
+            asyncio.create_task(self.exit_motion_mode())
 
     def handle_imu_callback(self, imu_data: list[dict[str, float]]):
         """Handle IMU data updates using AHRS-based spell rendering"""
@@ -229,13 +229,13 @@ class MotionVisualizer:
         if self.mcw:
             asyncio.create_task(self.mcw.led_on(LedGroup.TIP, 255, 0, 0))
 
-    def exit_motion_mode(self):
+    async def exit_motion_mode(self):
         """Exit motion mode"""
         self.motion_mode = False
         print("Motion mode: INACTIVE")
 
         # End spell rendering and get the recognized spell
-        spell_name = self.spell_renderer.end_spell()
+        spell_name = await self.spell_renderer.end_spell()
         
         if spell_name:
             self.status_label.config(text=f"Spell: {spell_name}", fg='yellow')
