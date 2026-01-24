@@ -63,14 +63,13 @@ class RemoteTensorSpellDetector(SpellDetector):
             temp_session = True
         
         try:
-            # Try to get the base URL to check if the server is alive
-            # Using a short timeout for the connectivity check
-            async with self._session.get(self._base_url, timeout=2.0) as resp:
-                # We don't necessarily need 200 OK, just a response from the server
-                # though the tflite-server typically returns something at root.
-                return resp.status < 500
+            # Use the /health endpoint for a more reliable check
+            url = f"{self._base_url}/health"
+            async with self._session.get(url, timeout=2.0) as resp:
+                # 200 OK means the server is fully operational
+                return resp.status == 200
         except Exception as exc:
-            _LOGGER.debug("Connectivity check failed for %s: %s", self._base_url, exc)
+            _LOGGER.debug("Health check failed for %s: %s", self._base_url, exc)
             return False
         finally:
             if temp_session:
