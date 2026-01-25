@@ -19,5 +19,16 @@
       "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
       "unknown": "[%key:common::config_flow::error::unknown%]"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "TFLite Server Configuration",
+        "description": "Configure the TFLite server URL for spell detection.",
+        "data": {
+          "tflite_url": "TFLite Server URL"
+        }
+      }
+    }
   }
 }

@@ -39,9 +39,10 @@ class BLEData:
 class McwDevice:
     """Data handler for Magic Caster Wand BLE device."""
 
-    def __init__(self, address: str) -> None:
+    def __init__(self, address: str, tflite_url: str = "http://b5e3f765-tflite-server:8000") -> None:
         """Initialize the device."""
         self.address = address
+        self.tflite_url = tflite_url
         self.client: BleakClient | None = None
         self.model: str | None = None
         self._mcw: McwClient | None = None
@@ -67,7 +68,7 @@ class McwDevice:
                 self._spell_tracker = SpellTracker(
                     RemoteTensorSpellDetector(
                         model_path=_MODEL_PATH,
-                        base_url="http://b5e3f765-tflite-server:8000/",
+                        base_url=self.tflite_url,
                     ))
                 _LOGGER.debug("Persistent spell tracker created")
             except Exception as err:

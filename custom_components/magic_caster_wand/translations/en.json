@@ -29,12 +29,9 @@
         "step": {
             "init": {
                 "data": {
-                    "use_sound": "Use Sound",
-                    "scan_interval": "Scan Interval",
-                    "wait_between_each_print_line": "Wait time between print lines",
-                    "confirm_every_nth_print_line": "How often to confirm reception of print lines"
+                    "tflite_url": "TFLite Server URL"
                 },
-                "description": "Change options for your device"
+                "description": "Configure the TFLite server URL for spell detection."
             }
         }
     }
