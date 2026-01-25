@@ -55,7 +55,12 @@ class McwDevice:
         self._button_all_pressed: bool = False
         self._spell_reset_timeout_task: asyncio.Task[None] | None = None
         self._casting_led_color: tuple[int, int, int] = (0, 0, 255)  # Default color: blue
+        self._server_reachable: bool = False
 
+        self._init_spell_tracker()
+
+    def _init_spell_tracker(self) -> None:
+        """Initialize the spell tracker if the model exists."""
         if _MODEL_PATH.exists():
             try:
                 # Persistent detector and tracker
@@ -67,6 +72,10 @@ class McwDevice:
                 _LOGGER.debug("Persistent spell tracker created")
             except Exception as err:
                 _LOGGER.warning("Failed to create spell detector: %s", err)
+        else:
+            _LOGGER.warning("Spell detection model not found at %s. Server-side spell detection will be disabled.", _MODEL_PATH)
+
+
 
     def register_coordinator(self, cn_spell, cn_battery, cn_buttons, cn_calibration=None, cn_imu=None) -> None:
         """Register coordinators for spell, battery, button, and calibration updates."""
@@ -269,6 +278,11 @@ class McwDevice:
                 return "Server"
         return "Wand"
 
+    @property
+    def server_reachable(self) -> bool:
+        """Check if the TFLite server is reachable."""
+        return self._server_reachable
+
     async def buzz(self, duration: int) -> None:
         """Vibrate the wand."""
         if self.is_connected() and self._mcw:
@@ -302,12 +316,16 @@ class McwDevice:
     async def async_spell_tracker_init(self) -> None:
         """Initialize spell tracker and detector session."""
         if self._spell_tracker is None:
+            self._init_spell_tracker()
+
+        if self._spell_tracker is None:
             _LOGGER.warning("Spell tracker not created, cannot initialize")
             return
 
         try:
             # Perform connectivity check before opening full session
-            if await self._spell_tracker.detector.check_connectivity():
+            self._server_reachable = await self._spell_tracker.detector.check_connectivity()
+            if self._server_reachable:
                 # async_init will handle session creation and one-time upload
                 await self._spell_tracker.detector.async_init()
                 _LOGGER.debug("Spell tracker session initialized and verified")
@@ -315,6 +333,7 @@ class McwDevice:
                 _LOGGER.warning("TFLite server at %s is not reachable. Spell detection will not be available.", 
                                self._spell_tracker.detector._base_url)
         except Exception as err:
+            self._server_reachable = False
             _LOGGER.warning("Failed to initialize remote spell detector session: %s", err)
 
     async def async_spell_tracker_close(self) -> None:
