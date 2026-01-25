@@ -160,6 +160,30 @@ class McwSpellCamera(CoordinatorEntity, Camera):
         else:
             spell_name = spell_name.replace("_", " ").upper()
 
+        # Server Status (Top Left)
+        server_reachable = getattr(self._mcw, "server_reachable", False)
+        has_tracker = getattr(self._mcw, "_spell_tracker", None) is not None
+        
+        if not has_tracker:
+            server_text = "MODEL MISSING"
+            server_color = "orange"
+        elif server_reachable:
+            server_text = "SERVER OK"
+            server_color = "lime"
+        else:
+            server_text = "SERVER ERROR"
+            server_color = "red"
+
+        # Draw Server Status
+        srv_tw = (len(server_text) * 6) + 4
+        srv_img = Image.new("RGBA", (srv_tw, 15), (0, 0, 0, 0))
+        srv_draw = ImageDraw.Draw(srv_img)
+        srv_draw.text((2, 0), server_text, fill=server_color)
+        
+        srv_scale = 2
+        scaled_srv = srv_img.resize((srv_tw * srv_scale, 15 * srv_scale), resample=Image.NEAREST)
+        img.paste(scaled_srv, (10, 10), scaled_srv)
+
         # Add status text (Perfectly Centered)
         status_text = "TRACKING" if button_all else "READY"
         # Since we might not have a font, we draw small and upscale
