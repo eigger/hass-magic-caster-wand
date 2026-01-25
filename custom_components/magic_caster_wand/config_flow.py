@@ -14,10 +14,10 @@ from homeassistant.components.bluetooth import (
     BluetoothServiceInfoBleak,
     async_discovered_service_info,
 )
-from homeassistant.config_entries import SOURCE_REAUTH, ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import SOURCE_REAUTH, ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.const import CONF_ADDRESS
-
-from .const import DOMAIN
+from homeassistant.core import callback
+from .const import DOMAIN, CONF_TFLITE_URL, DEFAULT_TFLITE_URL
 
 
 @dataclasses.dataclass
@@ -37,6 +37,14 @@ class McwConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Mcw Bluetooth."""
 
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(
+        config_entry: ConfigEntry,
+    ) -> McwOptionsFlowHandler:
+        """Get the options flow for this handler."""
+        return McwOptionsFlowHandler(config_entry)
 
     def __init__(self) -> None:
         """Initialize the config flow."""
@@ -144,4 +152,37 @@ class McwConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_create_entry(
             title=self.context["title_placeholders"]["name"],
             data=data,
+        )
+
+
+class McwOptionsFlowHandler(OptionsFlow):
+    """Handle options flow for Mcw."""
+
+    def __init__(self, config_entry: ConfigEntry) -> None:
+        """Initialize options flow."""
+        super().__init__()
+        self._config_entry = config_entry
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Manage the options."""
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_TFLITE_URL,
+                        default=self._config_entry.options.get(
+                            CONF_TFLITE_URL,
+                            self._config_entry.data.get(
+                                CONF_TFLITE_URL, DEFAULT_TFLITE_URL
+                            ),
+                        ),
+                    ): str,
+                }
+            ),
         )

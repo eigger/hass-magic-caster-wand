@@ -17,7 +17,7 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import DEFAULT_SCAN_INTERVAL, DOMAIN
+from .const import DEFAULT_SCAN_INTERVAL, DOMAIN, CONF_TFLITE_URL, DEFAULT_TFLITE_URL
 from .mcw_ble import BLEData, McwDevice, LedGroup, SpellMacros
 
 PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH, Platform.TEXT, Platform.SELECT, Platform.BINARY_SENSOR, Platform.BUTTON, Platform.CAMERA]
@@ -41,7 +41,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
 
     # Create device instance
-    mcw = McwDevice(address)
+    tflite_url = entry.options.get(CONF_TFLITE_URL, entry.data.get(CONF_TFLITE_URL, DEFAULT_TFLITE_URL))
+    mcw = McwDevice(address, tflite_url=tflite_url)
     identifier = address.replace(":", "")[-8:]
 
     # Create coordinators with unique names for debugging
@@ -104,6 +105,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     }
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Register update listener to handle options changes
+    entry.async_on_unload(entry.add_update_listener(async_update_options))
 
     # Register services
     async def handle_vibrate(call: ServiceCall) -> None:
@@ -213,3 +217,8 @@ async def get_entry_id_from_device(hass, device_id: str) -> str:
         return None
 
     return entry_id
+
+
+async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Update options."""
+    await hass.config_entries.async_reload(entry.entry_id)
