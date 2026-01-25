@@ -1,5 +1,5 @@
 # hass-magic-caster-wand
-Harry Potter: Magic Caster Wand Home Assistant Integration
+Magic Caster Wand Home Assistant Integration
 
 <table>
   <tr>
@@ -182,7 +182,20 @@ repository into the `custom_components/magic_caster_wand` directory.
 The Spell Canvas provides real-time visualization of your wand's movements.
 - **Spell Tracking**: Turn on the **Spell Tracking** switch to start receiving IMU data from the wand.
 - **Drawing**: Drawing on the canvas begins automatically when the wand's button is pressed and all button states are detected.
-- **Spell Recognition**: To use spell recognition, you must install the [hass-tflite](https://github.com/ificator/hass-tflite) addon. Additionally, you need to place the `model.tflite` file in the `custom_components/magic_caster_wand/mcw_ble/` directory.
+- **Spell Recognition**: To use spell recognition, you must install the [hass-tflite](https://github.com/ificator/hass-tflite) addon. Additionally, you need to place the `model.tflite` file in the `custom_components/magic_caster_wand/mcw_ble/` directory. Update the server address in the configuration settings
+<table>
+  <tr>
+    <td colspan="2" align="center">
+      <img width="722" height="222" alt="image" src="https://github.com/user-attachments/assets/8b896c42-170c-47dc-a7e9-212a4e179563" />
+    </td>
+    <td colspan="2" align="center">
+      <img width="400" height="222" alt="image" src="https://github.com/user-attachments/assets/e8d0baf9-abf9-48b1-b157-c3d5a2679bda" />
+    </td>
+    <td colspan="2" align="center">
+      <img width="411" height="222" alt="image" src="https://github.com/user-attachments/assets/7e8c8c2d-6ead-47a3-9e9a-25f5756ce5f4" />
+    </td>
+  </tr>
+</table>
 > [!NOTE]
 > The `model.tflite` file is not shared publicly at this time due to potential issues and to ensure compatibility.
 
