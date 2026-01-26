@@ -13,6 +13,7 @@ from home_assistant_bluetooth import BluetoothServiceInfoBleak
 
 from .mcw import McwClient, LedGroup, Macro
 from .remote_tensor_spell_detector import RemoteTensorSpellDetector
+from .shape_spell_detector import ShapeSpellDetector
 from .spell_tracker import SpellTracker
 
 _LOGGER = logging.getLogger(__name__)
@@ -57,24 +58,41 @@ class McwDevice:
         self._spell_reset_timeout_task: asyncio.Task[None] | None = None
         self._casting_led_color: tuple[int, int, int] = (0, 0, 255)  # Default color: blue
         self._server_reachable: bool = False
+        
+        self._remote_detector: RemoteTensorSpellDetector | None = None
+        self._shape_detector: ShapeSpellDetector | None = None
 
         self._init_spell_tracker()
 
     def _init_spell_tracker(self) -> None:
-        """Initialize the spell tracker if the model exists."""
-        if _MODEL_PATH.exists():
-            try:
-                # Persistent detector and tracker
-                self._spell_tracker = SpellTracker(
-                    RemoteTensorSpellDetector(
-                        model_path=_MODEL_PATH,
-                        base_url=self.tflite_url,
-                    ))
-                _LOGGER.debug("Persistent spell tracker created")
-            except Exception as err:
-                _LOGGER.warning("Failed to create spell detector: %s", err)
-        else:
-            _LOGGER.warning("Spell detection model not found at %s. Server-side spell detection will be disabled.", _MODEL_PATH)
+        """Initialize the spell tracker."""
+        try:
+            # 1. Setup Remote Detector (if model exists)
+            if _MODEL_PATH.exists():
+                self._remote_detector = RemoteTensorSpellDetector(
+                    model_path=_MODEL_PATH,
+                    base_url=self.tflite_url,
+                )
+            else:
+                 _LOGGER.warning("Remote model not found at %s", _MODEL_PATH)
+
+            # 2. Setup Local Shape Detector
+            # Check if custom shapes model exists, otherwise use None (built-in memory)
+            shape_model_path = Path(__file__).parent / "shapes_model.json"
+            model_source = shape_model_path if shape_model_path.exists() else None
+            self._shape_detector = ShapeSpellDetector(model_path=model_source)
+
+            # 3. Create SpellTracker
+            # Default to Remote if available, else Shape
+            initial_detector = self._remote_detector if self._remote_detector else self._shape_detector
+            if initial_detector:
+                self._spell_tracker = SpellTracker(initial_detector)
+                _LOGGER.debug(f"Spell tracker created (Initial: {type(initial_detector).__name__})")
+            else:
+                _LOGGER.warning("No spell detector could be created!")
+
+        except Exception as err:
+            _LOGGER.warning("Failed to create spell detector: %s", err)
 
 
 
@@ -315,7 +333,7 @@ class McwDevice:
             await self._mcw.imu_streaming_stop()
 
     async def async_spell_tracker_init(self) -> None:
-        """Initialize spell tracker and detector session."""
+        """Initialize spell tracker and detector session with fallback."""
         if self._spell_tracker is None:
             self._init_spell_tracker()
 
@@ -324,18 +342,43 @@ class McwDevice:
             return
 
         try:
-            # Perform connectivity check before opening full session
-            self._server_reachable = await self._spell_tracker.detector.check_connectivity()
-            if self._server_reachable:
-                # async_init will handle session creation and one-time upload
-                await self._spell_tracker.detector.async_init()
-                _LOGGER.debug("Spell tracker session initialized and verified")
-            else:
-                _LOGGER.warning("TFLite server at %s is not reachable. Spell detection will not be available.", 
-                               self._spell_tracker.detector._base_url)
+            # 1. Try Remote First
+            detector_ok = False
+            
+            if self._remote_detector:
+                try:
+                    is_reachable = await self._remote_detector.check_connectivity()
+                    if is_reachable:
+                        await self._remote_detector.async_init()
+                        # Switch to Remote
+                        self._spell_tracker._detector = self._remote_detector 
+                        self._server_reachable = True
+                        detector_ok = True
+                        _LOGGER.debug(f"Using Remote Spell Detector (Server: {self._remote_detector._base_url})")
+                    else:
+                         _LOGGER.warning(f"Remote server {self._remote_detector._base_url} unreachable. Attempting fallback.")
+                         self._server_reachable = False
+                except Exception as err:
+                    _LOGGER.warning("Error initializing remote detector: %s", err)
+                    self._server_reachable = False
+
+            # 2. Fallback to Local if Remote failed or doesn't exist
+            if not detector_ok and self._shape_detector:
+                try:
+                    # Switch to Local
+                    await self._shape_detector.async_init()
+                    self._spell_tracker._detector = self._shape_detector
+                    detector_ok = True
+                    _LOGGER.info("Using Local Shape Spell Detector as Remote is unavailable.")
+                except Exception as err:
+                    _LOGGER.warning("Failed to initialize shape detector: %s", err)
+
+            if not detector_ok:
+                 _LOGGER.warning("NO Spell Detector available! Spell tracking will simply fail.")
+
         except Exception as err:
             self._server_reachable = False
-            _LOGGER.warning("Failed to initialize remote spell detector session: %s", err)
+            _LOGGER.warning("Failed to initialize spell detector session: %s", err)
 
     async def async_spell_tracker_close(self) -> None:
         """Close spell tracker session but keep the object."""
