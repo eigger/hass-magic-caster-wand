@@ -122,6 +122,7 @@ class McwDevice:
         if spell_name and self._coordinator_spell:
             _LOGGER.debug("Server-side spell detected: %s", spell_name)
             self._coordinator_spell.async_set_updated_data(spell_name)
+            await self.buzz(100)
 
     async def _turn_on_casting_led(self) -> None:
         """Turn on the casting LED with configured color."""
