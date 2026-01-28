@@ -340,7 +340,7 @@ async def wand_connection(visualizer):
     """Handle wand connection and data streaming"""
     # Setup logging
     logging.basicConfig(level=logging.INFO)
-    #logging.getLogger("mcw").setLevel(logging.DEBUG)
+    #logging.getLogger("magic_caster_wand.mcw_ble.mcw").setLevel(logging.DEBUG)
 
     print(f"Connecting to wand at {MAC_ADDRESS}...")
     client = BleakClient(MAC_ADDRESS)
