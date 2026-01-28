@@ -32,6 +32,28 @@ CALIBRATION_SENSORS = [
     {"key": "calibration_imu", "name": "Calibration IMU", "icon": "mdi:axis-arrow"},
 ]
 
+class BatteryState:
+    """Battery state definitions based on battery level."""
+
+    CRITICAL = "Critical"  # 0-15 (0x00-0x0F)
+    LOW = "Low"  # 16-33 (0x10-0x21)
+    MEDIUM = "Medium"  # 34-55 (0x22-0x37)
+    HIGH = "High"  # 56-99 (0x38-0x63)
+    CHARGING = "Charging"  # 100 (0x64)
+
+    @staticmethod
+    def from_level(level: float) -> str:
+        """Convert battery level to state string."""
+        level_int = int(level)
+        if level_int >= 100:
+            return BatteryState.CHARGING
+        if level_int >= 56:
+            return BatteryState.HIGH
+        if level_int >= 34:
+            return BatteryState.MEDIUM
+        if level_int >= 16:
+            return BatteryState.LOW
+        return BatteryState.CRITICAL
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -49,6 +71,7 @@ async def async_setup_entry(
     entities = [
         McwSpellSensor(address, mcw, spell_coordinator),
         McwBatterySensor(address, mcw, battery_coordinator),
+        McwBatteryStateSensor(address, mcw, battery_coordinator),
         McwSpellModeSensor(address, mcw),
     ]
 
@@ -162,6 +185,65 @@ class McwBatterySensor(
         if self.coordinator.data is not None:
             _LOGGER.debug("Battery level: %s%%", self.coordinator.data)
             self._battery = self.coordinator.data
+        self.async_write_ha_state()
+
+
+class McwBatteryStateSensor(
+    CoordinatorEntity[DataUpdateCoordinator[float]],
+    McwBaseSensor,
+):
+    """Sensor entity for displaying battery state."""
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = [
+        BatteryState.CRITICAL,
+        BatteryState.LOW,
+        BatteryState.MEDIUM,
+        BatteryState.HIGH,
+        BatteryState.CHARGING,
+    ]
+
+    def __init__(
+        self,
+        address: str,
+        mcw,
+        coordinator: DataUpdateCoordinator[float],
+    ) -> None:
+        """Initialize the battery state sensor."""
+        CoordinatorEntity.__init__(self, coordinator)
+        McwBaseSensor.__init__(self, address, mcw)
+        self._attr_name = "Battery State"
+        self._attr_unique_id = f"mcw_{self._identifier}_battery_state"
+        self._state = BatteryState.CRITICAL
+
+    @property
+    def icon(self) -> str:
+        """Return the icon based on battery state."""
+        match self._state:
+            case BatteryState.CRITICAL:
+                return "mdi:battery-alert"
+            case BatteryState.LOW:
+                return "mdi:battery-20"
+            case BatteryState.MEDIUM:
+                return "mdi:battery-50"
+            case BatteryState.HIGH:
+                return "mdi:battery-80"
+            case BatteryState.CHARGING:
+                return "mdi:battery-charging-100"
+            case _:
+                return "mdi:battery"
+
+    @property
+    def native_value(self) -> StateType:
+        """Return the battery state."""
+        return self._state
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        if self.coordinator.data is not None:
+            _LOGGER.debug("Battery state: %s", self._state)
+            self._state = BatteryState.from_level(self.coordinator.data)
         self.async_write_ha_state()
 
 
