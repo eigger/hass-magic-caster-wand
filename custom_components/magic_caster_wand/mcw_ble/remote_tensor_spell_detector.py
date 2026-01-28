@@ -1,9 +1,7 @@
 import logging
-import asyncio
 import numpy as np
 import aiohttp
 
-from pathlib import Path
 from typing import Any, Optional
 
 from .spell_detector import SpellDetector
@@ -15,23 +13,21 @@ class RemoteTensorSpellDetector(SpellDetector):
 
     def __init__(
         self,
-        model_path: str | Path,
+        model_name: str,
         base_url: str,
         timeout: float = 5.0,
         session: Optional[aiohttp.ClientSession] = None,
     ) -> None:
+        if not model_name:
+            raise ValueError("model_name is required")
+
         self._base_url: str = base_url.rstrip("/")
         self._timeout: float = timeout
         self._session: Optional[aiohttp.ClientSession] = session
         self._is_external_session: bool = session is not None
 
-        self._model_path: Path = Path(model_path) if model_path else Path(__file__).with_name("model.tflite")
-        self._model_name: str = self._model_path.name
-
-        if not self._model_path.exists():
-            raise FileNotFoundError(f"Model file not found: {self._model_path}")
-
-        self._model_uploaded: bool = False
+        # Add .tflite extension if not present
+        self._model_name: str = model_name if model_name.endswith(".tflite") else f"{model_name}.tflite"
 
     @property
     def is_active(self) -> bool:
@@ -43,7 +39,7 @@ class RemoteTensorSpellDetector(SpellDetector):
         if self._session is None:
             self._session = aiohttp.ClientSession()
         
-        await self._upload_model()
+        await self._initialize_model()
 
     async def close(self) -> None:
         """Close the session if it was created internally."""
@@ -63,8 +59,8 @@ class RemoteTensorSpellDetector(SpellDetector):
             temp_session = True
         
         try:
-            # Use the /health endpoint for a more reliable check
-            url = f"{self._base_url}/health"
+            # Use the /api/health endpoint for a more reliable check
+            url = f"{self._base_url}/api/health"
             async with self._session.get(url, timeout=2.0) as resp:
                 # 200 OK means the server is fully operational
                 return resp.status == 200
@@ -92,18 +88,9 @@ class RemoteTensorSpellDetector(SpellDetector):
         if self._session is None:
             self._session = aiohttp.ClientSession()
 
-        # Ensure model is uploaded
-        if not self._model_uploaded:
-            try:
-                await self._upload_model()
-            except Exception as exc:
-                _LOGGER.error("Failed to upload model before detection: %s", exc)
-                return None
-
         try:
             payload = {
                 "model": self._model_name,
-                # Add batch dimension like local interpreter: (1, 50, 2)
                 "input": positions.reshape(1, 50, 2).tolist(),
             }
         except Exception as exc:  # pragma: no cover - defensive
@@ -139,24 +126,19 @@ class RemoteTensorSpellDetector(SpellDetector):
     # Internal helpers
     # ------------------------------------------------------------------
 
-    async def _upload_model(self) -> None:
-        if self._model_uploaded:
-            _LOGGER.debug("Model %s already uploaded, skipping", self._model_name)
-            return
-
-        url = f"{self._base_url}/models/{self._model_name}"
-        # Use to_thread to avoid blocking the event loop with file I/O
-        data = await asyncio.to_thread(self._model_path.read_bytes)
-        headers = {"Content-Type": "application/octet-stream"}
+    async def _initialize_model(self) -> None:
+        """Pre-load the model on the remote server."""
+        url = f"{self._base_url}/api/initialize"
+        payload = {"model": self._model_name}
         
-        _LOGGER.debug("Uploading model to %s (%d bytes)", url, len(data))
-        async with self._session.put(url, data=data, headers=headers, timeout=self._timeout) as resp:
+        _LOGGER.debug("Initializing model %s at %s", self._model_name, url)
+        async with self._session.post(url, json=payload, timeout=self._timeout) as resp:
             resp.raise_for_status()
-            self._model_uploaded = True
-            _LOGGER.info("Model %s uploaded successfully to %s", self._model_name, self._base_url)
+            body = await resp.json()
+            _LOGGER.info("Model %s initialized successfully: %s", self._model_name, body)
 
     async def _invoke(self, payload: dict[str, Any]) -> Optional[list[dict[str, Any]]]:
-        url = f"{self._base_url}/invoke"
+        url = f"{self._base_url}/api/invoke"
         try:
             _LOGGER.debug("Sending remote invoke request to %s: %s", url, payload)
             async with self._session.post(url, json=payload, timeout=self._timeout) as resp:
