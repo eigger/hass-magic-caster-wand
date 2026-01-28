@@ -1,36 +1,71 @@
 # Visualizer for wand motion with spell detection when model is available.
 # To launch, use the following steps:
-#   1. Change to the custom_components/magic_caster_wand/mcw_ble directory
+#   1. Change to the tools directory
 #   2. If necessary create a venv (python -m venv venv)
 #   3. Make sure your venv is activated
 #   4. If necessary install dependencies (pip install -r imuvisualizer.txt)
-#   5. Run "python -m mcw_ble.imuvisualizer"
+#   5. Run "python imuvisualizer.py"
 
 import asyncio
+import concurrent.futures
 import logging
 import numpy as np
+import sys
 import tkinter as tk
 
 from bleak import BleakClient
 from collections import deque
 from pathlib import Path
 
+# Add the custom_components path and set up mcw_ble as a package
+# We need to import submodules without triggering __init__.py (which has HA dependencies)
+_CUSTOM_COMPONENTS_PATH = Path(__file__).parent.parent / "custom_components"
+_MCW_BLE_PATH = _CUSTOM_COMPONENTS_PATH / "magic_caster_wand" / "mcw_ble"
+sys.path.insert(0, str(_CUSTOM_COMPONENTS_PATH))
+
+# Import submodules using importlib to avoid __init__.py
+import importlib.util
+
+def _load_module(name: str, filepath: Path):
+    """Load a module from a file path without going through __init__.py."""
+    spec = importlib.util.spec_from_file_location(f"magic_caster_wand.mcw_ble.{name}", filepath)
+    module = importlib.util.module_from_spec(spec)
+    # Register as part of mcw_ble package so relative imports work
+    sys.modules[f"magic_caster_wand.mcw_ble.{name}"] = module
+    spec.loader.exec_module(module)
+    return module
+
+# Create a fake mcw_ble package entry so relative imports resolve
+import types
+_fake_mcw_ble = types.ModuleType("magic_caster_wand.mcw_ble")
+_fake_mcw_ble.__path__ = [str(_MCW_BLE_PATH)]
+sys.modules["magic_caster_wand.mcw_ble"] = _fake_mcw_ble
+
+# Load modules in dependency order
+_macros = _load_module("macros", _MCW_BLE_PATH / "macros.py")
+_mcw = _load_module("mcw", _MCW_BLE_PATH / "mcw.py")
+_spell_detector = _load_module("spell_detector", _MCW_BLE_PATH / "spell_detector.py")
+_spell_tracker = _load_module("spell_tracker", _MCW_BLE_PATH / "spell_tracker.py")
+
+LedGroup = _macros.LedGroup
+McwClient = _mcw.McwClient
+SpellTracker = _spell_tracker.SpellTracker
+
 try:
-    from .local_tensor_spell_detector import LocalTensorSpellDetector
+    _local_detector = _load_module("local_tensor_spell_detector", _MCW_BLE_PATH / "local_tensor_spell_detector.py")
+    LocalTensorSpellDetector = _local_detector.LocalTensorSpellDetector
 except ImportError:
     LocalTensorSpellDetector = None
-    try:
-        from .remote_tensor_spell_detector import RemoteTensorSpellDetector
-    except ImportError:
-        RemoteTensorSpellDetector = None
 
-from .macros import LedGroup
-from .mcw import McwClient
-from .spell_tracker import SpellTracker
+try:
+    _remote_detector = _load_module("remote_tensor_spell_detector", _MCW_BLE_PATH / "remote_tensor_spell_detector.py")
+    RemoteTensorSpellDetector = _remote_detector.RemoteTensorSpellDetector
+except ImportError:
+    RemoteTensorSpellDetector = None
 
 # Configuration
 MAC_ADDRESS = "E0:F8:53:63:F8:EA"
-MODEL_PATH = Path(__file__).parent / "model.tflite"  # Obtained from APK
+MODEL_PATH = _MCW_BLE_PATH / "model.tflite"  # Obtained from APK, _MCW_BLE_PATH set above
 CANVAS_WIDTH = 800
 CANVAS_HEIGHT = 600
 TRAIL_LENGTH = 8192  # Number of points to keep in trail
@@ -46,9 +81,7 @@ class SpellRenderer:
         self.start_y = canvas_height / 2
 
         detector = None
-        if not MODEL_PATH.exists():
-            print(f"Warning: Model file {MODEL_PATH} does not exist. Spell detection disabled.")
-        elif LocalTensorSpellDetector is not None:
+        if LocalTensorSpellDetector is not None and MODEL_PATH.exists():
             try:
                 detector = LocalTensorSpellDetector(MODEL_PATH)
                 print("Using LocalTensorSpellDetector for spell detection.")
@@ -56,7 +89,9 @@ class SpellRenderer:
                 print("Warning: Failed to initialize LocalTensorSpellDetector. Spell detection disabled.")
         elif RemoteTensorSpellDetector is not None:
             try:
-                detector = RemoteTensorSpellDetector(MODEL_PATH, "http://localhost:8000/")
+                detector = RemoteTensorSpellDetector(MODEL_PATH.name, "http://localhost:8000")
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    executor.submit(asyncio.run, detector.async_init()).result()
                 print("Using RemoteTensorSpellDetector for spell detection.")
             except:
                 print("Warning: Failed to initialize RemoteTensorSpellDetector. Spell detection disabled.")

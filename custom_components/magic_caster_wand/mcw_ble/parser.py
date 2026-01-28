@@ -3,7 +3,6 @@
 import asyncio
 import dataclasses
 import logging
-from pathlib import Path
 
 from bleak import BleakClient
 from bleak.backends.device import BLEDevice
@@ -16,9 +15,6 @@ from .remote_tensor_spell_detector import RemoteTensorSpellDetector
 from .spell_tracker import SpellTracker
 
 _LOGGER = logging.getLogger(__name__)
-
-# Path to the TFLite model for server-side spell detection
-_MODEL_PATH = Path(__file__).parent / "model.tflite"
 
 @dataclasses.dataclass
 class BLEData:
@@ -39,10 +35,11 @@ class BLEData:
 class McwDevice:
     """Data handler for Magic Caster Wand BLE device."""
 
-    def __init__(self, address: str, tflite_url: str = "http://b5e3f765-tflite-server:8000") -> None:
+    def __init__(self, address: str, tflite_url: str = "http://b5e3f765-tflite-server:8000", model_name: str = "model.tflite") -> None:
         """Initialize the device."""
         self.address = address
         self.tflite_url = tflite_url
+        self.model_name = model_name
         self.client: BleakClient | None = None
         self.model: str | None = None
         self._mcw: McwClient | None = None
@@ -61,20 +58,17 @@ class McwDevice:
         self._init_spell_tracker()
 
     def _init_spell_tracker(self) -> None:
-        """Initialize the spell tracker if the model exists."""
-        if _MODEL_PATH.exists():
-            try:
-                # Persistent detector and tracker
-                self._spell_tracker = SpellTracker(
-                    RemoteTensorSpellDetector(
-                        model_path=_MODEL_PATH,
-                        base_url=self.tflite_url,
-                    ))
-                _LOGGER.debug("Persistent spell tracker created")
-            except Exception as err:
-                _LOGGER.warning("Failed to create spell detector: %s", err)
-        else:
-            _LOGGER.warning("Spell detection model not found at %s. Server-side spell detection will be disabled.", _MODEL_PATH)
+        """Initialize the spell tracker."""
+        try:
+            # Persistent detector and tracker
+            self._spell_tracker = SpellTracker(
+                RemoteTensorSpellDetector(
+                    model_name=self.model_name,
+                    base_url=self.tflite_url,
+                ))
+            _LOGGER.debug("Persistent spell tracker created")
+        except Exception as err:
+            _LOGGER.warning("Failed to create spell detector: %s", err)
 
 
 
