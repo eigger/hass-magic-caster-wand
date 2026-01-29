@@ -193,6 +193,13 @@ class McwClient:
         await self.client.start_notify(BATTERY_UUID, self._handler_battery)
         await sleep(1.0)
 
+        try:
+            # Query initial battery level
+            battery_data = await self.client.read_gatt_char(BATTERY_UUID)
+            self._handler_battery(None, bytearray(battery_data))
+        except Exception as err:
+            _LOGGER.warning("Error reading initial battery level: %s", err)
+
     @disconnect_on_missing_services
     async def stop_notify(self) -> None:
         """Stop receiving notifications."""
