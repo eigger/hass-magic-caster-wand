@@ -166,6 +166,14 @@ class McwDevice:
                     gz=sample['gyro_z']
                 )
 
+    def _on_disconnect(self, client: BleakClient) -> None:
+        """Handle BLE device disconnection."""
+        _LOGGER.debug("Disconnected from Magic Caster Wand")
+        self.client = None
+        self._mcw = None
+        if self._coordinator_connection:
+            self._coordinator_connection.async_set_updated_data(False)
+
     def is_connected(self) -> bool:
         """Check if the device is currently connected."""
         if self.client:
@@ -182,7 +190,8 @@ class McwDevice:
 
         try:
             self.client = await establish_connection(
-                BleakClient, ble_device, ble_device.address
+                BleakClient, ble_device, ble_device.address,
+                disconnected_callback=self._on_disconnect
             )
 
             if not self.client.is_connected:
@@ -230,7 +239,6 @@ class McwDevice:
                             _LOGGER.debug("Failed to stop IMU streaming during disconnect: %s", imu_err)
                         await self._mcw.stop_notify()
                     await self.client.disconnect()
-                    _LOGGER.debug("Disconnected from Magic Caster Wand")
             except Exception as err:
                 _LOGGER.warning("Error during disconnect: %s", err)
             finally:

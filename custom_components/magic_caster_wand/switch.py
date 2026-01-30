@@ -31,7 +31,7 @@ async def async_setup_entry(
     connection_coordinator = data["connection_coordinator"]
 
     async_add_entities([
-        McwConnectionSwitch(hass, address, mcw, coordinator),
+        McwConnectionSwitch(hass, address, mcw, connection_coordinator),
         McwSpellTrackingSwitch(hass, address, mcw, coordinator, connection_coordinator)
     ])
 
@@ -46,10 +46,10 @@ class McwConnectionSwitch(CoordinatorEntity, SwitchEntity):
         hass: HomeAssistant, 
         address: str, 
         mcw, 
-        coordinator: DataUpdateCoordinator[BLEData],
+        connection_coordinator: DataUpdateCoordinator[bool],
     ) -> None:
         """Initialize the connection switch."""
-        super().__init__(coordinator)
+        super().__init__(connection_coordinator)
         self._hass = hass
         self._address = address
         self._mcw = mcw
@@ -81,15 +81,11 @@ class McwConnectionSwitch(CoordinatorEntity, SwitchEntity):
         ble_device = bluetooth.async_ble_device_from_address(self._hass, self._address)
         if ble_device and self._mcw:
             await self._mcw.connect(ble_device)
-            self.async_write_ha_state()
-            await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs) -> None:
         """Disconnect from the device."""
         if self._mcw:
             await self._mcw.disconnect()
-            self.async_write_ha_state()
-            await self.coordinator.async_request_refresh()
 
 
 class McwSpellTrackingSwitch(CoordinatorEntity, SwitchEntity):
