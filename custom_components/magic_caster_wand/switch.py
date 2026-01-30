@@ -57,6 +57,12 @@ class McwConnectionSwitch(CoordinatorEntity, SwitchEntity):
         self._attr_unique_id = f"mcw_{self._identifier}_connect"
 
     @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        # Only available if we have received initial data and device model is known
+        return super().available and self._mcw.model is not None
+
+    @property
     def device_info(self) -> DeviceInfo:
         """Return device info."""
         return DeviceInfo(

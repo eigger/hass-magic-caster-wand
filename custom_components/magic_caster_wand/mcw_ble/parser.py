@@ -98,7 +98,7 @@ class McwDevice:
             self._coordinator_buttons.async_set_updated_data(data)
 
         # Handle spell tracking start/stop when using server-side detection
-        if self._spell_tracker is not None:
+        if self._spell_tracker is not None and self._spell_tracker.detector.is_active:
             button_all = data.get("button_all", False)
 
             # Transition: not pressed -> pressed = start tracking
@@ -155,7 +155,7 @@ class McwDevice:
         if self._coordinator_imu:
             self._coordinator_imu.async_set_updated_data(data)
 
-        if self._spell_tracker is not None:
+        if self._spell_tracker is not None and self._spell_tracker.detector.is_active:
             for sample in data:
                 self._spell_tracker.update(
                     ax=sample['accel_y'],
@@ -214,9 +214,9 @@ class McwDevice:
             )
             await self._mcw.start_notify()
             if not self.model:
-                self.model = await self._mcw.get_wand_device_id()
                 await self._mcw.init_wand()
-
+                self.model = await self._mcw.get_wand_device_id()
+                
             _LOGGER.debug("Connected to Magic Caster Wand: %s, %s", ble_device.address, self.model)
             if self._coordinator_connection:
                 self._coordinator_connection.async_set_updated_data(True)
@@ -256,9 +256,9 @@ class McwDevice:
 
     async def update_device(self, ble_device: BLEDevice) -> BLEData:
         """Update device data. Sends keep-alive if connected."""
-        if not ble_device:
-            if not self._mcw:
-                await self.connect(ble_device)
+        if ble_device and not self.model:
+            # Connect temporarily to fetch device info (model)
+            if await self.connect(ble_device):
                 await self.disconnect()
         # Send keep-alive if connected
         # if self.is_connected() and self._mcw:
