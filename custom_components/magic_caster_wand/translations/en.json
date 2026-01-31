@@ -29,9 +29,13 @@
         "step": {
             "init": {
                 "data": {
-                    "tflite_url": "TFLite Server URL"
+                    "tflite_url": "TFLite Server URL",
+                    "spell_timeout": "Spell Timeout (seconds)"
                 },
-                "description": "Configure the TFLite server URL for spell detection."
+                "data_description": {
+                    "spell_timeout": "Time in seconds before a detected spell resets to awaiting. Set to 0 to disable timeout."
+                },
+                "description": "Configure the TFLite server URL for spell detection and spell timeout."
             }
         }
     }

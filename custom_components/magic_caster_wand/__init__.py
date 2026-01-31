@@ -17,7 +17,7 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import DEFAULT_SCAN_INTERVAL, DOMAIN, CONF_TFLITE_URL, DEFAULT_TFLITE_URL
+from .const import DEFAULT_SCAN_INTERVAL, DOMAIN, CONF_TFLITE_URL, DEFAULT_TFLITE_URL, CONF_SPELL_TIMEOUT, DEFAULT_SPELL_TIMEOUT
 from .mcw_ble import BLEData, McwDevice, LedGroup, SpellMacros
 
 PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH, Platform.TEXT, Platform.SELECT, Platform.BINARY_SENSOR, Platform.BUTTON, Platform.CAMERA]
@@ -42,7 +42,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Create device instance
     tflite_url = entry.options.get(CONF_TFLITE_URL, entry.data.get(CONF_TFLITE_URL, DEFAULT_TFLITE_URL))
-    mcw = McwDevice(address, tflite_url=tflite_url)
+    spell_timeout = entry.options.get(CONF_SPELL_TIMEOUT, entry.data.get(CONF_SPELL_TIMEOUT, DEFAULT_SPELL_TIMEOUT))
+    mcw = McwDevice(address, tflite_url=tflite_url, spell_timeout=spell_timeout)
     identifier = address.replace(":", "")[-8:]
 
     # Create coordinators with unique names for debugging

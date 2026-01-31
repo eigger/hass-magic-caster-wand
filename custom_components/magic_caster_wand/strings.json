@@ -23,10 +23,14 @@
   "options": {
     "step": {
       "init": {
-        "title": "TFLite Server Configuration",
-        "description": "Configure the TFLite server URL for spell detection.",
+        "title": "Magic Caster Wand Configuration",
+        "description": "Configure the TFLite server URL for spell detection and spell timeout.",
         "data": {
-          "tflite_url": "TFLite Server URL"
+          "tflite_url": "TFLite Server URL",
+          "spell_timeout": "Spell Timeout (seconds)"
+        },
+        "data_description": {
+          "spell_timeout": "Time in seconds before a detected spell resets to awaiting. Set to 0 to disable timeout."
         }
       }
     }

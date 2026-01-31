@@ -17,7 +17,7 @@ from homeassistant.components.bluetooth import (
 from homeassistant.config_entries import SOURCE_REAUTH, ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.const import CONF_ADDRESS
 from homeassistant.core import callback
-from .const import DOMAIN, CONF_TFLITE_URL, DEFAULT_TFLITE_URL
+from .const import DOMAIN, CONF_TFLITE_URL, DEFAULT_TFLITE_URL, CONF_SPELL_TIMEOUT, DEFAULT_SPELL_TIMEOUT
 
 
 @dataclasses.dataclass
@@ -183,6 +183,15 @@ class McwOptionsFlowHandler(OptionsFlow):
                             ),
                         ),
                     ): str,
+                    vol.Required(
+                        CONF_SPELL_TIMEOUT,
+                        default=self._config_entry.options.get(
+                            CONF_SPELL_TIMEOUT,
+                            self._config_entry.data.get(
+                                CONF_SPELL_TIMEOUT, DEFAULT_SPELL_TIMEOUT
+                            ),
+                        ),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=0)),
                 }
             ),
         )
