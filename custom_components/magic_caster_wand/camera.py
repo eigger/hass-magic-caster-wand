@@ -37,8 +37,9 @@ async def async_setup_entry(
     imu_coordinator = data["imu_coordinator"]
     buttons_coordinator = data["buttons_coordinator"]
     spell_coordinator = data["spell_coordinator"]
+    connection_coordinator = data["connection_coordinator"]
 
-    async_add_entities([McwSpellCamera(hass, address, mcw, imu_coordinator, buttons_coordinator, spell_coordinator)])
+    async_add_entities([McwSpellCamera(hass, address, mcw, imu_coordinator, buttons_coordinator, spell_coordinator, connection_coordinator)])
 
 
 class McwSpellCamera(CoordinatorEntity, Camera):
@@ -53,7 +54,8 @@ class McwSpellCamera(CoordinatorEntity, Camera):
         mcw, 
         coordinator: DataUpdateCoordinator[list[dict[str, float]]],
         buttons_coordinator: DataUpdateCoordinator[dict[str, bool]],
-        spell_coordinator: DataUpdateCoordinator[str]
+        spell_coordinator: DataUpdateCoordinator[str],
+        connection_coordinator: DataUpdateCoordinator[bool],
     ) -> None:
         """Initialize the spell camera."""
         super().__init__(coordinator)
@@ -63,6 +65,7 @@ class McwSpellCamera(CoordinatorEntity, Camera):
         self._mcw = mcw
         self._buttons_coordinator = buttons_coordinator
         self._spell_coordinator = spell_coordinator
+        self._connection_coordinator = connection_coordinator
         self._identifier = address.replace(":", "")[-8:]
         self._attr_name = "Spell Canvas"
         self._attr_unique_id = f"mcw_{self._identifier}_camera"
@@ -82,6 +85,17 @@ class McwSpellCamera(CoordinatorEntity, Camera):
         # Initialize default image
         img = Image.new("RGB", (CANVAS_WIDTH, CANVAS_HEIGHT), "black")
         self._last_image = self._image_to_bytes(img)
+        # Register connection coordinator listener
+        self.async_on_remove(
+            self._connection_coordinator.async_add_listener(
+                self._handle_connection_update
+            )
+        )
+
+    @callback
+    def _handle_connection_update(self) -> None:
+        """Handle connection state changes."""
+        self.async_write_ha_state()
 
     def _clear_canvas(self):
         """Clear the drawing canvas."""
@@ -104,6 +118,11 @@ class McwSpellCamera(CoordinatorEntity, Camera):
             name=f"Magic Caster Wand {self._identifier}",
             manufacturer=MANUFACTURER,
         )
+
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        return self._connection_coordinator.data is True
 
     @callback
     def _handle_coordinator_update(self) -> None:

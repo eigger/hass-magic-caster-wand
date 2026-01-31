@@ -27,11 +27,11 @@ async def async_setup_entry(
     data = hass.data[DOMAIN][entry.entry_id]
     address = data["address"]
     mcw = data["mcw"]
-    coordinator = data["coordinator"]
+    connection_coordinator = data["connection_coordinator"]
 
     async_add_entities([
-        McwConnectionSwitch(hass, address, mcw, coordinator),
-        McwSpellTrackingSwitch(hass, address, mcw, coordinator)
+        McwConnectionSwitch(hass, address, mcw, connection_coordinator),
+        McwSpellTrackingSwitch(hass, address, mcw, connection_coordinator)
     ])
 
 
@@ -45,16 +45,22 @@ class McwConnectionSwitch(CoordinatorEntity, SwitchEntity):
         hass: HomeAssistant, 
         address: str, 
         mcw, 
-        coordinator: DataUpdateCoordinator[BLEData]
+        connection_coordinator: DataUpdateCoordinator[bool],
     ) -> None:
         """Initialize the connection switch."""
-        super().__init__(coordinator)
+        super().__init__(connection_coordinator)
         self._hass = hass
         self._address = address
         self._mcw = mcw
         self._identifier = address.replace(":", "")[-8:]
         self._attr_name = "Connect"
         self._attr_unique_id = f"mcw_{self._identifier}_connect"
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        # Only available if we have received initial data and device model is known
+        return super().available and self._mcw.model is not None
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -68,7 +74,7 @@ class McwConnectionSwitch(CoordinatorEntity, SwitchEntity):
     @property
     def is_on(self) -> bool:
         """Return true if the device is connected."""
-        return self._mcw.is_connected()
+        return self.coordinator.data is True
 
     @property
     def icon(self) -> str:
@@ -80,15 +86,11 @@ class McwConnectionSwitch(CoordinatorEntity, SwitchEntity):
         ble_device = bluetooth.async_ble_device_from_address(self._hass, self._address)
         if ble_device and self._mcw:
             await self._mcw.connect(ble_device)
-            self.async_write_ha_state()
-            await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs) -> None:
         """Disconnect from the device."""
         if self._mcw:
             await self._mcw.disconnect()
-            self.async_write_ha_state()
-            await self.coordinator.async_request_refresh()
 
 
 class McwSpellTrackingSwitch(CoordinatorEntity, SwitchEntity):
@@ -101,10 +103,10 @@ class McwSpellTrackingSwitch(CoordinatorEntity, SwitchEntity):
         hass: HomeAssistant, 
         address: str, 
         mcw, 
-        coordinator: DataUpdateCoordinator[BLEData]
+        connection_coordinator: DataUpdateCoordinator[bool],
     ) -> None:
         """Initialize the spell tracking switch."""
-        super().__init__(coordinator)
+        super().__init__(connection_coordinator)
         self._hass = hass
         self._address = address
         self._mcw = mcw
@@ -112,6 +114,11 @@ class McwSpellTrackingSwitch(CoordinatorEntity, SwitchEntity):
         self._attr_name = "Spell Tracking"
         self._attr_unique_id = f"mcw_{self._identifier}_spell_tracking"
         self._is_on = False
+
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        return self.coordinator.data is True
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -125,7 +132,7 @@ class McwSpellTrackingSwitch(CoordinatorEntity, SwitchEntity):
     @property
     def is_on(self) -> bool:
         """Return true if IMU streaming is active."""
-        if not self._mcw.is_connected():
+        if self.coordinator.data is not True:
             return False
         return self._is_on
 
@@ -136,19 +143,19 @@ class McwSpellTrackingSwitch(CoordinatorEntity, SwitchEntity):
 
     async def async_turn_on(self, **kwargs) -> None:
         """Start IMU streaming."""
-        if self._mcw and self._mcw.is_connected():
+        if self._mcw and self.coordinator.data is True:
             await self._mcw.async_spell_tracker_init()
             await self._mcw.imu_streaming_start()
             self._is_on = True
             async_dispatcher_send(self._hass, SIGNAL_SPELL_MODE_CHANGED)
             self.async_write_ha_state()
-        elif not self._mcw.is_connected():
+        elif self.coordinator.data is not True:
             _LOGGER.warning("Cannot start tracking: Magic Caster Wand is not connected")
 
     async def async_turn_off(self, **kwargs) -> None:
         """Stop IMU streaming."""
         if self._mcw:
-            if self._mcw.is_connected():
+            if self.coordinator.data is True:
                 await self._mcw.imu_streaming_stop()
                 await self._mcw.async_spell_tracker_close()
             self._is_on = False

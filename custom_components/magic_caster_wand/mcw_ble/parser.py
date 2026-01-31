@@ -50,6 +50,7 @@ class McwDevice:
         self._coordinator_buttons = None
         self._coordinator_calibration = None
         self._coordinator_imu = None
+        self._coordinator_connection = None
         self._spell_tracker: SpellTracker | None = None
         self._button_all_pressed: bool = False
         self._spell_reset_timeout_task: asyncio.Task[None] | None = None
@@ -71,15 +72,14 @@ class McwDevice:
         except Exception as err:
             _LOGGER.warning("Failed to create spell detector: %s", err)
 
-
-
-    def register_coordinator(self, cn_spell, cn_battery, cn_buttons, cn_calibration=None, cn_imu=None) -> None:
-        """Register coordinators for spell, battery, button, and calibration updates."""
+    def register_coordinator(self, cn_spell, cn_battery, cn_buttons, cn_calibration=None, cn_imu=None, cn_connection=None) -> None:
+        """Register coordinators for spell, battery, button, calibration, and connection updates."""
         self._coordinator_spell = cn_spell
         self._coordinator_battery = cn_battery
         self._coordinator_buttons = cn_buttons
         self._coordinator_calibration = cn_calibration
         self._coordinator_imu = cn_imu
+        self._coordinator_connection = cn_connection
 
     def _schedule_spell_reset(self) -> None:
         """Schedule a reset of the spell sensor back to 'awaiting' after the configured timeout."""
@@ -122,7 +122,7 @@ class McwDevice:
             self._coordinator_buttons.async_set_updated_data(data)
 
         # Handle spell tracking start/stop when using server-side detection
-        if self._spell_tracker is not None:
+        if self._spell_tracker is not None and self._spell_tracker.detector is not None and self._spell_tracker.detector.is_active:
             button_all = data.get("button_all", False)
 
             # Transition: not pressed -> pressed = start tracking
@@ -180,7 +180,7 @@ class McwDevice:
         if self._coordinator_imu:
             self._coordinator_imu.async_set_updated_data(data)
 
-        if self._spell_tracker is not None:
+        if self._spell_tracker is not None and self._spell_tracker.detector is not None and self._spell_tracker.detector.is_active:
             for sample in data:
                 self._spell_tracker.update(
                     ax=sample['accel_y'],
@@ -190,6 +190,14 @@ class McwDevice:
                     gy=-sample['gyro_x'],
                     gz=sample['gyro_z']
                 )
+
+    def _on_disconnect(self, client: BleakClient) -> None:
+        """Handle BLE device disconnection."""
+        _LOGGER.debug("Disconnected from Magic Caster Wand")
+        self.client = None
+        self._mcw = None
+        if self._coordinator_connection:
+            self._coordinator_connection.async_set_updated_data(False)
 
     def is_connected(self) -> bool:
         """Check if the device is currently connected."""
@@ -207,7 +215,8 @@ class McwDevice:
 
         try:
             self.client = await establish_connection(
-                BleakClient, ble_device, ble_device.address
+                BleakClient, ble_device, ble_device.address,
+                disconnected_callback=self._on_disconnect
             )
 
             if not self.client.is_connected:
@@ -230,10 +239,12 @@ class McwDevice:
             )
             await self._mcw.start_notify()
             if not self.model:
-                self.model = await self._mcw.get_wand_device_id()
                 await self._mcw.init_wand()
-
+                self.model = await self._mcw.get_wand_device_id()
+                
             _LOGGER.debug("Connected to Magic Caster Wand: %s, %s", ble_device.address, self.model)
+            if self._coordinator_connection:
+                self._coordinator_connection.async_set_updated_data(True)
             return True
 
         except Exception as err:
@@ -253,7 +264,6 @@ class McwDevice:
                             _LOGGER.debug("Failed to stop IMU streaming during disconnect: %s", imu_err)
                         await self._mcw.stop_notify()
                     await self.client.disconnect()
-                    _LOGGER.debug("Disconnected from Magic Caster Wand")
             except Exception as err:
                 _LOGGER.warning("Error during disconnect: %s", err)
             finally:
@@ -266,12 +276,14 @@ class McwDevice:
                         "button_4": False,
                         "button_all": False,
                     })
+                if self._coordinator_connection:
+                    self._coordinator_connection.async_set_updated_data(False)
 
     async def update_device(self, ble_device: BLEDevice) -> BLEData:
         """Update device data. Sends keep-alive if connected."""
-        if not ble_device:
-            if not self._mcw:
-                await self.connect(ble_device)
+        if ble_device and not self.model:
+            # Connect temporarily to fetch device info (model)
+            if await self.connect(ble_device):
                 await self.disconnect()
         # Send keep-alive if connected
         # if self.is_connected() and self._mcw:
@@ -292,6 +304,16 @@ class McwDevice:
         """Set LED color."""
         if self.is_connected() and self._mcw:
             await self._mcw.set_led(group, r, g, b, duration)
+
+    @property
+    def casting_led_color(self) -> tuple[int, int, int]:
+        """Get the current casting LED color."""
+        return self._casting_led_color
+
+    @casting_led_color.setter
+    def casting_led_color(self, value: tuple[int, int, int]) -> None:
+        """Set the casting LED color."""
+        self._casting_led_color = value
 
     @property
     def spell_detection_mode(self) -> str:

@@ -87,8 +87,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         name=f"{DOMAIN}_imu_{identifier}",
     )
 
+    connection_coordinator: DataUpdateCoordinator[bool] = DataUpdateCoordinator(
+        hass,
+        _LOGGER,
+        name=f"{DOMAIN}_connection_{identifier}",
+    )
+    # Initialize with disconnected state
+    connection_coordinator.async_set_updated_data(False)
+
     # Register coordinators with device for BLE callbacks
-    mcw.register_coordinator(spell_coordinator, battery_coordinator, buttons_coordinator, calibration_coordinator, imu_coordinator)
+    mcw.register_coordinator(spell_coordinator, battery_coordinator, buttons_coordinator, calibration_coordinator, imu_coordinator, connection_coordinator)
 
     # Perform first refresh
     await coordinator.async_config_entry_first_refresh()
@@ -103,6 +111,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "buttons_coordinator": buttons_coordinator,
         "calibration_coordinator": calibration_coordinator,
         "imu_coordinator": imu_coordinator,
+        "connection_coordinator": connection_coordinator,
     }
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

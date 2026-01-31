@@ -388,7 +388,7 @@ class McwClient:
         _LOGGER.debug("Starting IMU streaming")
         await self.write_command(struct.pack('B', MESSAGEIDS.IMUFLAG_RESET), False)
         await sleep(0.1)
-        await self.write_command(struct.pack('BBB', MESSAGEIDS.IMUFLAG_SET, 0x01, 0x01), False)
+        await self.write_command(struct.pack('BBB', MESSAGEIDS.IMUFLAG_SET, 0x00, 0x80), False)
 
     async def imu_streaming_stop(self) -> None:
         """Stop IMU data streaming"""

@@ -65,14 +65,15 @@ async def async_setup_entry(
     spell_coordinator: DataUpdateCoordinator[str] = data["spell_coordinator"]
     battery_coordinator: DataUpdateCoordinator[float] = data["battery_coordinator"]
     calibration_coordinator: DataUpdateCoordinator[dict[str, str]] = data["calibration_coordinator"]
+    connection_coordinator: DataUpdateCoordinator[bool] = data["connection_coordinator"]
     address = data["address"]
     mcw = data["mcw"]
 
     entities = [
-        McwSpellSensor(address, mcw, spell_coordinator),
-        McwBatterySensor(address, mcw, battery_coordinator),
-        McwBatteryStateSensor(address, mcw, battery_coordinator),
-        McwSpellModeSensor(address, mcw),
+        McwSpellSensor(address, mcw, spell_coordinator, connection_coordinator),
+        McwBatterySensor(address, mcw, battery_coordinator, connection_coordinator),
+        McwBatteryStateSensor(address, mcw, battery_coordinator, connection_coordinator),
+        McwSpellModeSensor(address, mcw, connection_coordinator),
     ]
 
     # Add calibration sensors
@@ -82,6 +83,7 @@ async def async_setup_entry(
                 address=address,
                 mcw=mcw,
                 coordinator=calibration_coordinator,
+                connection_coordinator=connection_coordinator,
                 sensor_key=sensor["key"],
                 sensor_name=sensor["name"],
                 sensor_icon=sensor["icon"],
@@ -124,16 +126,37 @@ class McwSpellSensor(
         address: str,
         mcw,
         coordinator: DataUpdateCoordinator[str],
+        connection_coordinator: DataUpdateCoordinator[bool],
     ) -> None:
         """Initialize the spell sensor."""
         CoordinatorEntity.__init__(self, coordinator)
         McwBaseSensor.__init__(self, address, mcw)
 
+        self._connection_coordinator = connection_coordinator
         self._attr_name = "Spell"
         self._attr_unique_id = f"mcw_{self._identifier}_spell"
         self._attr_icon = "mdi:magic-staff"
         self._spell = "awaiting"
         self._attr_extra_state_attributes = {"last_updated": None}
+
+    async def async_added_to_hass(self) -> None:
+        """Register connection coordinator listener."""
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            self._connection_coordinator.async_add_listener(
+                self._handle_connection_update
+            )
+        )
+
+    @callback
+    def _handle_connection_update(self) -> None:
+        """Handle connection state changes."""
+        self.async_write_ha_state()
+
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        return self._connection_coordinator.data is True
 
     @property
     def native_value(self) -> StateType:
@@ -165,14 +188,35 @@ class McwBatterySensor(
         address: str,
         mcw,
         coordinator: DataUpdateCoordinator[float],
+        connection_coordinator: DataUpdateCoordinator[bool],
     ) -> None:
         """Initialize the battery sensor."""
         CoordinatorEntity.__init__(self, coordinator)
         McwBaseSensor.__init__(self, address, mcw)
 
+        self._connection_coordinator = connection_coordinator
         self._attr_name = "Battery"
         self._attr_unique_id = f"mcw_{self._identifier}_battery"
-        self._battery: float = 0.0
+        self._battery: float | None = None
+
+    async def async_added_to_hass(self) -> None:
+        """Register connection coordinator listener."""
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            self._connection_coordinator.async_add_listener(
+                self._handle_connection_update
+            )
+        )
+
+    @callback
+    def _handle_connection_update(self) -> None:
+        """Handle connection state changes."""
+        self.async_write_ha_state()
+
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        return self._connection_coordinator.data is True
 
     @property
     def native_value(self) -> StateType:
@@ -208,17 +252,40 @@ class McwBatteryStateSensor(
         address: str,
         mcw,
         coordinator: DataUpdateCoordinator[float],
+        connection_coordinator: DataUpdateCoordinator[bool],
     ) -> None:
         """Initialize the battery state sensor."""
         CoordinatorEntity.__init__(self, coordinator)
         McwBaseSensor.__init__(self, address, mcw)
+        self._connection_coordinator = connection_coordinator
         self._attr_name = "Battery State"
         self._attr_unique_id = f"mcw_{self._identifier}_battery_state"
-        self._state = BatteryState.CRITICAL
+        self._state: str | None = None
+
+    async def async_added_to_hass(self) -> None:
+        """Register connection coordinator listener."""
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            self._connection_coordinator.async_add_listener(
+                self._handle_connection_update
+            )
+        )
+
+    @callback
+    def _handle_connection_update(self) -> None:
+        """Handle connection state changes."""
+        self.async_write_ha_state()
+
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        return self._connection_coordinator.data is True
 
     @property
     def icon(self) -> str:
         """Return the icon based on battery state."""
+        if self._connection_coordinator.data is not True:
+            return "mdi:battery-unknown"
         match self._state:
             case BatteryState.CRITICAL:
                 return "mdi:battery-alert"
@@ -250,13 +317,19 @@ class McwBatteryStateSensor(
 class McwSpellModeSensor(McwBaseSensor):
     """Sensor entity for showing spell detection mode."""
 
-    def __init__(self, address: str, mcw) -> None:
+    def __init__(self, address: str, mcw, connection_coordinator: DataUpdateCoordinator[bool]) -> None:
         """Initialize the spell mode sensor."""
         McwBaseSensor.__init__(self, address, mcw)
 
+        self._connection_coordinator = connection_coordinator
         self._attr_name = "Spell Detection Mode"
         self._attr_unique_id = f"mcw_{self._identifier}_spell_mode"
         self._attr_icon = "mdi:auto-fix"
+
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        return self._connection_coordinator.data is True
 
     @property
     def native_value(self) -> StateType:
@@ -267,12 +340,22 @@ class McwSpellModeSensor(McwBaseSensor):
         """Register callbacks."""
         await super().async_added_to_hass()
         self.async_on_remove(
+            self._connection_coordinator.async_add_listener(
+                self._handle_connection_update
+            )
+        )
+        self.async_on_remove(
             async_dispatcher_connect(
                 self.hass,
                 SIGNAL_SPELL_MODE_CHANGED,
                 self.async_write_ha_state,
             )
         )
+
+    @callback
+    def _handle_connection_update(self) -> None:
+        """Handle connection state changes."""
+        self.async_write_ha_state()
 
 
 class McwCalibrationSensor(
@@ -286,6 +369,7 @@ class McwCalibrationSensor(
         address: str,
         mcw,
         coordinator: DataUpdateCoordinator[dict[str, str]],
+        connection_coordinator: DataUpdateCoordinator[bool],
         sensor_key: str,
         sensor_name: str,
         sensor_icon: str,
@@ -294,11 +378,31 @@ class McwCalibrationSensor(
         CoordinatorEntity.__init__(self, coordinator)
         McwBaseSensor.__init__(self, address, mcw)
 
+        self._connection_coordinator = connection_coordinator
         self._sensor_key = sensor_key
         self._sensor_icon = sensor_icon
         self._attr_name = sensor_name
         self._attr_unique_id = f"mcw_{self._identifier}_{sensor_key}"
         self._state: str = "Pending"
+
+    async def async_added_to_hass(self) -> None:
+        """Register connection coordinator listener."""
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            self._connection_coordinator.async_add_listener(
+                self._handle_connection_update
+            )
+        )
+
+    @callback
+    def _handle_connection_update(self) -> None:
+        """Handle connection state changes."""
+        self.async_write_ha_state()
+
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        return self._connection_coordinator.data is True
 
     @property
     def icon(self) -> str:

@@ -43,7 +43,6 @@ class McwCastingLedColorSelect(SelectEntity, RestoreEntity):
         self._attr_icon = "mdi:palette"
         self._attr_options = list(CASTING_LED_COLORS.keys())
         self._attr_current_option = DEFAULT_CASTING_LED_COLOR
-        self._apply_color()
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -75,10 +74,13 @@ class McwCastingLedColorSelect(SelectEntity, RestoreEntity):
         """Restore previous state when added to hass."""
         await super().async_added_to_hass()
 
-        if (last_state := await self.async_get_last_state()) is None:
-            return
-
-        if last_state.state in self._attr_options:
+        last_state = await self.async_get_last_state()
+        if last_state is not None and last_state.state in self._attr_options:
             _LOGGER.debug("Restored casting LED color: %s", last_state.state)
             self._attr_current_option = last_state.state
+
+        # Make sure the current casting color is applied to the device
+        try:
             self._apply_color()
+        except Exception as err:
+            _LOGGER.error("Failed to apply casting LED color: %s", err)

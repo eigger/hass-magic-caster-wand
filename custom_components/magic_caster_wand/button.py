@@ -26,10 +26,11 @@ async def async_setup_entry(
     mcw = data["mcw"]
     coordinator = data["coordinator"]
     calibration_coordinator = data["calibration_coordinator"]
+    connection_coordinator = data["connection_coordinator"]
 
     async_add_entities([
-        McwButtonCalibration(address, mcw, coordinator, calibration_coordinator),
-        McwImuCalibration(address, mcw, coordinator, calibration_coordinator),
+        McwButtonCalibration(address, mcw, coordinator, calibration_coordinator, connection_coordinator),
+        McwImuCalibration(address, mcw, coordinator, calibration_coordinator, connection_coordinator),
     ])
 
 
@@ -44,6 +45,7 @@ class McwBaseCalibrationButton(CoordinatorEntity[DataUpdateCoordinator[BLEData]]
         mcw,
         coordinator: DataUpdateCoordinator[BLEData],
         calibration_coordinator: DataUpdateCoordinator[dict[str, str]],
+        connection_coordinator: DataUpdateCoordinator[bool],
     ) -> None:
         """Initialize the calibration button."""
         super().__init__(coordinator)
@@ -51,6 +53,26 @@ class McwBaseCalibrationButton(CoordinatorEntity[DataUpdateCoordinator[BLEData]]
         self._mcw = mcw
         self._identifier = address.replace(":", "")[-8:]
         self._calibration_coordinator = calibration_coordinator
+        self._connection_coordinator = connection_coordinator
+
+    async def async_added_to_hass(self) -> None:
+        """Register connection coordinator listener."""
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            self._connection_coordinator.async_add_listener(
+                self._handle_connection_update
+            )
+        )
+
+    @callback
+    def _handle_connection_update(self) -> None:
+        """Handle connection state changes."""
+        self.async_write_ha_state()
+
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        return self._connection_coordinator.data is True
 
     @property
     def device_info(self) -> DeviceInfo:

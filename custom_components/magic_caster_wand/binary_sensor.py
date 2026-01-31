@@ -36,6 +36,7 @@ async def async_setup_entry(
     """Set up the Magic Caster Wand BLE button binary sensors."""
     data = hass.data[DOMAIN][entry.entry_id]
     buttons_coordinator: DataUpdateCoordinator[dict[str, bool]] = data["buttons_coordinator"]
+    connection_coordinator: DataUpdateCoordinator[bool] = data["connection_coordinator"]
     address = data["address"]
     mcw = data["mcw"]
 
@@ -44,6 +45,7 @@ async def async_setup_entry(
             address=address,
             mcw=mcw,
             coordinator=buttons_coordinator,
+            connection_coordinator=connection_coordinator,
             button_key=button["key"],
             button_name=button["name"]
         )
@@ -51,8 +53,7 @@ async def async_setup_entry(
     ]
 
     # Add connection status binary sensor
-    coordinator = data["coordinator"]
-    entities.append(McwConnectionBinarySensor(address, mcw, coordinator))
+    entities.append(McwConnectionBinarySensor(address, mcw, connection_coordinator))
 
     async_add_entities(entities)
 
@@ -71,6 +72,7 @@ class McwButtonBinarySensor(
         address: str,
         mcw,
         coordinator: DataUpdateCoordinator[dict[str, bool]],
+        connection_coordinator: DataUpdateCoordinator[bool],
         button_key: str,
         button_name: str
     ) -> None:
@@ -79,12 +81,27 @@ class McwButtonBinarySensor(
         
         self._address = address
         self._mcw = mcw
+        self._connection_coordinator = connection_coordinator
         self._identifier = address.replace(":", "")[-8:]
         self._button_key = button_key
         
         self._attr_name = button_name
         self._attr_unique_id = f"mcw_{self._identifier}_{button_key}"
         self._is_on = False
+
+    async def async_added_to_hass(self) -> None:
+        """Register connection coordinator listener."""
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            self._connection_coordinator.async_add_listener(
+                self._handle_connection_update
+            )
+        )
+
+    @callback
+    def _handle_connection_update(self) -> None:
+        """Handle connection state changes."""
+        self.async_write_ha_state()
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -95,6 +112,11 @@ class McwButtonBinarySensor(
             manufacturer=MANUFACTURER,
             model=self._mcw.model if self._mcw else None,
         )
+
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        return self._connection_coordinator.data is True
 
     @property
     def is_on(self) -> bool:
@@ -119,7 +141,7 @@ class McwButtonBinarySensor(
 
 
 class McwConnectionBinarySensor(
-    CoordinatorEntity[DataUpdateCoordinator[BLEData]],
+    CoordinatorEntity[DataUpdateCoordinator[bool]],
     BinarySensorEntity,
 ):
     """Binary sensor entity for tracking BLE connection state."""
@@ -131,10 +153,10 @@ class McwConnectionBinarySensor(
         self,
         address: str,
         mcw,
-        coordinator: DataUpdateCoordinator[BLEData],
+        connection_coordinator: DataUpdateCoordinator[bool],
     ) -> None:
         """Initialize the connection binary sensor."""
-        CoordinatorEntity.__init__(self, coordinator)
+        CoordinatorEntity.__init__(self, connection_coordinator)
         
         self._address = address
         self._mcw = mcw
@@ -156,7 +178,7 @@ class McwConnectionBinarySensor(
     @property
     def is_on(self) -> bool:
         """Return true if connected."""
-        return self._mcw.is_connected() if self._mcw else False
+        return self.coordinator.data is True
 
     @callback
     def _handle_coordinator_update(self) -> None:
