@@ -5,6 +5,7 @@ import aiohttp
 from typing import Any, Optional
 
 from .spell_detector import SpellDetector
+from .spells import ALL_SPELLS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -120,7 +121,7 @@ class RemoteTensorSpellDetector(SpellDetector):
         if best_prob < float(confidence_threshold):
             return None
 
-        return self.SPELL_NAMES[best_index]
+        return ALL_SPELLS[best_index].Name
 
     # ------------------------------------------------------------------
     # Internal helpers

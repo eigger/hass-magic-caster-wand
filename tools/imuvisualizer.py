@@ -44,8 +44,10 @@ sys.modules["magic_caster_wand.mcw_ble"] = _fake_mcw_ble
 # Load modules in dependency order
 _macros = _load_module("macros", _MCW_BLE_PATH / "macros.py")
 _mcw = _load_module("mcw", _MCW_BLE_PATH / "mcw.py")
-_spell_detector = _load_module("spell_detector", _MCW_BLE_PATH / "spell_detector.py")
 _spell_tracker = _load_module("spell_tracker", _MCW_BLE_PATH / "spell_tracker.py")
+_spells = _load_module("spells", _MCW_BLE_PATH / "spells.py")
+
+SPELL_MAP = _spells.SPELL_MAP
 
 LedGroup = _macros.LedGroup
 McwClient = _mcw.McwClient
@@ -275,6 +277,12 @@ class MotionVisualizer:
         if spell_name:
             self.status_label.config(text=f"Spell: {spell_name}", fg='yellow')
             print(f"Recognized spell: {spell_name}")
+    
+            spell = SPELL_MAP.get(spell_name)
+            if spell:
+                spell_payoff = spell.payoff()
+                print(f"Sending macro {spell_payoff.to_bytes().hex()}...")
+                await self.mcw.send_macro(spell_payoff)
         else:
             self.status_label.config(text="Hold all buttons to start", fg='white')
 

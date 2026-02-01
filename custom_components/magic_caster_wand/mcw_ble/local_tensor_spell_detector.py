@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from .spell_detector import SpellDetector
+from .spells import ALL_SPELLS
 
 class LocalTensorSpellDetector(SpellDetector):
     """Spell detector implementation using TensorFlow Lite for local inference."""
@@ -46,4 +47,4 @@ class LocalTensorSpellDetector(SpellDetector):
         if best_prob < confidence_threshold:
             return None
 
-        return self.SPELL_NAMES[best_index]
+        return ALL_SPELLS[best_index].Name

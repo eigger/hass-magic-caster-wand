@@ -465,15 +465,7 @@ class McwClient:
         """Set wand LED color"""
         _LOGGER.debug("Setting LED %s color to R=%d G=%d B=%d", group.name, r, g, b)
 
-        # Macros groups don't match with this - this hacky lets us have a common interface while we figure it out
-        converted_group: int = int(group)
-        match converted_group:
-            case 1:
-                converted_group = 3
-            case 3:
-                converted_group = 1
-
-        await self.write_command(struct.pack('BBBBB', MESSAGEIDS.LIGHT_CONTROL_SET_LED, converted_group, r, g, b))
+        await self.write_command(struct.pack('BBBBB', MESSAGEIDS.LIGHT_CONTROL_SET_LED, int(group), r, g, b))
 
     async def led_off(self) -> None:
         """Turn off wand LED"""
