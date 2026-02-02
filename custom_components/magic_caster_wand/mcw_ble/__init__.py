@@ -21,7 +21,7 @@ if _running_imuvisualizer_via_m():
 else:
     from .parser import McwDevice, BLEData, McwBluetoothDeviceData
     from .mcw import LedGroup
-    from .macros import Macro, SpellMacros, get_spell_macro
+    from .macros import Macro, get_spell_macro
 
     __all__ = [
         "McwDevice",
@@ -29,6 +29,5 @@ else:
         "McwBluetoothDeviceData",
         "LedGroup",
         "Macro",
-        "SpellMacros",
         "get_spell_macro",
     ]
