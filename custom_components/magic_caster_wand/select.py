@@ -56,7 +56,7 @@ class McwCastingLedColorSelect(SelectEntity, RestoreEntity):
     @property
     def available(self) -> bool:
         """Return True if entity is available."""
-        return False
+        return True
 
     def _apply_color(self) -> None:
         """Apply the current color selection to the device."""
