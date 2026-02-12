@@ -44,6 +44,9 @@ repository into the `custom_components/magic_caster_wand` directory.
 ## ⚠️ Important Notice
 - It is **strongly recommended to use a Bluetooth proxy instead of a built-in Bluetooth adapter**.  
   Bluetooth proxies generally offer more stable connections and better range, especially in environments with multiple BLE devices.
+
+  > [!TIP]
+  > For hardware recommendations, refer to [Great ESP32 Board for an ESPHome Bluetooth Proxy](https://community.home-assistant.io/t/great-esp32-board-for-an-esphome-bluetooth-proxy/916767/31).
 - When using a Bluetooth proxy, it is strongly recommended to **keep the scan interval at its default value**.  
   Changing these values may cause issues with Bluetooth data transmission.
 - **bluetooth_proxy:** must always have **active: true**.
