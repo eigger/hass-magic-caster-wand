@@ -13,7 +13,6 @@ from homeassistant.core import (
     HomeAssistant,
     ServiceCall,
 )
-from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -36,8 +35,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     ble_device = bluetooth.async_ble_device_from_address(hass, address)
     if not ble_device:
-        raise ConfigEntryNotReady(
-            f"Could not find Magic Caster Wand device with address {address}"
+        _LOGGER.warning(
+            "Could not find Magic Caster Wand device with address %s during setup; continuing without initial data",
+            address,
         )
 
     # Create device instance
@@ -98,9 +98,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Register coordinators with device for BLE callbacks
     mcw.register_coordinator(spell_coordinator, battery_coordinator, buttons_coordinator, calibration_coordinator, imu_coordinator, connection_coordinator)
 
-    # Perform first refresh
-    await coordinator.async_config_entry_first_refresh()
-
     # Store data for platforms
     hass.data[DOMAIN][entry.entry_id] = {
         "address": address,
@@ -113,6 +110,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "imu_coordinator": imu_coordinator,
         "connection_coordinator": connection_coordinator,
     }
+
+    # Perform first refresh (best-effort). If it fails, entities will remain unavailable
+    # until a later successful update.
+    await coordinator.async_refresh()
+    if not coordinator.last_update_success:
+        _LOGGER.warning(
+            "Initial update failed for %s; entities will start as unavailable: %s",
+            address,
+            coordinator.last_exception,
+        )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -192,6 +199,8 @@ async def _async_update_method(
     """Get data from Magic Caster Wand BLE device."""
     address = entry.unique_id
     ble_device = bluetooth.async_ble_device_from_address(hass, address)
+    if not ble_device:
+        raise UpdateFailed(f"BLE device not available for address {address}")
 
     try:
         data = await mcw.update_device(ble_device)

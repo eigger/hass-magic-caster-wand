@@ -16,11 +16,11 @@
     "bluetooth",
     "bluetooth_adapters"
   ],
-  "documentation": "https://www.github.com/eigger/hass-magic-caster-wand",
+  "documentation": "https://www.github.com/eigger/hass-magic_caster_wand",
   "iot_class": "local_polling",
-  "issue_tracker": "https://www.github.com/eigger/hass-magic-caster-wand/issues",
+  "issue_tracker": "https://www.github.com/eigger/hass-magic_caster_wand/issues",
   "requirements": [
     "numpy"
   ],
-  "version": "1.2.12"
+  "version": "1.2.11"
 }
