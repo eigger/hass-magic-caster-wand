@@ -5,7 +5,8 @@
 ![integration usage](https://img.shields.io/badge/dynamic/json?color=41BDF5&logo=home-assistant&label=integration%20usage&suffix=%20installs&cacheSeconds=15600&url=https://analytics.home-assistant.io/custom_integrations.json&query=%24.magic_caster_wand.total)
 
 Magic Caster Wand (Revised) Home Assistant Integration
-Changed so that only 3 buttons need to be depressed to start spell tracker
+
+This is a modification of the project by eigger in order to make it easier to cast spells and to enable spell casting effects
 
 <table>
   <tr>
