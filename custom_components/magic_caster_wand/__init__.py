@@ -154,6 +154,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 device: McwDevice = hass.data[DOMAIN][entry_id]["mcw"]
                 await device.set_led(group, rgb[0], rgb[1], rgb[2], duration)
 
+    async def handle_send_macro(call: ServiceCall) -> None:
+        """Handle execution of send_frame service."""
+        commands = call.data.get("commands", [])
+        device_ids = call.data.get("device_id", [])
+
+        # Normalize device_id input
+        if isinstance(device_ids, str):
+            device_ids = [device_ids]
+
+        for device_id in device_ids:
+            entry_id = await get_entry_id_from_device(hass, device_id)
+            if entry_id and entry_id in hass.data[DOMAIN]:
+                device: McwDevice = hass.data[DOMAIN][entry_id]["mcw"]
+
+                # Pass commands directly to the device
+                await device.send_macro_parse(commands)
+
+
     async def handle_clear_leds(call: ServiceCall) -> None:
         """Handle execution of clear_leds service."""
         device_ids = call.data.get("device_id", [])
@@ -189,6 +207,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.services.async_register(DOMAIN, "clear_leds", handle_clear_leds)
     if not hass.services.has_service(DOMAIN, "play_spell"):
         hass.services.async_register(DOMAIN, "play_spell", handle_play_spell)
+    if not hass.services.has_service(DOMAIN, "send_macro"):
+        hass.services.async_register(DOMAIN, "send_macro", handle_send_macro)        
 
     return True
 

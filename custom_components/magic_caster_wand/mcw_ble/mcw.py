@@ -47,6 +47,9 @@ class MESSAGEIDS:
     FACTORY_UNLOCK = 0xFE
     """FactoryUnlockMessage.kt"""
 
+    FRAME_START = 0x68
+    FRAME_CHANGE_LED = 0x22      # changeled: [group][r][g][b][duration_ms LE]
+
 # Response packet IDs from APK
 class RESPONSEIDS:
     FIRMWARE_VERSION = 0x00
@@ -461,11 +464,25 @@ class McwClient:
             self._wand_type = self._wand_device_id_to_type(await self.get_wand_device_id())
         return self._wand_type or ""
 
-    async def led_on(self, group: LedGroup, r: int, g: int, b: int) -> None:
+    async def led_on(self, group: LedGroup, r: int, g: int, b: int, duration_ms: int = 800) -> None:
         """Set wand LED color"""
-        _LOGGER.debug("Setting LED %s color to R=%d G=%d B=%d", group.name, r, g, b)
+        _LOGGER.debug("Setting LED %s color to R=%d G=%d B=%d for %d ms", group.name, r, g, b, duration_ms)
 
-        await self.write_command(struct.pack('BBBBB', MESSAGEIDS.LIGHT_CONTROL_SET_LED, int(group), r, g, b))
+        if duration_ms == 0:
+                duration_ms = 65535
+
+        await self.write_command(
+            struct.pack(
+                '<BBBBBBH',   # 1 byte start + 1 opcode + 4 bytes + uint16
+                MESSAGEIDS.FRAME_START,      # 0x68
+                MESSAGEIDS.FRAME_CHANGE_LED, # 0x22
+                int(group),                  # 0–3
+                r,
+                g,
+                b,
+                duration_ms                  # uint16 LE
+            )
+        )
 
     async def led_off(self) -> None:
         """Turn off wand LED"""

@@ -300,10 +300,56 @@ class McwDevice:
         if self.is_connected() and self._mcw:
             await self._mcw.send_macro(macro)
 
+    async def send_macro_parse(self, commands: list) -> None:
+        """Convert service commands into a Macro and send it."""
+        if not self.is_connected() or not self._mcw:
+            return
+
+        macro = Macro()
+
+        for cmd in commands:
+
+            if "changeled" in cmd:
+                c = cmd["changeled"]
+                group_val = c.get("group", "TIP")
+
+                # Accept both numeric and string groups
+                if isinstance(group_val, int):
+                    group = LedGroup(group_val)
+                else:
+                    group = LedGroup[group_val.upper()]
+
+                r, g, b = c.get("rgb", (255, 255, 255))
+                duration = int(c.get("duration", 800))
+                if duration == 0:
+                    duration = 65535
+
+                macro.add_led(group, r, g, b, duration)
+
+            elif "clear" in cmd:
+                macro.add_clear()
+
+            elif "delay" in cmd:
+                macro.add_delay(int(cmd["delay"]))
+
+            elif "buzz" in cmd:
+                macro.add_buzz(int(cmd["buzz"]))
+
+            elif "loop" in cmd:
+                macro.add_loop()
+
+            elif "set_loops" in cmd:
+                macro.add_set_loops(int(cmd["set_loops"]))
+
+            elif "wait" in cmd:
+                macro.add_wait()
+
+        await self._mcw.send_macro(macro)
+
     async def set_led(self, group: LedGroup, r: int, g: int, b: int, duration: int = 0) -> None:
         """Set LED color."""
         if self.is_connected() and self._mcw:
-            await self._mcw.set_led(group, r, g, b, duration)
+            await self._mcw.led_on(group, r, g, b, duration)
 
     @property
     def casting_led_color(self) -> tuple[int, int, int]:
@@ -336,7 +382,7 @@ class McwDevice:
     async def clear_leds(self) -> None:
         """Clear all LEDs."""
         if self.is_connected() and self._mcw:
-            await self._mcw.clear_leds()
+            await self._mcw.led_off()
 
     async def send_button_calibration(self) -> None:
         """Send button calibration packet."""
