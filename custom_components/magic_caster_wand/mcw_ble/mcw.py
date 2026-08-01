@@ -470,33 +470,6 @@ class McwClient:
 
         await self.write_command(struct.pack('BBBBB', MESSAGEIDS.LIGHT_CONTROL_SET_LED, int(group), r, g, b))
 
-    async def set_led(self, group: LedGroup, r: int, g: int, b: int, duration_ms: int = 0) -> None:
-        """Set wand LED color"""
-        _LOGGER.debug("Setting LED %s color to R=%d G=%d B=%d for %d ms", group.name, r, g, b, duration_ms)
-
-        if duration_ms == 0:
-            payload = struct.pack(
-                '<BBBBBB',
-                MESSAGEIDS.FRAME_START,      
-                MESSAGEIDS.FRAME_CHANGE_LED,
-                int(group),
-                r,
-                g,
-                b
-            )
-        else:
-            payload = struct.pack(
-                '<BBBBBBH',
-                MESSAGEIDS.FRAME_START,
-                MESSAGEIDS.FRAME_CHANGE_LED,
-                int(group),
-                r,
-                g,
-                b,
-                duration_ms
-            
-        )
-
     async def led_off(self) -> None:
         """Turn off wand LED"""
         _LOGGER.debug("Turning off LED")

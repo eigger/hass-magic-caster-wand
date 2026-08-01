@@ -349,7 +349,12 @@ class McwDevice:
     async def set_led(self, group: LedGroup, r: int, g: int, b: int, duration: int = 0) -> None:
         """Set LED color."""
         if self.is_connected() and self._mcw:
-            await self._mcw.set_led(group, r, g, b, duration)
+            use_wait_clear = duration != 0
+            actual_duration = 65535 if not use_wait_clear else duration
+            macro = Macro().add_led(group, r, g, b, actual_duration)
+            if use_wait_clear:
+                macro.add_wait().add_clear()
+            await self._mcw.send_macro(macro)
 
     @property
     def casting_led_color(self) -> tuple[int, int, int]:
