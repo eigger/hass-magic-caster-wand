@@ -349,7 +349,7 @@ class McwDevice:
     async def set_led(self, group: LedGroup, r: int, g: int, b: int, duration: int = 0) -> None:
         """Set LED color."""
         if self.is_connected() and self._mcw:
-            await self._mcw.led_on(group, r, g, b, duration)
+            await self._mcw.set_led(group, r, g, b, duration)
 
     @property
     def casting_led_color(self) -> tuple[int, int, int]:
