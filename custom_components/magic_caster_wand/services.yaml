@@ -64,18 +64,10 @@ send_macro:
     list is converted into a Macro and sent as a single CONTROL (0x68) macro
     packet. Commands execute in order and may include LED transitions, delays,
     vibration, loop markers, loop counts, and wait instructions.
-
+  target:
+    device:
+      integration: magic_caster_wand
   fields:
-
-    device_id:
-      name: Target Device
-      description: >
-        The Magic Caster Wand device to send the macro to.
-      required: true
-      selector:
-        device:
-          integration: magic_caster_wand
-
     commands:
       name: Macro Commands
       description: >
