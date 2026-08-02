@@ -459,7 +459,6 @@ class McbDevice:
         cn_lid,
         cn_charge,
         cn_wand,
-        cn_combined,
         cn_connection=None,
     ) -> None:
         """Register coordinators for all MCB notifications."""
@@ -467,18 +466,12 @@ class McbDevice:
         self._coordinator_lid = cn_lid
         self._coordinator_charge = cn_charge
         self._coordinator_wand = cn_wand
-        self._coordinator_combined = cn_combined
         self._coordinator_connection = cn_connection
 
     def _callback_battery(self, data: float) -> None:
         """Handle battery update callback."""
         if self._coordinator_battery:
             self._coordinator_battery.async_set_updated_data(data)
-
-    def _callback_lid_status(self, data: LIDSTATE) -> None:
-        """Handle lid status update callback."""
-        if self._coordinator_lid:
-            self._coordinator_lid.async_set_updated_data(data)
 
     def _callback_lid(self, data: LIDNOTIFY) -> None:
         """Handle lid notify callback."""
@@ -536,7 +529,6 @@ class McbDevice:
             self._mcb = McbClient(self.client)
             self._mcb.register_callback(
                 self._callback_battery,
-                self._callback_lid_status,
                 self._callback_lid,
                 self._callback_wand,
                 self._callback_charge,

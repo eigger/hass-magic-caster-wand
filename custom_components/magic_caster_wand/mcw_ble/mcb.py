@@ -152,7 +152,6 @@ class McbClient:
         """Initialize the client."""
         self.client = client
         self.callback_battery: Callable[[float], None] | None = None
-        self.callback_lid_status: Callable[[LIDSTATE], None]
         self.callback_lid: Callable[[LIDNOTIFY], None] 
         self.callback_wand: Callable[[WANDNOTIFY], None]
         self.callback_charge: Callable[[CHARGENOTIFY], None]
@@ -175,7 +174,6 @@ class McbClient:
     def register_callback(
             self,
             battery_cb: Callable[[float], None],
-            lid_status_cb: Callable[[LIDSTATE], None],
             lid_cb: Callable[[LIDNOTIFY], None],
             wand_cb: Callable[[WANDNOTIFY], None],
             charge_cb: Callable[[CHARGENOTIFY], None]
@@ -183,7 +181,6 @@ class McbClient:
         """Register callbacks for spell, battery, button, and calibration notifications."""
         self.callback_battery = battery_cb
 
-        self.callback_lid_status = lid_status_cb
         self.callback_lid = lid_cb
         self.callback_wand = wand_cb
         self.callback_charge = charge_cb        
@@ -486,9 +483,6 @@ class McbClient:
 
         state = mapping.get(data[1], LIDSTATE.UNKNOWN)
         _LOGGER.debug(f"Lid/Wand combined status: {state.name}")
-
-        if self.callback_lid_status:
-            self.callback_lid_status(state)
 
     def _parse_lid_notify(self, data: bytearray) -> None:
         if len(data) < 2:
