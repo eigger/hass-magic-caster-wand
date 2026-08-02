@@ -23,15 +23,17 @@ async def async_setup_entry(
     """Set up the Magic Caster Wand BLE buttons."""
     data = hass.data[DOMAIN][entry.entry_id]
     address = data["address"]
-    mcw = data["mcw"]
+    device = data["device"]
+    device_type = data["type"]
     coordinator = data["coordinator"]
-    calibration_coordinator = data["calibration_coordinator"]
-    connection_coordinator = data["connection_coordinator"]
 
-    async_add_entities([
-        McwButtonCalibration(address, mcw, coordinator, calibration_coordinator, connection_coordinator),
-        McwImuCalibration(address, mcw, coordinator, calibration_coordinator, connection_coordinator),
-    ])
+    if device_type == "mcw":
+        calibration_coordinator = data["calibration_coordinator"]
+        connection_coordinator = data["connection_coordinator"]
+        async_add_entities([
+            McwButtonCalibration(address, device, coordinator, calibration_coordinator, connection_coordinator),
+            McwImuCalibration(address, device, coordinator, calibration_coordinator, connection_coordinator),
+        ])
 
 
 class McwBaseCalibrationButton(CoordinatorEntity[DataUpdateCoordinator[BLEData]], ButtonEntity):

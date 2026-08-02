@@ -47,6 +47,9 @@ class MESSAGEIDS:
     FACTORY_UNLOCK = 0xFE
     """FactoryUnlockMessage.kt"""
 
+    FRAME_START = 0x68
+    FRAME_CHANGE_LED = 0x22      # changeled: [group][r][g][b][duration_ms LE]
+
 # Response packet IDs from APK
 class RESPONSEIDS:
     FIRMWARE_VERSION = 0x00

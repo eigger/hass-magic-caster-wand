@@ -57,6 +57,58 @@ set_led:
           max: 30000
           unit_of_measurement: ms
 
+send_macro:
+  name: Send Wand Macro
+  description: >
+    Send a sequence of Magic Caster Wand macro commands. Each command in the
+    list is converted into a Macro and sent as a single CONTROL (0x68) macro
+    packet. Commands execute in order and may include LED transitions, delays,
+    vibration, loop markers, loop counts, and wait instructions.
+  target:
+    device:
+      integration: magic_caster_wand
+  fields:
+    commands:
+      name: Macro Commands
+      description: >
+        A list of macro commands executed in order. Each command is an object
+        with one of the following keys:
+
+        **changeled**
+          - Change LED color on a specific group.
+          - Fields:
+              group: TIP | MID_UPPER | MID_LOWER | POMMEL (or 0–3)
+              rgb: [R, G, B] (0–255 each)
+              duration: Duration in ms (max 65535)
+
+        **clear**
+          - Clears all LEDs immediately.
+
+        **delay**
+          - Adds a delay before the next command.
+          - Fields:
+              delay: Duration in ms
+
+        **buzz**
+          - Vibrates the wand.
+          - Fields:
+              buzz: Duration in ms
+
+        **set_loops**
+          - Starts the loop for a number of loop iterations.
+          - Fields:
+              set_loops: Number of loops (1–255)
+
+        **loop**
+          - Marks the end of a loop block.
+
+        **wait**
+          - Waits for previous commands to finish.
+
+      required: true
+      selector:
+        object:
+
 clear_leds:
   name: Clear LEDs
   description: Turn off all LEDs on the wand.

@@ -9,6 +9,7 @@ from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceIn
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, MANUFACTURER
+from .mcw_ble import McbDevice, McwDevice
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,8 +22,9 @@ async def async_setup_entry(
     """Set up the Magic Caster Wand BLE text entity."""
     data = hass.data[DOMAIN][entry.entry_id]
     address = data["address"]
+    device = data["device"]
 
-    async_add_entities([McwAliasTextEntity(address)])
+    async_add_entities([McwAliasTextEntity(address, device)])
 
 
 class McwAliasTextEntity(RestoreText):
@@ -30,10 +32,11 @@ class McwAliasTextEntity(RestoreText):
 
     _attr_has_entity_name = True
 
-    def __init__(self, address: str) -> None:
+    def __init__(self, address: str, device: McwDevice | McbDevice) -> None:
         """Initialize the text entity."""
         self._address = address
         self._identifier = address.replace(":", "")[-8:]
+        self._device = device
         self._attr_name = "Alias"
         self._attr_unique_id = f"mcw_{self._identifier}_alias"
         self._attr_native_max = 32
@@ -44,9 +47,10 @@ class McwAliasTextEntity(RestoreText):
     @property
     def device_info(self) -> DeviceInfo:
         """Return device info."""
+        device_label = "Wand" if isinstance(self._device, McwDevice) else "Box"
         return DeviceInfo(
             connections={(CONNECTION_BLUETOOTH, self._address)},
-            name=f"Magic Caster Wand {self._identifier}",
+            name=f"Magic Caster {device_label} {self._identifier}",
             manufacturer=MANUFACTURER,
         )
 

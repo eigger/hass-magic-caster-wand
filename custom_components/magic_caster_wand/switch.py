@@ -13,7 +13,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
 
 from .const import DOMAIN, MANUFACTURER, SIGNAL_SPELL_MODE_CHANGED
-from .mcw_ble import BLEData
+from .mcw_ble import McwDevice, McbDevice
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -26,15 +26,16 @@ async def async_setup_entry(
     """Set up the Magic Caster Wand BLE switch."""
     data = hass.data[DOMAIN][entry.entry_id]
     address = data["address"]
-    mcw = data["mcw"]
+    device = data["device"]
+    device_type = data["type"]
     connection_coordinator = data["connection_coordinator"]
 
-    async_add_entities([
-        McwConnectionSwitch(hass, address, mcw, connection_coordinator),
-        McwSpellTrackingSwitch(hass, address, mcw, connection_coordinator)
-    ])
-
-
+    entities = []
+    entities.append(McwConnectionSwitch(hass, address, device, connection_coordinator))
+    if device_type == "mcw":
+        entities.append(McwSpellTrackingSwitch(hass, address, device, connection_coordinator))
+    async_add_entities(entities)
+    
 class McwConnectionSwitch(CoordinatorEntity, SwitchEntity):
     """Switch entity for controlling BLE connection."""
 
@@ -44,14 +45,14 @@ class McwConnectionSwitch(CoordinatorEntity, SwitchEntity):
         self, 
         hass: HomeAssistant, 
         address: str, 
-        mcw, 
+        device: McwDevice | McbDevice, 
         connection_coordinator: DataUpdateCoordinator[bool],
     ) -> None:
         """Initialize the connection switch."""
         super().__init__(connection_coordinator)
         self._hass = hass
         self._address = address
-        self._mcw = mcw
+        self._device = device
         self._identifier = address.replace(":", "")[-8:]
         self._attr_name = "Connect"
         self._attr_unique_id = f"mcw_{self._identifier}_connect"
@@ -60,14 +61,15 @@ class McwConnectionSwitch(CoordinatorEntity, SwitchEntity):
     def available(self) -> bool:
         """Return if entity is available."""
         # Only available if we have received initial data and device model is known
-        return super().available and self._mcw is not None
+        return super().available and self._device is not None
 
     @property
     def device_info(self) -> DeviceInfo:
         """Return device info."""
+        device_label = "Wand" if isinstance(self._device, McwDevice) else "Box"
         return DeviceInfo(
             connections={(CONNECTION_BLUETOOTH, self._address)},
-            name=f"Magic Caster Wand {self._identifier}",
+            name=f"Magic Caster {device_label} {self._identifier}",
             manufacturer=MANUFACTURER,
         )
 
@@ -84,13 +86,13 @@ class McwConnectionSwitch(CoordinatorEntity, SwitchEntity):
     async def async_turn_on(self, **kwargs) -> None:
         """Connect to the device."""
         ble_device = bluetooth.async_ble_device_from_address(self._hass, self._address)
-        if ble_device and self._mcw:
-            await self._mcw.connect(ble_device)
+        if ble_device and self._device:
+            await self._device.connect(ble_device)
 
     async def async_turn_off(self, **kwargs) -> None:
         """Disconnect from the device."""
-        if self._mcw:
-            await self._mcw.disconnect()
+        if self._device:
+            await self._device.disconnect()
 
 
 class McwSpellTrackingSwitch(CoordinatorEntity, SwitchEntity):

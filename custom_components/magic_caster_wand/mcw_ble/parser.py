@@ -11,6 +11,7 @@ from bluetooth_sensor_state_data import BluetoothData
 from home_assistant_bluetooth import BluetoothServiceInfoBleak
 
 from .mcw import McwClient, LedGroup, Macro
+from .mcb import McbClient, LIDSTATE, LIDNOTIFY, WANDNOTIFY, CHARGENOTIFY
 from .remote_tensor_spell_detector import RemoteTensorSpellDetector
 from .spell_tracker import SpellTracker
 
@@ -300,10 +301,61 @@ class McwDevice:
         if self.is_connected() and self._mcw:
             await self._mcw.send_macro(macro)
 
+    async def send_macro_parse(self, commands: list) -> None:
+        """Convert service commands into a Macro and send it."""
+        if not self.is_connected() or not self._mcw:
+            return
+
+        macro = Macro()
+
+        for cmd in commands:
+
+            if "changeled" in cmd:
+                c = cmd["changeled"]
+                group_val = c.get("group", "TIP")
+
+                # Accept both numeric and string groups
+                if isinstance(group_val, int):
+                    group = LedGroup(group_val)
+                else:
+                    group = LedGroup[group_val.upper()]
+
+                r, g, b = c.get("rgb", (255, 255, 255))
+                duration = int(c.get("duration", 800))
+                if duration == 0:
+                    duration = 65535
+
+                macro.add_led(group, r, g, b, duration)
+
+            elif "clear" in cmd:
+                macro.add_clear()
+
+            elif "delay" in cmd:
+                macro.add_delay(int(cmd["delay"]))
+
+            elif "buzz" in cmd:
+                macro.add_buzz(int(cmd["buzz"]))
+
+            elif "loop" in cmd:
+                macro.add_loop()
+
+            elif "set_loops" in cmd:
+                macro.add_set_loops(int(cmd["set_loops"]))
+
+            elif "wait" in cmd:
+                macro.add_wait()
+
+        await self._mcw.send_macro(macro)
+
     async def set_led(self, group: LedGroup, r: int, g: int, b: int, duration: int = 0) -> None:
         """Set LED color."""
         if self.is_connected() and self._mcw:
-            await self._mcw.set_led(group, r, g, b, duration)
+            use_wait_clear = duration != 0
+            actual_duration = 65535 if not use_wait_clear else duration
+            macro = Macro().add_led(group, r, g, b, actual_duration)
+            if use_wait_clear:
+                macro.add_wait().add_clear()
+            await self._mcw.send_macro(macro)
 
     @property
     def casting_led_color(self) -> tuple[int, int, int]:
@@ -336,7 +388,7 @@ class McwDevice:
     async def clear_leds(self) -> None:
         """Clear all LEDs."""
         if self.is_connected() and self._mcw:
-            await self._mcw.clear_leds()
+            await self._mcw.led_off()
 
     async def send_button_calibration(self) -> None:
         """Send button calibration packet."""
@@ -388,6 +440,205 @@ class McwDevice:
             await self._spell_tracker.close()
             # Do NOT set self._spell_tracker = None to keep upload state
 
+class McbDevice:
+    """Data handler for Magic Caster Box BLE device."""
+
+    def __init__(self, address: str) -> None:
+        """Initialize the device."""
+        self.address = address
+        self.client: BleakClient | None = None
+        self.model: str | None = None
+        self._mcb: McbClient | None = None
+        self._data = BLEData()
+        self._coordinator_battery = None
+        self._coordinator_connection = None
+
+    def register_coordinator(
+        self,
+        cn_battery,
+        cn_lid,
+        cn_charge,
+        cn_wand,
+        cn_connection=None,
+    ) -> None:
+        """Register coordinators for all MCB notifications."""
+        self._coordinator_battery = cn_battery
+        self._coordinator_lid = cn_lid
+        self._coordinator_charge = cn_charge
+        self._coordinator_wand = cn_wand
+        self._coordinator_connection = cn_connection
+
+    def _callback_battery(self, data: float) -> None:
+        """Handle battery update callback."""
+        if self._coordinator_battery:
+            self._coordinator_battery.async_set_updated_data(data)
+
+    def _callback_lid(self, data: LIDNOTIFY) -> None:
+        """Handle lid notify callback."""
+        if self._coordinator_lid:
+            self._coordinator_lid.async_set_updated_data(data)
+
+    def _callback_wand(self, data: WANDNOTIFY) -> None:
+        """Handle wand-present callback."""
+        if self._coordinator_wand:
+            self._coordinator_wand.async_set_updated_data(data)
+
+    def _callback_charge(self, data: CHARGENOTIFY) -> None:
+        """Handle charging state callback."""
+        if self._coordinator_charge:
+            self._coordinator_charge.async_set_updated_data(data)
+
+    def _on_disconnect(self, client: BleakClient) -> None:
+        """Handle BLE device disconnection."""
+        _LOGGER.debug("Disconnected from Magic Caster Box")
+        self.client = None
+        self._mcb = None
+        if self._coordinator_connection:
+            self._coordinator_connection.async_set_updated_data(False)
+
+    def is_connected(self) -> bool:
+        """Check if the device is currently connected."""
+        if self.client:
+            try:
+                return self.client.is_connected
+            except Exception:
+                pass
+        return False
+
+    async def connect(self, ble_device: BLEDevice) -> bool:
+        """Connect to the BLE device."""
+        if self.is_connected():
+            return True
+
+        try:
+            self.client = await establish_connection(
+                BleakClient, ble_device, ble_device.address,
+                disconnected_callback=self._on_disconnect
+            )
+
+            if not self.client.is_connected:
+                return False
+
+            # Update basic device info
+            if not self._data.name:
+                self._data.name = ble_device.name or "Magic Caster Box"
+            if not self._data.address:
+                self._data.address = ble_device.address
+            if not self._data.identifier:
+                self._data.identifier = ble_device.address.replace(":", "")[-8:]
+            self._mcb = McbClient(self.client)
+            self._mcb.register_callback(
+                self._callback_battery,
+                self._callback_lid,
+                self._callback_wand,
+                self._callback_charge,
+            )
+            await self._mcb.start_notify()
+            if not self.model:
+                self.model = await self._mcb.get_box_device_id()
+                
+            _LOGGER.debug("Connected to Magic Caster Box: %s, %s", ble_device.address, self.model)
+            if self._coordinator_connection:
+                self._coordinator_connection.async_set_updated_data(True)
+            return True
+
+        except Exception as err:
+            _LOGGER.warning("Failed to connect to %s: %s", ble_device.address, err)
+            return False
+
+    async def disconnect(self) -> None:
+        """Disconnect from the BLE device."""
+        if self.client:
+            try:
+                if self.client.is_connected:
+                    await self.client.disconnect()
+            except Exception as err:
+                _LOGGER.warning("Error during disconnect: %s", err)
+            finally:
+                if self._coordinator_connection:
+                    self._coordinator_connection.async_set_updated_data(False)
+
+    async def update_device(self, ble_device: BLEDevice) -> BLEData:
+        """Update device data. Sends keep-alive if connected."""
+        if ble_device and not self.model:
+            # Connect temporarily to fetch device info (model)
+            if await self.connect(ble_device):
+                await self.disconnect()
+        # Send keep-alive if connected
+        # if self.is_connected() and self._mcw:
+        #     try:
+        #         await self._mcw.keep_alive()
+        #     except Exception as err:
+        #         _LOGGER.debug("Keep-alive failed: %s", err)
+
+        # _LOGGER.debug("Updated BLEData: %s", self._data)
+        return self._data
+
+    async def send_macro(self, macro: Macro) -> None:
+        """Send a macro sequence to the wand."""
+        if self.is_connected() and self._mcb:
+            await self._mcb.send_macro(macro)
+
+    async def send_macro_parse(self, commands: list) -> None:
+        """Convert service commands into a Macro and send it."""
+        if not self.is_connected() or not self._mcb:
+            return
+
+        macro = Macro()
+
+        for cmd in commands:
+
+            if "changeled" in cmd:
+                c = cmd["changeled"]
+                group_val = c.get("group", "TIP")
+
+                # Accept both numeric and string groups
+                if isinstance(group_val, int):
+                    group = LedGroup(group_val)
+                else:
+                    group = LedGroup[group_val.upper()]
+
+                r, g, b = c.get("rgb", (255, 255, 255))
+                duration = int(c.get("duration", 800))
+                if duration == 0:
+                    duration = 65535
+
+                macro.add_led(group, r, g, b, duration)
+
+            elif "clear" in cmd:
+                macro.add_clear()
+
+            elif "delay" in cmd:
+                macro.add_delay(int(cmd["delay"]))
+
+            elif "buzz" in cmd:
+                macro.add_buzz(int(cmd["buzz"]))
+
+            elif "loop" in cmd:
+                macro.add_loop()
+
+            elif "set_loops" in cmd:
+                macro.add_set_loops(int(cmd["set_loops"]))
+
+            elif "wait" in cmd:
+                macro.add_wait()
+
+        await self._mcb.send_macro(macro)
+
+    async def set_led(self, group: LedGroup, r: int, g: int, b: int, duration: int = 0) -> None:
+        """Set LED color."""
+        if self.is_connected() and self._mcb:
+            use_wait_clear = duration != 0
+            actual_duration = 65535 if not use_wait_clear else duration
+            macro = Macro().add_led(group, r, g, b, actual_duration)
+            if use_wait_clear:
+                macro.add_wait().add_clear()
+            await self._mcb.send_macro(macro)
+
+    async def clear_leds(self) -> None:
+        """Clear all LEDs."""
+        if self.is_connected() and self._mcb:
+            await self._mcb.led_off()
 
 class McwBluetoothDeviceData(BluetoothData):
     """Bluetooth device data for Magic Caster Wand."""
@@ -396,6 +647,7 @@ class McwBluetoothDeviceData(BluetoothData):
     SERVICE_UUID = "57420001-587e-48a0-974c-544d6163c577"
     # Device name prefix
     DEVICE_NAME_PREFIX = "MCW-"
+    device_type = "mcw"
 
     def __init__(self) -> None:
         """Initialize the device data."""
@@ -410,6 +662,34 @@ class McwBluetoothDeviceData(BluetoothData):
             return False
 
         # Check for Magic Caster Wand Service UUID
+        # service_uuids_lower = [uuid.lower() for uuid in data.service_uuids]
+        # if self.SERVICE_UUID.lower() not in service_uuids_lower:
+        #     return False
+
+        return True
+
+class McbBluetoothDeviceData(BluetoothData):
+    """Bluetooth device data for Magic Caster Box."""
+
+    # Magic Caster Box Service UUID (from mcb.py)
+    SERVICE_UUID = "57420001-587e-48a0-974c-54686f72c577"
+    # Device name prefix
+    DEVICE_NAME_PREFIX = "MCB-"
+    device_type = "mcb"
+
+    def __init__(self) -> None:
+        """Initialize the device data."""
+        super().__init__()
+        self.last_service_info: BluetoothServiceInfoBleak | None = None
+        self.pending = True
+
+    def supported(self, data: BluetoothServiceInfoBleak) -> bool:
+        """Check if the device is a supported Magic Caster Box."""
+        # Check device name starts with "MCB-"
+        if not data.name or not data.name.startswith(self.DEVICE_NAME_PREFIX):
+            return False
+
+        # Check for Magic Caster Box Service UUID
         # service_uuids_lower = [uuid.lower() for uuid in data.service_uuids]
         # if self.SERVICE_UUID.lower() not in service_uuids_lower:
         #     return False
