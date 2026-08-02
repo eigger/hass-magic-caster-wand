@@ -16,19 +16,73 @@ COMPONENT = pathlib.Path(__file__).resolve().parents[1] / "custom_components" / 
 
 @pytest.mark.parametrize("device_cls", [McwDevice, McbDevice])
 def test_model_probe_leaves_an_open_connection_alone(device_cls):
-    """connect() returns True for an existing connection, so an unguarded probe
-    would disconnect the user on every poll while the model stayed unknown."""
+    """connect() returns True for an existing connection without reaching its model
+    fetch, so probing that way would drop the user's connection and gain nothing."""
     device = device_cls("AA:BB:CC:DD:EE:FF")
     device.model = ""  # falsy: the device never reported an id
     device.is_connected = lambda: True
 
     calls = []
-    device.connect = lambda ble: calls.append("connect") or True
-    device.disconnect = lambda: calls.append("disconnect")
+
+    async def fake_connect(ble):
+        calls.append("connect")
+        return True
+
+    async def fake_disconnect():
+        calls.append("disconnect")
+
+    async def fake_refresh():
+        calls.append("refresh_model")
+
+    device.connect = fake_connect
+    device.disconnect = fake_disconnect
+    device._refresh_model = fake_refresh
 
     asyncio.run(device.update_device(object()))
 
-    assert calls == [], "the model probe must not touch an already-open connection"
+    assert "disconnect" not in calls, "the model probe must not drop an open connection"
+
+
+@pytest.mark.parametrize("device_cls", [McwDevice, McbDevice])
+def test_model_is_still_fetched_while_connected(device_cls):
+    """The point of the probe is to learn the model; staying connected must not
+    mean giving that up."""
+    device = device_cls("AA:BB:CC:DD:EE:FF")
+    device.model = ""
+    device.is_connected = lambda: True
+
+    calls = []
+
+    async def fake_refresh():
+        calls.append("refresh_model")
+
+    device._refresh_model = fake_refresh
+    device.connect = lambda ble: pytest.fail("must not reconnect while already connected")
+
+    asyncio.run(device.update_device(object()))
+
+    assert calls == ["refresh_model"]
+
+
+@pytest.mark.parametrize("device_cls", [McwDevice, McbDevice])
+def test_refresh_model_is_a_no_op_once_known(device_cls):
+    device = device_cls("AA:BB:CC:DD:EE:FF")
+    device.model = "WBMC22G1SHNW"
+
+    # No client is attached, so any actual request would raise.
+    asyncio.run(device._refresh_model())
+
+    assert device.model == "WBMC22G1SHNW"
+
+
+@pytest.mark.parametrize("device_cls", [McwDevice, McbDevice])
+def test_refresh_model_without_a_client_is_safe(device_cls):
+    device = device_cls("AA:BB:CC:DD:EE:FF")
+    device.model = None
+
+    asyncio.run(device._refresh_model())
+
+    assert device.model is None
 
 
 @pytest.mark.parametrize("device_cls", [McwDevice, McbDevice])

@@ -354,9 +354,7 @@ class McwDevice:
                 self._callback_imu,
             )
             await self._mcw.start_notify()
-            if not self.model:
-                await self._mcw.init_wand()
-                self.model = await self._mcw.get_wand_device_id()
+            await self._refresh_model()
 
             _LOGGER.debug("Connected to Magic Caster Wand: %s, %s", ble_device.address, self.model)
             if self._coordinator_connection:
@@ -366,6 +364,17 @@ class McwDevice:
         except Exception as err:
             _LOGGER.warning("Failed to connect to %s: %s", ble_device.address, err)
             return False
+
+    async def _refresh_model(self) -> None:
+        """Ask the wand for its model, if it is still unknown.
+
+        Safe to call on an open connection: init_wand() only rewrites the button
+        thresholds, and the client caches the device id after the first answer.
+        """
+        if self.model or not self._mcw:
+            return
+        await self._mcw.init_wand()
+        self.model = await self._mcw.get_wand_device_id()
 
     async def _cancel_background_tasks(self) -> None:
         """Cancel anything still running so it cannot outlive the config entry."""
@@ -414,12 +423,15 @@ class McwDevice:
 
     async def update_device(self, ble_device: BLEDevice) -> BLEData:
         """Update device data. Sends keep-alive if connected."""
-        # Probe for the model only while it is still unknown, and only when the
-        # user has not already opened a connection: connect() returns True for an
-        # existing connection, so without this guard the disconnect below would
-        # drop the user's connection on every poll.
-        if ble_device and not self.model and not self.is_connected():
-            if await self.connect(ble_device):
+        # Learn the model as soon as possible, but never at the cost of the
+        # connection. connect() returns True immediately for an open connection
+        # without reaching its model fetch, so asking directly is the only way to
+        # get it without dropping what the user opened with the Connect switch.
+        if ble_device and not self.model:
+            if self.is_connected():
+                await self._refresh_model()
+            elif await self.connect(ble_device):
+                # Only connected to read the model, so let go again.
                 await self.disconnect()
         # Send keep-alive if connected
         # if self.is_connected() and self._mcw:
@@ -632,8 +644,7 @@ class McbDevice:
                 self._callback_charge,
             )
             await self._mcb.start_notify()
-            if not self.model:
-                self.model = await self._mcb.get_box_device_id()
+            await self._refresh_model()
 
             _LOGGER.debug("Connected to Magic Caster Box: %s, %s", ble_device.address, self.model)
             if self._coordinator_connection:
@@ -643,6 +654,16 @@ class McbDevice:
         except Exception as err:
             _LOGGER.warning("Failed to connect to %s: %s", ble_device.address, err)
             return False
+
+    async def _refresh_model(self) -> None:
+        """Ask the box for its model, if it is still unknown.
+
+        Safe to call on an open connection: the client caches the device id
+        after the first answer.
+        """
+        if self.model or not self._mcb:
+            return
+        self.model = await self._mcb.get_box_device_id()
 
     async def disconnect(self) -> None:
         """Disconnect from the BLE device."""
@@ -658,12 +679,15 @@ class McbDevice:
 
     async def update_device(self, ble_device: BLEDevice) -> BLEData:
         """Update device data. Sends keep-alive if connected."""
-        # Probe for the model only while it is still unknown, and only when the
-        # user has not already opened a connection: connect() returns True for an
-        # existing connection, so without this guard the disconnect below would
-        # drop the user's connection on every poll.
-        if ble_device and not self.model and not self.is_connected():
-            if await self.connect(ble_device):
+        # Learn the model as soon as possible, but never at the cost of the
+        # connection. connect() returns True immediately for an open connection
+        # without reaching its model fetch, so asking directly is the only way to
+        # get it without dropping what the user opened with the Connect switch.
+        if ble_device and not self.model:
+            if self.is_connected():
+                await self._refresh_model()
+            elif await self.connect(ble_device):
+                # Only connected to read the model, so let go again.
                 await self.disconnect()
         # Send keep-alive if connected
         # if self.is_connected() and self._mcw:
