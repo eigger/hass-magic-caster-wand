@@ -58,12 +58,13 @@ set_led:
           unit_of_measurement: ms
 
 send_macro:
-  name: Send Wand Macro
+  name: Send Macro
   description: >
-    Send a sequence of Magic Caster Wand macro commands. Each command in the
+    Send a sequence of macro commands to a wand or box. Each command in the
     list is converted into a Macro and sent as a single CONTROL (0x68) macro
     packet. Commands execute in order and may include LED transitions, delays,
-    vibration, loop markers, loop counts, and wait instructions.
+    vibration, loop markers, loop counts, and wait instructions. The box has a
+    single LED group (TIP) and no vibration motor, so buzz is ignored there.
   target:
     device:
       integration: magic_caster_wand

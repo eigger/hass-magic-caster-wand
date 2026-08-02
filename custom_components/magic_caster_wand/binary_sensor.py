@@ -28,6 +28,7 @@ BUTTONS = [
     {"key": "button_4", "name": "Button 4"},
 ]
 
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -43,24 +44,28 @@ async def async_setup_entry(
     entities = []
     if device_type == "mcw":
         buttons_coordinator: DataUpdateCoordinator[dict[str, bool]] = data["buttons_coordinator"]
-        entities.extend([
-            McwButtonBinarySensor(
-                address=address,
-                mcw=device,
-                coordinator=buttons_coordinator,
-                connection_coordinator=connection_coordinator,
-                button_key=button["key"],
-                button_name=button["name"]
-            )
-            for button in BUTTONS
-        ])
+        entities.extend(
+            [
+                McwButtonBinarySensor(
+                    address=address,
+                    mcw=device,
+                    coordinator=buttons_coordinator,
+                    connection_coordinator=connection_coordinator,
+                    button_key=button["key"],
+                    button_name=button["name"],
+                )
+                for button in BUTTONS
+            ]
+        )
 
     elif device_type == "mcb":
-        entities.extend([
-            McbLidBinarySensor(address, device, data["lid_coordinator"], connection_coordinator),
-            McbUSBPluggedBinarySensor(address, device, data["usb_plugged_coordinator"], connection_coordinator),
-            McbWandPresentBinarySensor(address, device, data["wand_coordinator"], connection_coordinator),
-        ])
+        entities.extend(
+            [
+                McbLidBinarySensor(address, device, data["lid_coordinator"], connection_coordinator),
+                McbUSBPluggedBinarySensor(address, device, data["usb_plugged_coordinator"], connection_coordinator),
+                McbWandPresentBinarySensor(address, device, data["wand_coordinator"], connection_coordinator),
+            ]
+        )
 
     # Add connection status binary sensor
     entities.append(McwConnectionBinarySensor(address, device, connection_coordinator))
@@ -75,7 +80,7 @@ class McwButtonBinarySensor(
     """Binary sensor entity for tracking wand button state."""
 
     _attr_has_entity_name = True
-    _attr_device_class = None #BinarySensorDeviceClass.MOTION
+    _attr_device_class = None  # BinarySensorDeviceClass.MOTION
 
     def __init__(
         self,
@@ -84,17 +89,17 @@ class McwButtonBinarySensor(
         coordinator: DataUpdateCoordinator[dict[str, bool]],
         connection_coordinator: DataUpdateCoordinator[bool],
         button_key: str,
-        button_name: str
+        button_name: str,
     ) -> None:
         """Initialize the button binary sensor."""
         CoordinatorEntity.__init__(self, coordinator)
-        
+
         self._address = address
         self._mcw = mcw
         self._connection_coordinator = connection_coordinator
         self._identifier = address.replace(":", "")[-8:]
         self._button_key = button_key
-        
+
         self._attr_name = button_name
         self._attr_unique_id = f"mcw_{self._identifier}_{button_key}"
         self._is_on = False
@@ -102,11 +107,7 @@ class McwButtonBinarySensor(
     async def async_added_to_hass(self) -> None:
         """Register connection coordinator listener."""
         await super().async_added_to_hass()
-        self.async_on_remove(
-            self._connection_coordinator.async_add_listener(
-                self._handle_connection_update
-            )
-        )
+        self.async_on_remove(self._connection_coordinator.async_add_listener(self._handle_connection_update))
 
     @callback
     def _handle_connection_update(self) -> None:
@@ -144,9 +145,7 @@ class McwButtonBinarySensor(
         if self.coordinator.data:
             button_states = self.coordinator.data
             self._is_on = button_states.get(self._button_key, False)
-            _LOGGER.debug(
-                "Button %s state: %s", self._button_key, self._is_on
-            )
+            _LOGGER.debug("Button %s state: %s", self._button_key, self._is_on)
         self.async_write_ha_state()
 
 
@@ -167,11 +166,11 @@ class McwConnectionBinarySensor(
     ) -> None:
         """Initialize the connection binary sensor."""
         CoordinatorEntity.__init__(self, connection_coordinator)
-        
+
         self._address = address
         self._device = device
         self._identifier = address.replace(":", "")[-8:]
-        
+
         self._attr_name = "Connected"
         self._attr_unique_id = f"mcw_{self._identifier}_connected"
 
@@ -195,7 +194,8 @@ class McwConnectionBinarySensor(
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         self.async_write_ha_state()
-        
+
+
 class McbBaseBinarySensor(CoordinatorEntity[DataUpdateCoordinator[bool]], BinarySensorEntity):
     """Base class for Magic Caster Box binary sensors."""
 
@@ -207,7 +207,8 @@ class McbBaseBinarySensor(CoordinatorEntity[DataUpdateCoordinator[bool]], Binary
         self._address = address
         self._device = device
         self._identifier = address.replace(":", "")[-8:]
-        self._attr_unique_id = f"{address}_{key}"
+        # Same shape as every other entity in the integration, box included.
+        self._attr_unique_id = f"mcw_{self._identifier}_{key}"
         self._attr_name = name
         self._key = key
         self._connection_coordinator = connection_coordinator
@@ -215,11 +216,7 @@ class McbBaseBinarySensor(CoordinatorEntity[DataUpdateCoordinator[bool]], Binary
     async def async_added_to_hass(self) -> None:
         """Register connection coordinator listener."""
         await super().async_added_to_hass()
-        self.async_on_remove(
-            self._connection_coordinator.async_add_listener(
-                self._handle_connection_update
-            )
-        )
+        self.async_on_remove(self._connection_coordinator.async_add_listener(self._handle_connection_update))
 
     @callback
     def _handle_connection_update(self) -> None:
@@ -253,8 +250,9 @@ class McbBaseBinarySensor(CoordinatorEntity[DataUpdateCoordinator[bool]], Binary
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        self.async_write_ha_state()    
-        
+        self.async_write_ha_state()
+
+
 class McbLidBinarySensor(McbBaseBinarySensor):
     """Magic Caster Box lid open/close sensor."""
 
@@ -268,6 +266,7 @@ class McbLidBinarySensor(McbBaseBinarySensor):
             key="lid",
         )
 
+
 class McbUSBPluggedBinarySensor(McbBaseBinarySensor):
     """Magic Caster Box USB plugged-in sensor."""
 
@@ -280,6 +279,7 @@ class McbUSBPluggedBinarySensor(McbBaseBinarySensor):
             name="USB Plugged",
             key="usb_plugged",
         )
+
 
 class McbWandPresentBinarySensor(McbBaseBinarySensor):
     """Magic Caster Box wand-present sensor."""

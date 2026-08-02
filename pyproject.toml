@@ -1,0 +1,19 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+# Standalone development script, not shipped with the integration.
+extend-exclude = ["tools", ".venv_old"]
+
+[tool.ruff.lint]
+# Deliberately focused on defect classes rather than style modernisation:
+# E/W/F catch real mistakes (unused imports and variables, undefined names),
+# I keeps imports ordered, B catches common bug patterns. UP and SIM are left
+# out on purpose -- they would rewrite working BLE protocol code that cannot be
+# verified without hardware, for no correctness gain.
+select = ["E", "W", "F", "I", "B"]
+ignore = [
+    "E501", # line length is handled by the formatter
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["custom_components"]

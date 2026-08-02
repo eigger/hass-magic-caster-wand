@@ -30,10 +30,12 @@ async def async_setup_entry(
     if device_type == "mcw":
         calibration_coordinator = data["calibration_coordinator"]
         connection_coordinator = data["connection_coordinator"]
-        async_add_entities([
-            McwButtonCalibration(address, device, coordinator, calibration_coordinator, connection_coordinator),
-            McwImuCalibration(address, device, coordinator, calibration_coordinator, connection_coordinator),
-        ])
+        async_add_entities(
+            [
+                McwButtonCalibration(address, device, coordinator, calibration_coordinator, connection_coordinator),
+                McwImuCalibration(address, device, coordinator, calibration_coordinator, connection_coordinator),
+            ]
+        )
 
 
 class McwBaseCalibrationButton(CoordinatorEntity[DataUpdateCoordinator[BLEData]], ButtonEntity):
@@ -42,8 +44,8 @@ class McwBaseCalibrationButton(CoordinatorEntity[DataUpdateCoordinator[BLEData]]
     _attr_has_entity_name = True
 
     def __init__(
-        self, 
-        address: str, 
+        self,
+        address: str,
         mcw,
         coordinator: DataUpdateCoordinator[BLEData],
         calibration_coordinator: DataUpdateCoordinator[dict[str, str]],
@@ -60,11 +62,7 @@ class McwBaseCalibrationButton(CoordinatorEntity[DataUpdateCoordinator[BLEData]]
     async def async_added_to_hass(self) -> None:
         """Register connection coordinator listener."""
         await super().async_added_to_hass()
-        self.async_on_remove(
-            self._connection_coordinator.async_add_listener(
-                self._handle_connection_update
-            )
-        )
+        self.async_on_remove(self._connection_coordinator.async_add_listener(self._handle_connection_update))
 
     @callback
     def _handle_connection_update(self) -> None:
@@ -104,9 +102,11 @@ class McwButtonCalibration(McwBaseCalibrationButton):
     async def async_press(self) -> None:
         """Handle the button press."""
         _LOGGER.debug("Button calibration pressed")
-        self._calibration_coordinator.async_set_updated_data({
-            "calibration_button": "Pending",
-        })
+        self._calibration_coordinator.async_set_updated_data(
+            {
+                "calibration_button": "Pending",
+            }
+        )
         await self._mcw.send_button_calibration()
 
 
@@ -122,7 +122,9 @@ class McwImuCalibration(McwBaseCalibrationButton):
     async def async_press(self) -> None:
         """Handle the button press."""
         _LOGGER.debug("IMU calibration pressed")
-        self._calibration_coordinator.async_set_updated_data({
-            "calibration_imu": "Pending",
-        })
+        self._calibration_coordinator.async_set_updated_data(
+            {
+                "calibration_imu": "Pending",
+            }
+        )
         await self._mcw.send_imu_calibration()

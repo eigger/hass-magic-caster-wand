@@ -1,13 +1,14 @@
 import logging
-import numpy as np
-import aiohttp
-
 from typing import Any, Optional
+
+import aiohttp
+import numpy as np
 
 from .spell_detector import SpellDetector
 from .spells import ALL_SPELLS
 
 _LOGGER = logging.getLogger(__name__)
+
 
 class RemoteTensorSpellDetector(SpellDetector):
     """Spell detector that delegates inference to a remote TensorFlow Lite server."""
@@ -39,7 +40,7 @@ class RemoteTensorSpellDetector(SpellDetector):
         """Initialize the detector asynchronously."""
         if self._session is None:
             self._session = aiohttp.ClientSession()
-        
+
         await self._initialize_model()
 
     async def close(self) -> None:
@@ -50,7 +51,7 @@ class RemoteTensorSpellDetector(SpellDetector):
 
     async def check_connectivity(self) -> bool:
         """Check if the remote server is reachable.
-        
+
         Returns:
             True if reachable, False otherwise.
         """
@@ -58,7 +59,7 @@ class RemoteTensorSpellDetector(SpellDetector):
         if self._session is None:
             self._session = aiohttp.ClientSession()
             temp_session = True
-        
+
         try:
             # Use the /api/health endpoint for a more reliable check
             url = f"{self._base_url}/api/health"
@@ -84,7 +85,7 @@ class RemoteTensorSpellDetector(SpellDetector):
             confidence_threshold: Minimum confidence required for a valid detection.
         """
         _LOGGER.debug("Remote detect called with %d positions, threshold: %.2f", len(positions), confidence_threshold)
-        
+
         # Ensure session is initialized
         if self._session is None:
             self._session = aiohttp.ClientSession()
@@ -131,7 +132,7 @@ class RemoteTensorSpellDetector(SpellDetector):
         """Pre-load the model on the remote server."""
         url = f"{self._base_url}/api/initialize"
         payload = {"model": self._model_name}
-        
+
         _LOGGER.debug("Initializing model %s at %s", self._model_name, url)
         async with self._session.post(url, json=payload, timeout=self._timeout) as resp:
             resp.raise_for_status()

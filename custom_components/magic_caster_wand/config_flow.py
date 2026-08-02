@@ -2,15 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 import dataclasses
+from collections.abc import Mapping
 from typing import Any
 
-from .mcw_ble import McwBluetoothDeviceData, McbBluetoothDeviceData
-DEVICE_TYPES = [McwBluetoothDeviceData, McbBluetoothDeviceData]
-
 import voluptuous as vol
-
 from homeassistant.components import onboarding
 from homeassistant.components.bluetooth import (
     BluetoothServiceInfoBleak,
@@ -19,7 +15,12 @@ from homeassistant.components.bluetooth import (
 from homeassistant.config_entries import SOURCE_REAUTH, ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.const import CONF_ADDRESS
 from homeassistant.core import callback
-from .const import DOMAIN, CONF_TFLITE_URL, DEFAULT_TFLITE_URL, CONF_SPELL_TIMEOUT, DEFAULT_SPELL_TIMEOUT
+
+from .const import CONF_SPELL_TIMEOUT, CONF_TFLITE_URL, DEFAULT_SPELL_TIMEOUT, DEFAULT_TFLITE_URL, DOMAIN
+from .mcw_ble import McbBluetoothDeviceData, McwBluetoothDeviceData
+
+# Checked in order; the first handler that claims the advertisement wins.
+DEVICE_TYPES = [McwBluetoothDeviceData, McbBluetoothDeviceData]
 
 
 @dataclasses.dataclass
@@ -28,7 +29,7 @@ class Discovery:
 
     title: str
     discovery_info: BluetoothServiceInfoBleak
-    device: McwBluetoothDeviceData  | McbBluetoothDeviceData
+    device: McwBluetoothDeviceData | McbBluetoothDeviceData
 
 
 def _title(discovery_info: BluetoothServiceInfoBleak, device: McwBluetoothDeviceData | McbBluetoothDeviceData) -> str:
@@ -54,9 +55,7 @@ class McwConfigFlow(ConfigFlow, domain=DOMAIN):
         self._discovered_device: McwBluetoothDeviceData | McbBluetoothDeviceData | None = None
         self._discovered_devices: dict[str, Discovery] = {}
 
-    async def async_step_bluetooth(
-        self, discovery_info: BluetoothServiceInfoBleak
-    ) -> ConfigFlowResult:
+    async def async_step_bluetooth(self, discovery_info: BluetoothServiceInfoBleak) -> ConfigFlowResult:
         """Handle the bluetooth discovery step."""
         await self.async_set_unique_id(discovery_info.address)
         self._abort_if_unique_id_configured()
@@ -71,9 +70,7 @@ class McwConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return self.async_abort(reason="not_supported")
 
-    async def async_step_bluetooth_confirm(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_bluetooth_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Confirm discovery."""
         if user_input is not None or not onboarding.async_is_onboarded(self.hass):
             return self._async_get_or_create_entry()
@@ -84,9 +81,7 @@ class McwConfigFlow(ConfigFlow, domain=DOMAIN):
             description_placeholders=self.context["title_placeholders"],
         )
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle the user step to pick discovered device."""
         if user_input is not None:
             address = user_input[CONF_ADDRESS]
@@ -119,18 +114,13 @@ class McwConfigFlow(ConfigFlow, domain=DOMAIN):
         if not self._discovered_devices:
             return self.async_abort(reason="no_devices_found")
 
-        titles = {
-            address: discovery.title
-            for (address, discovery) in self._discovered_devices.items()
-        }
+        titles = {address: discovery.title for (address, discovery) in self._discovered_devices.items()}
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema({vol.Required(CONF_ADDRESS): vol.In(titles)}),
         )
 
-    async def async_step_reauth(
-        self, entry_data: Mapping[str, Any]
-    ) -> ConfigFlowResult:
+    async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:
         """Handle a flow initialized by a reauth event."""
         device: McwBluetoothDeviceData | McbBluetoothDeviceData = entry_data["device"]
         self._discovered_device = device
@@ -140,9 +130,7 @@ class McwConfigFlow(ConfigFlow, domain=DOMAIN):
         # Otherwise there wasn't actually encryption so abort
         return self.async_abort(reason="reauth_successful")
 
-    def _async_get_or_create_entry(
-        self, bindkey: str | None = None
-    ) -> ConfigFlowResult:
+    def _async_get_or_create_entry(self, bindkey: str | None = None) -> ConfigFlowResult:
         data: dict[str, Any] = {}
         if bindkey:
             data["bindkey"] = bindkey
@@ -151,9 +139,7 @@ class McwConfigFlow(ConfigFlow, domain=DOMAIN):
             data["device_type"] = self._discovered_device.device_type
 
         if self.source == SOURCE_REAUTH:
-            return self.async_update_reload_and_abort(
-                self._get_reauth_entry(), data=data
-            )
+            return self.async_update_reload_and_abort(self._get_reauth_entry(), data=data)
 
         return self.async_create_entry(
             title=self.context["title_placeholders"]["name"],
@@ -169,9 +155,7 @@ class McwOptionsFlowHandler(OptionsFlow):
         super().__init__()
         self._config_entry = config_entry
 
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Manage the options."""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
@@ -184,18 +168,14 @@ class McwOptionsFlowHandler(OptionsFlow):
                         CONF_TFLITE_URL,
                         default=self._config_entry.options.get(
                             CONF_TFLITE_URL,
-                            self._config_entry.data.get(
-                                CONF_TFLITE_URL, DEFAULT_TFLITE_URL
-                            ),
+                            self._config_entry.data.get(CONF_TFLITE_URL, DEFAULT_TFLITE_URL),
                         ),
                     ): str,
                     vol.Required(
                         CONF_SPELL_TIMEOUT,
                         default=self._config_entry.options.get(
                             CONF_SPELL_TIMEOUT,
-                            self._config_entry.data.get(
-                                CONF_SPELL_TIMEOUT, DEFAULT_SPELL_TIMEOUT
-                            ),
+                            self._config_entry.data.get(CONF_SPELL_TIMEOUT, DEFAULT_SPELL_TIMEOUT),
                         ),
                     ): vol.All(vol.Coerce(int), vol.Range(min=0)),
                 }

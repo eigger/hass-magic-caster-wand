@@ -7,13 +7,12 @@ from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-
 from homeassistant.helpers.dispatcher import async_dispatcher_send
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
 
 from .const import DOMAIN, MANUFACTURER, SIGNAL_SPELL_MODE_CHANGED
-from .mcw_ble import McwDevice, McbDevice
+from .mcw_ble import McbDevice, McwDevice
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,17 +34,18 @@ async def async_setup_entry(
     if device_type == "mcw":
         entities.append(McwSpellTrackingSwitch(hass, address, device, connection_coordinator))
     async_add_entities(entities)
-    
+
+
 class McwConnectionSwitch(CoordinatorEntity, SwitchEntity):
     """Switch entity for controlling BLE connection."""
 
     _attr_has_entity_name = True
 
     def __init__(
-        self, 
-        hass: HomeAssistant, 
-        address: str, 
-        device: McwDevice | McbDevice, 
+        self,
+        hass: HomeAssistant,
+        address: str,
+        device: McwDevice | McbDevice,
         connection_coordinator: DataUpdateCoordinator[bool],
     ) -> None:
         """Initialize the connection switch."""
@@ -101,10 +101,10 @@ class McwSpellTrackingSwitch(CoordinatorEntity, SwitchEntity):
     _attr_has_entity_name = True
 
     def __init__(
-        self, 
-        hass: HomeAssistant, 
-        address: str, 
-        mcw, 
+        self,
+        hass: HomeAssistant,
+        address: str,
+        mcw,
         connection_coordinator: DataUpdateCoordinator[bool],
     ) -> None:
         """Initialize the spell tracking switch."""

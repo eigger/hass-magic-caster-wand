@@ -5,7 +5,6 @@ from datetime import timedelta
 from functools import partial
 
 from bleak_retry_connector import close_stale_connections_by_address
-
 from homeassistant.components import bluetooth
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_SCAN_INTERVAL, Platform
@@ -16,12 +15,30 @@ from homeassistant.core import (
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import DEFAULT_SCAN_INTERVAL, DOMAIN, CONF_TFLITE_URL, DEFAULT_TFLITE_URL, CONF_SPELL_TIMEOUT, DEFAULT_SPELL_TIMEOUT
-from .mcw_ble import BLEData, McwDevice, McbDevice, LedGroup, LIDSTATE
+from .const import (
+    CONF_SPELL_TIMEOUT,
+    CONF_TFLITE_URL,
+    DEFAULT_SCAN_INTERVAL,
+    DEFAULT_SPELL_TIMEOUT,
+    DEFAULT_TFLITE_URL,
+    DOMAIN,
+)
+from .mcw_ble import BLEData, McbDevice, McwDevice, resolve_led_group
 
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH, Platform.TEXT, Platform.SELECT, Platform.BINARY_SENSOR, Platform.BUTTON, Platform.CAMERA]
+PLATFORMS: list[Platform] = [
+    Platform.SENSOR,
+    Platform.SWITCH,
+    Platform.TEXT,
+    Platform.SELECT,
+    Platform.BINARY_SENSOR,
+    Platform.BUTTON,
+    Platform.CAMERA,
+]
 
 _LOGGER = logging.getLogger(__name__)
+
+# Registered once for the whole integration, removed when the last entry unloads.
+SERVICES = ("vibrate", "set_led", "clear_leds", "play_spell", "send_macro")
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -57,9 +74,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER,
         name=f"{DOMAIN}_main_{identifier}",
         update_method=partial(_async_update_method, hass, entry, device),
-        update_interval=timedelta(
-            seconds=float(entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
-        ),
+        update_interval=timedelta(seconds=float(entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))),
     )
 
     if device_type == "mcw":
@@ -73,8 +88,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass,
             _LOGGER,
             name=f"{DOMAIN}_buttons_{identifier}",
-        )        
-            
+        )
+
         calibration_coordinator: DataUpdateCoordinator[dict[str, bool]] = DataUpdateCoordinator(
             hass,
             _LOGGER,
@@ -122,9 +137,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Register coordinators with device for BLE callbacks
     if device_type == "mcw":
-        device.register_coordinator(spell_coordinator, battery_coordinator, buttons_coordinator, calibration_coordinator, imu_coordinator, connection_coordinator)
+        device.register_coordinator(
+            spell_coordinator,
+            battery_coordinator,
+            buttons_coordinator,
+            calibration_coordinator,
+            imu_coordinator,
+            connection_coordinator,
+        )
     elif device_type == "mcb":
-        device.register_coordinator(battery_coordinator, lid_coordinator, usb_plugged_coordinator, wand_coordinator, connection_coordinator)
+        device.register_coordinator(
+            cn_battery=battery_coordinator,
+            cn_lid=lid_coordinator,
+            cn_charge=usb_plugged_coordinator,
+            cn_wand=wand_coordinator,
+            cn_connection=connection_coordinator,
+        )
 
     # Store data for platforms
     if device_type == "mcw":
@@ -183,8 +211,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def handle_set_led(call: ServiceCall) -> None:
         """Handle execution of set_led service."""
-        group_str = call.data.get("group", "TIP")
-        group = LedGroup[group_str]
+        # Accepts the selector's uppercase names, but also lowercase or an index,
+        # since script and automation calls bypass selector validation.
+        group = resolve_led_group(call.data.get("group", "TIP"))
         rgb = call.data.get("rgb_color", (255, 255, 255))
         duration = call.data.get("duration", 0)
         device_ids = call.data.get("device_id", [])
@@ -197,7 +226,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 await device.set_led(group, rgb[0], rgb[1], rgb[2], duration)
 
     async def handle_send_macro(call: ServiceCall) -> None:
-        """Handle execution of send_frame service."""
+        """Handle execution of send_macro service."""
         commands = call.data.get("commands", [])
         device_ids = call.data.get("device_id", [])
         if isinstance(device_ids, str):
@@ -231,27 +260,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 device: McwDevice | McbDevice = hass.data[DOMAIN][entry_id]["device"]
                 # Use helper for more robust spell matching
                 from .mcw_ble import get_spell_macro
+
                 macro = get_spell_macro(spell_name)
                 if macro:
                     await device.send_macro(macro)
 
-    if not hass.services.has_service(DOMAIN, "vibrate"):
-        hass.services.async_register(DOMAIN, "vibrate", handle_vibrate)
-    if not hass.services.has_service(DOMAIN, "set_led"):
-        hass.services.async_register(DOMAIN, "set_led", handle_set_led)
-    if not hass.services.has_service(DOMAIN, "clear_leds"):
-        hass.services.async_register(DOMAIN, "clear_leds", handle_clear_leds)
-    if not hass.services.has_service(DOMAIN, "play_spell"):
-        hass.services.async_register(DOMAIN, "play_spell", handle_play_spell)
-    if not hass.services.has_service(DOMAIN, "send_macro"):
-        hass.services.async_register(DOMAIN, "send_macro", handle_send_macro)        
+    handlers = {
+        "vibrate": handle_vibrate,
+        "set_led": handle_set_led,
+        "clear_leds": handle_clear_leds,
+        "play_spell": handle_play_spell,
+        "send_macro": handle_send_macro,
+    }
+    for name in SERVICES:
+        if not hass.services.has_service(DOMAIN, name):
+            hass.services.async_register(DOMAIN, name, handlers[name])
 
     return True
 
 
-async def _async_update_method(
-    hass: HomeAssistant, entry: ConfigEntry, mcw: McwDevice
-) -> BLEData:
+async def _async_update_method(hass: HomeAssistant, entry: ConfigEntry, mcw: McwDevice) -> BLEData:
     """Get data from Magic Caster Wand BLE device."""
     address = entry.unique_id
     ble_device = bluetooth.async_ble_device_from_address(hass, address)
@@ -274,7 +302,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         hass.data[DOMAIN].pop(entry.entry_id)
 
+        # The services are registered once for the whole integration, so they
+        # are only removed once the last device is gone.
+        if not hass.data[DOMAIN]:
+            for name in SERVICES:
+                hass.services.async_remove(DOMAIN, name)
+
     return unload_ok
+
 
 async def get_entry_id_from_device(hass, device_id: str) -> str:
     device_reg = dr.async_get(hass)

@@ -4,6 +4,7 @@ import tensorflow as tf
 from .spell_detector import SpellDetector
 from .spells import ALL_SPELLS
 
+
 class LocalTensorSpellDetector(SpellDetector):
     """Spell detector implementation using TensorFlow Lite for local inference."""
 
@@ -31,14 +32,14 @@ class LocalTensorSpellDetector(SpellDetector):
         """
         # Get input tensor and copy data
         input_tensor = self._interpreter.get_input_details()[0]
-        self._interpreter.set_tensor(input_tensor['index'], positions.reshape(1, 50, 2))
+        self._interpreter.set_tensor(input_tensor["index"], positions.reshape(1, 50, 2))
 
         # Run inference
         self._interpreter.invoke()
 
         # Get output probabilities
         output_tensor = self._interpreter.get_output_details()[0]
-        probabilities = self._interpreter.get_tensor(output_tensor['index'])[0]
+        probabilities = self._interpreter.get_tensor(output_tensor["index"])[0]
 
         # Find best match (highest probability)
         best_index = np.argmax(probabilities)

@@ -1,5 +1,6 @@
 """Parser for Mcw BLE advertisements."""
 
+
 def _running_imuvisualizer_via_m() -> bool:
     import inspect
     import sys
@@ -16,13 +17,21 @@ def _running_imuvisualizer_via_m() -> bool:
 
     return False
 
+
 if _running_imuvisualizer_via_m():
     __all__ = []
 else:
-    from .parser import McwDevice, McbDevice, BLEData, McwBluetoothDeviceData, McbBluetoothDeviceData
-    from .mcw import LedGroup
-    from .mcb import LIDSTATE
     from .macros import Macro, get_spell_macro
+    from .mcb import LIDSTATE
+    from .mcw import LedGroup
+    from .parser import (
+        BLEData,
+        McbBluetoothDeviceData,
+        McbDevice,
+        McwBluetoothDeviceData,
+        McwDevice,
+        resolve_led_group,
+    )
 
     __all__ = [
         "McwDevice",
@@ -33,5 +42,6 @@ else:
         "LedGroup",
         "Macro",
         "get_spell_macro",
+        "resolve_led_group",
         "LIDSTATE",
     ]

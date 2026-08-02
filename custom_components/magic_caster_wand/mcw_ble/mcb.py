@@ -1,22 +1,24 @@
-    # mcb_ble.py
+# mcb_ble.py
 """BLE client for Magic Caster Wand Box communication."""
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import struct
-import asyncio
 from asyncio import Event, sleep, wait_for
-from bleak import BleakClient, BleakError
-from .macros import LedGroup, Macro
+from enum import Enum, IntEnum, auto
 from typing import Any, Callable, TypeVar
 
-from enum import Enum, IntEnum, auto
+from bleak import BleakClient, BleakError
+
+from .macros import LedGroup, Macro
 
 SERVICE_UUID = "57420001-587e-48a0-974c-54686f72c577"
 COMMAND_UUID = "57420002-587e-48a0-974c-54686f72c577"
 NOTIFY_UUID = "57420003-587e-48a0-974c-54686f72c577"
 BATTERY_UUID = "00002a19-0000-1000-8000-00805f9b34fb"
+
 
 class LIDSTATE(Enum):
     LID_ON_NO_WAND = auto()
@@ -25,8 +27,9 @@ class LIDSTATE(Enum):
     LID_OFF_WAND = auto()
     UNKNOWN = auto()
 
+
 class LIDNOTIFY(IntEnum):
-    LID_REMOVED = 0    
+    LID_REMOVED = 0
     LID_ON = 1
 
 
@@ -34,22 +37,24 @@ class WANDNOTIFY(IntEnum):
     WAND_REMOVED = 0
     WAND_PLUGGED = 1
 
+
 class CHARGENOTIFY(IntEnum):
     CHARGE_UNPLUGGED = 0
     CHARGE_PLUGGED = 1
 
+
 # Message packet IDs from APK
 class MESSAGEIDS:
-    FIRMWARE_VERSION_READ = 0x00 
+    FIRMWARE_VERSION_READ = 0x00
     """FirmwareVersionReadMessage.kt"""
     CHALLENGE = 0x01
     """ChallengeMessage.kt"""
     PAIR_WITH_ME = 0x03
     """PairWithMeMessage.kt"""
     WAND_ADDRESS_READ = 0x09
-    """BoxAddressReadMessage.kt"""
-    WAND_PRODUCT_INFORMATION_READ = 0x0E
-    """WandProductInfoReadMessage.kt"""
+    """Read the address of the wand paired with this box."""
+    BOX_PRODUCT_INFORMATION_READ = 0x0E
+    """Read this box's own serial number, SKU and device ID."""
     IMUFLAG_SET = 0x30
     """IMUFlagMessage.kt"""
     IMUFLAG_RESET = 0x31
@@ -69,10 +74,11 @@ class MESSAGEIDS:
     FACTORY_UNLOCK = 0xFE
     """FactoryUnlockMessage.kt"""
 
-    LID_STATUS_SEND = 0x10      # Combined lid/wand status request
-    LID_NOTIFY_REQUEST = 0x11   # Request lid notifications
+    LID_STATUS_SEND = 0x10  # Combined lid/wand status request
+    LID_NOTIFY_REQUEST = 0x11  # Request lid notifications
     WAND_NOTIFY_REQUEST = 0x12  # Request wand plug/unplug notifications
-    CHARGE_NOTIFY_REQUEST = 0x13     
+    CHARGE_NOTIFY_REQUEST = 0x13
+
 
 # Response packet IDs from APK
 class RESPONSEIDS:
@@ -83,11 +89,11 @@ class RESPONSEIDS:
     PONG = 0x02
     """PongResponseMessage.kt"""
     WAND_ADDRESS = 0x09
-    """BoxAddressResponseMessage.kt"""
+    """Address of the wand paired with this box."""
     BUTTON_PAYLOAD = 0x10
     """ButtonPayloadMessage.kt"""
-    WAND_PRODUCT_INFORMATION = 0x0E
-    """WandProductInfoResponseMessage.kt"""
+    BOX_PRODUCT_INFORMATION = 0x0E
+    """This box's own serial number, SKU and device ID."""
     SPELL_CAST = 0x24
     """???"""
     IMU_PAYLOAD = 0x2C
@@ -102,7 +108,8 @@ class RESPONSEIDS:
     LID_STATUS = 0x10
     LID_NOTIFY = 0x11
     WAND_NOTIFY = 0x12
-    CHARGE_NOTIFY = 0x13    
+    CHARGE_NOTIFY = 0x13
+
 
 MESSAGE_TO_RESPONSE_MAP: dict[int, int] = {
     MESSAGEIDS.WAND_ADDRESS_READ: RESPONSEIDS.WAND_ADDRESS,
@@ -110,22 +117,26 @@ MESSAGE_TO_RESPONSE_MAP: dict[int, int] = {
     MESSAGEIDS.CHALLENGE: RESPONSEIDS.CHALLENGE,
     MESSAGEIDS.FIRMWARE_VERSION_READ: RESPONSEIDS.FIRMWARE_VERSION,
     MESSAGEIDS.IMU_CALIBRATION: RESPONSEIDS.IMU_CALIBRATION,
-    MESSAGEIDS.WAND_PRODUCT_INFORMATION_READ: RESPONSEIDS.WAND_PRODUCT_INFORMATION,
+    MESSAGEIDS.BOX_PRODUCT_INFORMATION_READ: RESPONSEIDS.BOX_PRODUCT_INFORMATION,
     MESSAGEIDS.LID_STATUS_SEND: RESPONSEIDS.LID_STATUS,
     MESSAGEIDS.LID_NOTIFY_REQUEST: RESPONSEIDS.LID_NOTIFY,
     MESSAGEIDS.WAND_NOTIFY_REQUEST: RESPONSEIDS.WAND_NOTIFY,
-    MESSAGEIDS.CHARGE_NOTIFY_REQUEST: RESPONSEIDS.CHARGE_NOTIFY,    
+    MESSAGEIDS.CHARGE_NOTIFY_REQUEST: RESPONSEIDS.CHARGE_NOTIFY,
 }
 
 _LOGGER = logging.getLogger(__name__)
 
+
 class BleakCharacteristicMissing(BleakError):
     """Raised when a characteristic is missing."""
+
 
 class BleakServiceMissing(BleakError):
     """Raised when a service is missing."""
 
+
 WrapFuncType = TypeVar("WrapFuncType", bound=Callable[..., Any])
+
 
 def disconnect_on_missing_services(func: WrapFuncType) -> WrapFuncType:
     """Decorator to handle missing services by disconnecting."""
@@ -152,12 +163,12 @@ class McbClient:
         """Initialize the client."""
         self.client = client
         self.callback_battery: Callable[[float], None] | None = None
-        self.callback_lid: Callable[[LIDNOTIFY], None] 
-        self.callback_wand: Callable[[WANDNOTIFY], None]
-        self.callback_charge: Callable[[CHARGENOTIFY], None]
+        self.callback_lid: Callable[[LIDNOTIFY], None] | None = None
+        self.callback_wand: Callable[[WANDNOTIFY], None] | None = None
+        self.callback_charge: Callable[[CHARGENOTIFY], None] | None = None
         self.lock = asyncio.Lock()
 
-        self._box_address: str | None = None
+        self._wand_address: str | None = None
         self._waiting_cmd_event: Event = Event()
         self._waiting_for_msg_id: int | None = None
         self._box_challenge: int | None = None
@@ -166,24 +177,24 @@ class McbClient:
         self._box_serial_number: str | None = None
         self._box_sku: str | None = None
         self._box_type: str | None = None
-        
+
     def is_connected(self) -> bool:
         """Check if client is connected."""
         return self.client.is_connected
 
     def register_callback(
-            self,
-            battery_cb: Callable[[float], None],
-            lid_cb: Callable[[LIDNOTIFY], None],
-            wand_cb: Callable[[WANDNOTIFY], None],
-            charge_cb: Callable[[CHARGENOTIFY], None]
+        self,
+        battery_cb: Callable[[float], None],
+        lid_cb: Callable[[LIDNOTIFY], None],
+        wand_cb: Callable[[WANDNOTIFY], None],
+        charge_cb: Callable[[CHARGENOTIFY], None],
     ) -> None:
         """Register callbacks for spell, battery, button, and calibration notifications."""
         self.callback_battery = battery_cb
 
         self.callback_lid = lid_cb
         self.callback_wand = wand_cb
-        self.callback_charge = charge_cb        
+        self.callback_charge = charge_cb
 
     @disconnect_on_missing_services
     async def start_notify(self) -> None:
@@ -199,9 +210,12 @@ class McbClient:
             await self.request_box_notifications()
             await self.request_charge_notifications()
             await self.request_lid_notifications()
+            # Lid/wand changes only arrive as notifications, so ask for the
+            # current state once to seed the entities on connect.
+            await self.request_lid_status()
 
         except Exception as err:
-            _LOGGER.warning("Error reading initial battery level: %s", err)
+            _LOGGER.warning("Error during initial box query: %s", err)
 
     @disconnect_on_missing_services
     async def stop_notify(self) -> None:
@@ -242,9 +256,9 @@ class McbClient:
                 self._parse_challenge(data)
 
             elif opcode == RESPONSEIDS.WAND_ADDRESS:
-                self._parse_box_address(data)
+                self._parse_wand_address(data)
 
-            elif opcode == RESPONSEIDS.WAND_PRODUCT_INFORMATION:
+            elif opcode == RESPONSEIDS.BOX_PRODUCT_INFORMATION:
                 self._parse_box_information(data)
 
             elif opcode == RESPONSEIDS.LID_STATUS:
@@ -300,13 +314,11 @@ class McbClient:
                     if expects_response:
                         await wait_for(self._waiting_cmd_event.wait(), timeout)
                         _LOGGER.debug("Command 0x%02X completed successfully", cmd_id)
-                    
+
                     return
                 except Exception as err:
                     if attempt < max_retries:
-                        _LOGGER.warning(
-                            "Write retry (attempt %d/%d): %s", attempt, max_retries, err
-                        )
+                        _LOGGER.warning("Write retry (attempt %d/%d): %s", attempt, max_retries, err)
                         await sleep(0.5)
                     else:
                         raise
@@ -323,16 +335,16 @@ class McbClient:
     async def request_charge_notifications(self):
         await self.write_command(struct.pack("B", MESSAGEIDS.CHARGE_NOTIFY_REQUEST))
 
-    async def get_box_address(self) -> str:
-        """Get box BLE address."""
-        if self._box_address is None:
+    async def get_wand_address(self) -> str:
+        """Get the BLE address of the wand paired with this box."""
+        if self._wand_address is None:
             await self.write_command(struct.pack("B", MESSAGEIDS.WAND_ADDRESS_READ))
-        return self._box_address or ""
+        return self._wand_address or ""
 
     async def get_box_device_id(self) -> str:
         """Get box device ID."""
         if self._box_device_id is None:
-            await self.write_command(struct.pack("BB", MESSAGEIDS.WAND_PRODUCT_INFORMATION_READ, 0x04))
+            await self.write_command(struct.pack("BB", MESSAGEIDS.BOX_PRODUCT_INFORMATION_READ, 0x04))
         return self._box_device_id or ""
 
     async def get_box_firmware_version(self) -> str:
@@ -344,13 +356,13 @@ class McbClient:
     async def get_box_serial_number(self) -> str:
         """Get box serial number."""
         if self._box_serial_number is None:
-            await self.write_command(struct.pack("BB", MESSAGEIDS.box_PRODUCT_INFORMATION_READ, 0x01))
+            await self.write_command(struct.pack("BB", MESSAGEIDS.BOX_PRODUCT_INFORMATION_READ, 0x01))
         return self._box_serial_number or ""
-    
+
     async def get_box_sku(self) -> str:
         """Get box SKU."""
         if self._box_sku is None:
-            await self.write_command(struct.pack("BB", MESSAGEIDS.WAND_PRODUCT_INFORMATION_READ, 0x02))
+            await self.write_command(struct.pack("BB", MESSAGEIDS.BOX_PRODUCT_INFORMATION_READ, 0x02))
         return self._box_sku or ""
 
     async def get_box_type(self) -> str:
@@ -363,12 +375,12 @@ class McbClient:
         """Set box LED color"""
         _LOGGER.debug("Setting LED %s color to R=%d G=%d B=%d", group.name, r, g, b)
 
-        await self.write_command(struct.pack('BBBBB', MESSAGEIDS.LIGHT_CONTROL_SET_LED, int(group), r, g, b))
+        await self.write_command(struct.pack("BBBBB", MESSAGEIDS.LIGHT_CONTROL_SET_LED, int(group), r, g, b))
 
     async def led_off(self) -> None:
         """Turn off box LED"""
         _LOGGER.debug("Turning off LED")
-        await self.write_command(struct.pack('B', MESSAGEIDS.LIGHT_CONTROL_CLEAR_ALL))
+        await self.write_command(struct.pack("B", MESSAGEIDS.LIGHT_CONTROL_CLEAR_ALL))
 
     async def send_macro(self, macro: Macro) -> None:
         """Send a macro sequence to the box."""
@@ -379,22 +391,22 @@ class McbClient:
         macro = Macro().add_buzz(duration_ms)
         await self.send_macro(macro)
 
-    def _parse_box_address(self, data: bytearray) -> None:
-        """Parse box address (ID 0x09)"""
+    def _parse_wand_address(self, data: bytearray) -> None:
+        """Parse the paired wand's address (ID 0x09)"""
         if len(data) < 7:
             return
         try:
             mac_le = data[1:7]
             mac_be = mac_le[::-1]
-            self._box_address = ":".join(f"{b:02X}" for b in mac_be)
-            _LOGGER.debug("Box address: %s", self._box_address)
+            self._wand_address = ":".join(f"{b:02X}" for b in mac_be)
+            _LOGGER.debug("Paired wand address: %s", self._wand_address)
         except Exception as e:
-            _LOGGER.error("Error parsing box address: %s", e)
+            _LOGGER.error("Error parsing wand address: %s", e)
 
     def _parse_challenge(self, data: bytearray) -> None:
         """Parse challenge response (ID 0x01)"""
         if len(data) == 3:
-            self._box_challenge = struct.unpack('<H', data[1:3])[0]
+            self._box_challenge = struct.unpack("<H", data[1:3])[0]
 
     def _parse_firmware_version(self, data: bytearray) -> None:
         """Parse firmware version message (ID 0x00)
@@ -425,14 +437,14 @@ class McbClient:
 
             if info_type == 0x01:
                 if len(data) >= 6:
-                    serial = struct.unpack('<I', data[2:6])[0]
+                    serial = struct.unpack("<I", data[2:6])[0]
                     self._box_serial_number = str(serial)
                     _LOGGER.debug("Box serial number: %s", self._box_serial_number)
             elif info_type == 0x02:
-                self._box_sku = data[2:].decode('ascii', errors='ignore').strip('\x00')
+                self._box_sku = data[2:].decode("ascii", errors="ignore").strip("\x00")
                 _LOGGER.debug("Box SKU: %s", self._box_sku)
             elif info_type == 0x04:
-                self._box_device_id = data[2:].decode('ascii', errors='ignore').strip('\x00')
+                self._box_device_id = data[2:].decode("ascii", errors="ignore").strip("\x00")
                 _LOGGER.debug("Box device id: %s", self._box_device_id)
         except Exception as e:
             _LOGGER.error("Error parsing box information: %s", e)
@@ -449,7 +461,8 @@ class McbClient:
             device_id: Device ID string from product info (e.g., "WBMC22G1SHNW")
 
         Returns:
-            Wand type string (e.g., "HONOURABLE", "HEROIC", etc.)
+            Box type string (e.g., "HONOURABLE", "HEROIC", etc.). A box is sold
+            matched to a wand, so it shares the wand type taxonomy.
         """
         if len(device_id) < 3:
             return "UNKNOWN"
@@ -471,6 +484,12 @@ class McbClient:
         return type_mapping.get(type_suffix, "UNKNOWN")
 
     def _parse_lid_status(self, data: bytearray) -> None:
+        """Parse the combined lid/wand status response (ID 0x10).
+
+        Payload byte is a bit field: bit 0 = lid removed, bit 1 = wand present.
+        This is the only way to learn the current state on connect, since the
+        box reports lid/wand changes by notification only.
+        """
         if len(data) < 2:
             return
 
@@ -483,6 +502,17 @@ class McbClient:
 
         state = mapping.get(data[1], LIDSTATE.UNKNOWN)
         _LOGGER.debug(f"Lid/Wand combined status: {state.name}")
+
+        if state is LIDSTATE.UNKNOWN:
+            return
+
+        lid = LIDNOTIFY.LID_REMOVED if data[1] & 0x01 else LIDNOTIFY.LID_ON
+        wand = WANDNOTIFY.WAND_PLUGGED if data[1] & 0x02 else WANDNOTIFY.WAND_REMOVED
+
+        if self.callback_lid:
+            self.callback_lid(lid)
+        if self.callback_wand:
+            self.callback_wand(wand)
 
     def _parse_lid_notify(self, data: bytearray) -> None:
         if len(data) < 2:
@@ -513,4 +543,3 @@ class McbClient:
 
         if self.callback_charge:
             self.callback_charge(state)
-
