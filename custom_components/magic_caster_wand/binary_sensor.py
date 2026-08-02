@@ -207,7 +207,8 @@ class McbBaseBinarySensor(CoordinatorEntity[DataUpdateCoordinator[bool]], Binary
         self._address = address
         self._device = device
         self._identifier = address.replace(":", "")[-8:]
-        self._attr_unique_id = f"{address}_{key}"
+        # Same shape as every other entity in the integration, box included.
+        self._attr_unique_id = f"mcw_{self._identifier}_{key}"
         self._attr_name = name
         self._key = key
         self._connection_coordinator = connection_coordinator

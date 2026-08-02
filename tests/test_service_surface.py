@@ -27,25 +27,32 @@ SERVICE_METHODS = {
 
 
 def registered_services():
-    """Service names passed to hass.services.async_register in __init__.py."""
+    """The SERVICES tuple in __init__.py, which drives register and remove."""
     tree = ast.parse((COMPONENT / "__init__.py").read_text())
-    found = set()
-    for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "async_register"
-            and len(node.args) >= 2
-            and isinstance(node.args[1], ast.Constant)
-        ):
-            found.add(node.args[1].value)
-    return found
+    node = next(
+        n.value
+        for n in tree.body
+        if isinstance(n, ast.Assign) and any(getattr(t, "id", None) == "SERVICES" for t in n.targets)
+    )
+    return {e.value for e in node.elts}
 
 
 def test_every_registered_service_is_covered_by_this_test():
     assert registered_services() == set(SERVICE_METHODS), (
         "a service was added or renamed; update SERVICE_METHODS so the box coverage check stays honest"
     )
+
+
+def test_services_constant_matches_the_handler_table():
+    """Setup does `handlers[name]` for each name in SERVICES; a mismatch is a KeyError."""
+    tree = ast.parse((COMPONENT / "__init__.py").read_text())
+    handlers = next(
+        {k.value for k in n.value.keys}
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Assign) and any(getattr(t, "id", None) == "handlers" for t in n.targets)
+    )
+
+    assert handlers == registered_services()
 
 
 @pytest.mark.parametrize(("service", "method"), sorted(SERVICE_METHODS.items()))

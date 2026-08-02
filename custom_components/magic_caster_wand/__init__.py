@@ -37,6 +37,9 @@ PLATFORMS: list[Platform] = [
 
 _LOGGER = logging.getLogger(__name__)
 
+# Registered once for the whole integration, removed when the last entry unloads.
+SERVICES = ("vibrate", "set_led", "clear_leds", "play_spell", "send_macro")
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Magic Caster Wand BLE device from a config entry."""
@@ -262,16 +265,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 if macro:
                     await device.send_macro(macro)
 
-    if not hass.services.has_service(DOMAIN, "vibrate"):
-        hass.services.async_register(DOMAIN, "vibrate", handle_vibrate)
-    if not hass.services.has_service(DOMAIN, "set_led"):
-        hass.services.async_register(DOMAIN, "set_led", handle_set_led)
-    if not hass.services.has_service(DOMAIN, "clear_leds"):
-        hass.services.async_register(DOMAIN, "clear_leds", handle_clear_leds)
-    if not hass.services.has_service(DOMAIN, "play_spell"):
-        hass.services.async_register(DOMAIN, "play_spell", handle_play_spell)
-    if not hass.services.has_service(DOMAIN, "send_macro"):
-        hass.services.async_register(DOMAIN, "send_macro", handle_send_macro)
+    handlers = {
+        "vibrate": handle_vibrate,
+        "set_led": handle_set_led,
+        "clear_leds": handle_clear_leds,
+        "play_spell": handle_play_spell,
+        "send_macro": handle_send_macro,
+    }
+    for name in SERVICES:
+        if not hass.services.has_service(DOMAIN, name):
+            hass.services.async_register(DOMAIN, name, handlers[name])
 
     return True
 
@@ -298,6 +301,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         hass.data[DOMAIN].pop(entry.entry_id)
+
+        # The services are registered once for the whole integration, so they
+        # are only removed once the last device is gone.
+        if not hass.data[DOMAIN]:
+            for name in SERVICES:
+                hass.services.async_remove(DOMAIN, name)
 
     return unload_ok
 

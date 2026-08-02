@@ -147,6 +147,7 @@ class McwDevice:
         self._spell_tracker: SpellTracker | None = None
         self._button_all_pressed: bool = False
         self._spell_reset_timeout_task: asyncio.Task[None] | None = None
+        self._background_tasks: set[asyncio.Task] = set()
         self._casting_led_color: tuple[int, int, int] = (0, 0, 255)  # Default color: blue
         self._server_reachable: bool = False
 
@@ -176,6 +177,18 @@ class McwDevice:
         self._coordinator_calibration = cn_calibration
         self._coordinator_imu = cn_imu
         self._coordinator_connection = cn_connection
+
+    def _spawn(self, coro) -> None:
+        """Run a coroutine in the background, keeping a reference to the task.
+
+        The event loop only holds a weak reference to a task, so one that is
+        not stored can be garbage collected mid-flight. Holding it until it
+        finishes also means an exception is retrieved rather than surfacing
+        later as "Task exception was never retrieved".
+        """
+        task = asyncio.create_task(coro)
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
 
     def _schedule_spell_reset(self) -> None:
         """Schedule a reset of the spell sensor back to 'awaiting' after the configured timeout."""
@@ -228,14 +241,14 @@ class McwDevice:
             # Transition: not pressed -> pressed = start tracking
             if button_all and not self._button_all_pressed:
                 _LOGGER.debug("All buttons pressed, starting spell tracking")
-                asyncio.create_task(self._turn_on_casting_led())
+                self._spawn(self._turn_on_casting_led())
                 self._spell_tracker.start()
 
             # Transition: pressed -> not pressed = stop tracking and detect spell
             elif not button_all and self._button_all_pressed:
                 _LOGGER.debug("Buttons released, stopping spell tracking")
-                asyncio.create_task(self._turn_off_casting_led())
-                asyncio.create_task(self._async_stop_and_detect_spell())
+                self._spawn(self._turn_off_casting_led())
+                self._spawn(self._async_stop_and_detect_spell())
 
             self._button_all_pressed = button_all
 
@@ -354,8 +367,23 @@ class McwDevice:
             _LOGGER.warning("Failed to connect to %s: %s", ble_device.address, err)
             return False
 
+    async def _cancel_background_tasks(self) -> None:
+        """Cancel anything still running so it cannot outlive the config entry."""
+        if self._spell_reset_timeout_task is not None:
+            self._spell_reset_timeout_task.cancel()
+            self._spell_reset_timeout_task = None
+
+        pending = list(self._background_tasks)
+        for task in pending:
+            task.cancel()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
+        self._background_tasks.clear()
+
     async def disconnect(self) -> None:
         """Disconnect from the BLE device."""
+        await self._cancel_background_tasks()
+
         if self.client:
             try:
                 if self.client.is_connected:
@@ -386,8 +414,11 @@ class McwDevice:
 
     async def update_device(self, ble_device: BLEDevice) -> BLEData:
         """Update device data. Sends keep-alive if connected."""
-        if ble_device and not self.model:
-            # Connect temporarily to fetch device info (model)
+        # Probe for the model only while it is still unknown, and only when the
+        # user has not already opened a connection: connect() returns True for an
+        # existing connection, so without this guard the disconnect below would
+        # drop the user's connection on every poll.
+        if ble_device and not self.model and not self.is_connected():
             if await self.connect(ble_device):
                 await self.disconnect()
         # Send keep-alive if connected
@@ -627,8 +658,11 @@ class McbDevice:
 
     async def update_device(self, ble_device: BLEDevice) -> BLEData:
         """Update device data. Sends keep-alive if connected."""
-        if ble_device and not self.model:
-            # Connect temporarily to fetch device info (model)
+        # Probe for the model only while it is still unknown, and only when the
+        # user has not already opened a connection: connect() returns True for an
+        # existing connection, so without this guard the disconnect below would
+        # drop the user's connection on every poll.
+        if ble_device and not self.model and not self.is_connected():
             if await self.connect(ble_device):
                 await self.disconnect()
         # Send keep-alive if connected
