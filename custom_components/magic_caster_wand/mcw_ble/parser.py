@@ -10,12 +10,13 @@ from bleak_retry_connector import establish_connection
 from bluetooth_sensor_state_data import BluetoothData
 from home_assistant_bluetooth import BluetoothServiceInfoBleak
 
-from .mcw import McwClient, LedGroup, Macro
-from .mcb import McbClient, LIDNOTIFY, WANDNOTIFY, CHARGENOTIFY
+from .mcb import CHARGENOTIFY, LIDNOTIFY, WANDNOTIFY, McbClient
+from .mcw import LedGroup, Macro, McwClient
 from .remote_tensor_spell_detector import RemoteTensorSpellDetector
 from .spell_tracker import SpellTracker
 
 _LOGGER = logging.getLogger(__name__)
+
 
 @dataclasses.dataclass
 class BLEData:
@@ -28,9 +29,7 @@ class BLEData:
     address: str = ""
     model: str = ""
     serial_number: str = ""
-    sensors: dict[str, str | float | None] = dataclasses.field(
-        default_factory=lambda: {}
-    )
+    sensors: dict[str, str | float | None] = dataclasses.field(default_factory=lambda: {})
 
 
 # A duration of 0 means "hold indefinitely"; the wire format has no such value,
@@ -109,7 +108,13 @@ def build_set_led_macro(group: LedGroup, r: int, g: int, b: int, duration: int =
 class McwDevice:
     """Data handler for Magic Caster Wand BLE device."""
 
-    def __init__(self, address: str, tflite_url: str = "http://b5e3f765-tflite-server:8000", model_name: str = "model.tflite", spell_timeout: int = 0) -> None:
+    def __init__(
+        self,
+        address: str,
+        tflite_url: str = "http://b5e3f765-tflite-server:8000",
+        model_name: str = "model.tflite",
+        spell_timeout: int = 0,
+    ) -> None:
         """Initialize the device."""
         self.address = address
         self.tflite_url = tflite_url
@@ -141,12 +146,15 @@ class McwDevice:
                 RemoteTensorSpellDetector(
                     model_name=self.model_name,
                     base_url=self.tflite_url,
-                ))
+                )
+            )
             _LOGGER.debug("Persistent spell tracker created")
         except Exception as err:
             _LOGGER.warning("Failed to create spell detector: %s", err)
 
-    def register_coordinator(self, cn_spell, cn_battery, cn_buttons, cn_calibration=None, cn_imu=None, cn_connection=None) -> None:
+    def register_coordinator(
+        self, cn_spell, cn_battery, cn_buttons, cn_calibration=None, cn_imu=None, cn_connection=None
+    ) -> None:
         """Register coordinators for spell, battery, button, calibration, and connection updates."""
         self._coordinator_spell = cn_spell
         self._coordinator_battery = cn_battery
@@ -196,7 +204,11 @@ class McwDevice:
             self._coordinator_buttons.async_set_updated_data(data)
 
         # Handle spell tracking start/stop when using server-side detection
-        if self._spell_tracker is not None and self._spell_tracker.detector is not None and self._spell_tracker.detector.is_active:
+        if (
+            self._spell_tracker is not None
+            and self._spell_tracker.detector is not None
+            and self._spell_tracker.detector.is_active
+        ):
             button_all = data.get("button_all", False)
 
             # Transition: not pressed -> pressed = start tracking
@@ -254,15 +266,19 @@ class McwDevice:
         if self._coordinator_imu:
             self._coordinator_imu.async_set_updated_data(data)
 
-        if self._spell_tracker is not None and self._spell_tracker.detector is not None and self._spell_tracker.detector.is_active:
+        if (
+            self._spell_tracker is not None
+            and self._spell_tracker.detector is not None
+            and self._spell_tracker.detector.is_active
+        ):
             for sample in data:
                 self._spell_tracker.update(
-                    ax=sample['accel_y'],
-                    ay=-sample['accel_x'],
-                    az=sample['accel_z'],
-                    gx=sample['gyro_y'],
-                    gy=-sample['gyro_x'],
-                    gz=sample['gyro_z']
+                    ax=sample["accel_y"],
+                    ay=-sample["accel_x"],
+                    az=sample["accel_z"],
+                    gx=sample["gyro_y"],
+                    gy=-sample["gyro_x"],
+                    gz=sample["gyro_z"],
                 )
 
     def _on_disconnect(self, client: BleakClient) -> None:
@@ -289,8 +305,7 @@ class McwDevice:
 
         try:
             self.client = await establish_connection(
-                BleakClient, ble_device, ble_device.address,
-                disconnected_callback=self._on_disconnect
+                BleakClient, ble_device, ble_device.address, disconnected_callback=self._on_disconnect
             )
 
             if not self.client.is_connected:
@@ -305,17 +320,17 @@ class McwDevice:
                 self._data.identifier = ble_device.address.replace(":", "")[-8:]
             self._mcw = McwClient(self.client)
             self._mcw.register_callback(
-                self._callback_spell, 
-                self._callback_battery, 
-                self._callback_buttons, 
+                self._callback_spell,
+                self._callback_battery,
+                self._callback_buttons,
                 self._callback_calibration,
-                self._callback_imu
+                self._callback_imu,
             )
             await self._mcw.start_notify()
             if not self.model:
                 await self._mcw.init_wand()
                 self.model = await self._mcw.get_wand_device_id()
-                
+
             _LOGGER.debug("Connected to Magic Caster Wand: %s, %s", ble_device.address, self.model)
             if self._coordinator_connection:
                 self._coordinator_connection.async_set_updated_data(True)
@@ -343,13 +358,15 @@ class McwDevice:
             finally:
                 # Reset all states on disconnect
                 if self._coordinator_buttons:
-                    self._coordinator_buttons.async_set_updated_data({
-                        "button_1": False,
-                        "button_2": False,
-                        "button_3": False,
-                        "button_4": False,
-                        "button_all": False,
-                    })
+                    self._coordinator_buttons.async_set_updated_data(
+                        {
+                            "button_1": False,
+                            "button_2": False,
+                            "button_3": False,
+                            "button_4": False,
+                            "button_all": False,
+                        }
+                    )
                 if self._coordinator_connection:
                     self._coordinator_connection.async_set_updated_data(False)
 
@@ -454,8 +471,10 @@ class McwDevice:
                 await self._spell_tracker.detector.async_init()
                 _LOGGER.debug("Spell tracker session initialized and verified")
             else:
-                _LOGGER.warning("TFLite server at %s is not reachable. Spell detection will not be available.", 
-                               self._spell_tracker.detector._base_url)
+                _LOGGER.warning(
+                    "TFLite server at %s is not reachable. Spell detection will not be available.",
+                    self._spell_tracker.detector._base_url,
+                )
         except Exception as err:
             self._server_reachable = False
             _LOGGER.warning("Failed to initialize remote spell detector session: %s", err)
@@ -466,6 +485,7 @@ class McwDevice:
             _LOGGER.debug("Closing spell tracker session")
             await self._spell_tracker.close()
             # Do NOT set self._spell_tracker = None to keep upload state
+
 
 class McbDevice:
     """Data handler for Magic Caster Box BLE device."""
@@ -546,8 +566,7 @@ class McbDevice:
 
         try:
             self.client = await establish_connection(
-                BleakClient, ble_device, ble_device.address,
-                disconnected_callback=self._on_disconnect
+                BleakClient, ble_device, ble_device.address, disconnected_callback=self._on_disconnect
             )
 
             if not self.client.is_connected:
@@ -570,7 +589,7 @@ class McbDevice:
             await self._mcb.start_notify()
             if not self.model:
                 self.model = await self._mcb.get_box_device_id()
-                
+
             _LOGGER.debug("Connected to Magic Caster Box: %s, %s", ble_device.address, self.model)
             if self._coordinator_connection:
                 self._coordinator_connection.async_set_updated_data(True)
@@ -628,6 +647,7 @@ class McbDevice:
         if self.is_connected() and self._mcb:
             await self._mcb.led_off()
 
+
 class McwBluetoothDeviceData(BluetoothData):
     """Bluetooth device data for Magic Caster Wand."""
 
@@ -655,6 +675,7 @@ class McwBluetoothDeviceData(BluetoothData):
         #     return False
 
         return True
+
 
 class McbBluetoothDeviceData(BluetoothData):
     """Bluetooth device data for Magic Caster Box."""

@@ -66,9 +66,7 @@ def test_empty_command_list_yields_empty_macro():
 # ── changeled ────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.parametrize(
-    "group_val", ["POMMEL", "pommel", "Pommel", 3, LedGroup.POMMEL]
-)
+@pytest.mark.parametrize("group_val", ["POMMEL", "pommel", "Pommel", 3, LedGroup.POMMEL])
 def test_led_group_accepts_names_indices_and_enums(group_val):
     macro = build_macro([{"changeled": {"group": group_val, "rgb": [0, 0, 0]}}])
 
@@ -121,7 +119,7 @@ def test_bad_command_is_skipped_without_discarding_the_rest(bad):
 
 
 def test_all_bad_commands_yield_an_empty_macro():
-    assert build_macro([{"nope": 1}, None]) .commands == []
+    assert build_macro([{"nope": 1}, None]).commands == []
 
 
 # ── set_led ──────────────────────────────────────────────────────────────────

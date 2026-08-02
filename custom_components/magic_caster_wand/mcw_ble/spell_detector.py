@@ -1,6 +1,7 @@
+from abc import ABC, abstractmethod
+
 import numpy as np
 
-from abc import ABC, abstractmethod
 
 class SpellDetector(ABC):
     """Base class for spell detection from normalized position data."""

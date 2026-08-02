@@ -55,15 +55,7 @@ def test_empty_macro_is_bare_control_opcode():
 
 
 def test_commands_are_emitted_in_order():
-    payload = (
-        Macro()
-        .add_set_loops(2)
-        .add_led(LedGroup.TIP, 1, 2, 3, 100)
-        .add_wait()
-        .add_clear()
-        .add_loop()
-        .to_bytes()
-    )
+    payload = Macro().add_set_loops(2).add_led(LedGroup.TIP, 1, 2, 3, 100).add_wait().add_clear().add_loop().to_bytes()
 
     assert payload == (
         bytes([MACROIDS.CONTROL])

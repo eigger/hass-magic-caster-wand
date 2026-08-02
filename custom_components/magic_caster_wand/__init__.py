@@ -5,7 +5,6 @@ from datetime import timedelta
 from functools import partial
 
 from bleak_retry_connector import close_stale_connections_by_address
-
 from homeassistant.components import bluetooth
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_SCAN_INTERVAL, Platform
@@ -16,10 +15,25 @@ from homeassistant.core import (
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import DEFAULT_SCAN_INTERVAL, DOMAIN, CONF_TFLITE_URL, DEFAULT_TFLITE_URL, CONF_SPELL_TIMEOUT, DEFAULT_SPELL_TIMEOUT
-from .mcw_ble import BLEData, McwDevice, McbDevice, LedGroup
+from .const import (
+    CONF_SPELL_TIMEOUT,
+    CONF_TFLITE_URL,
+    DEFAULT_SCAN_INTERVAL,
+    DEFAULT_SPELL_TIMEOUT,
+    DEFAULT_TFLITE_URL,
+    DOMAIN,
+)
+from .mcw_ble import BLEData, LedGroup, McbDevice, McwDevice
 
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH, Platform.TEXT, Platform.SELECT, Platform.BINARY_SENSOR, Platform.BUTTON, Platform.CAMERA]
+PLATFORMS: list[Platform] = [
+    Platform.SENSOR,
+    Platform.SWITCH,
+    Platform.TEXT,
+    Platform.SELECT,
+    Platform.BINARY_SENSOR,
+    Platform.BUTTON,
+    Platform.CAMERA,
+]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -57,9 +71,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER,
         name=f"{DOMAIN}_main_{identifier}",
         update_method=partial(_async_update_method, hass, entry, device),
-        update_interval=timedelta(
-            seconds=float(entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
-        ),
+        update_interval=timedelta(seconds=float(entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))),
     )
 
     if device_type == "mcw":
@@ -73,8 +85,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass,
             _LOGGER,
             name=f"{DOMAIN}_buttons_{identifier}",
-        )        
-            
+        )
+
         calibration_coordinator: DataUpdateCoordinator[dict[str, bool]] = DataUpdateCoordinator(
             hass,
             _LOGGER,
@@ -122,7 +134,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Register coordinators with device for BLE callbacks
     if device_type == "mcw":
-        device.register_coordinator(spell_coordinator, battery_coordinator, buttons_coordinator, calibration_coordinator, imu_coordinator, connection_coordinator)
+        device.register_coordinator(
+            spell_coordinator,
+            battery_coordinator,
+            buttons_coordinator,
+            calibration_coordinator,
+            imu_coordinator,
+            connection_coordinator,
+        )
     elif device_type == "mcb":
         device.register_coordinator(
             cn_battery=battery_coordinator,
@@ -237,6 +256,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 device: McwDevice | McbDevice = hass.data[DOMAIN][entry_id]["device"]
                 # Use helper for more robust spell matching
                 from .mcw_ble import get_spell_macro
+
                 macro = get_spell_macro(spell_name)
                 if macro:
                     await device.send_macro(macro)
@@ -255,9 +275,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-async def _async_update_method(
-    hass: HomeAssistant, entry: ConfigEntry, mcw: McwDevice
-) -> BLEData:
+async def _async_update_method(hass: HomeAssistant, entry: ConfigEntry, mcw: McwDevice) -> BLEData:
     """Get data from Magic Caster Wand BLE device."""
     address = entry.unique_id
     ble_device = bluetooth.async_ble_device_from_address(hass, address)
@@ -281,6 +299,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN].pop(entry.entry_id)
 
     return unload_ok
+
 
 async def get_entry_id_from_device(hass, device_id: str) -> str:
     device_reg = dr.async_get(hass)

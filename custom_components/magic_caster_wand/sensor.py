@@ -11,9 +11,9 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import PERCENTAGE
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceInfo
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import StateType
-from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
@@ -31,6 +31,7 @@ CALIBRATION_SENSORS = [
     {"key": "calibration_button", "name": "Calibration Button", "icon": "mdi:gesture-tap-button"},
     {"key": "calibration_imu", "name": "Calibration IMU", "icon": "mdi:axis-arrow"},
 ]
+
 
 class BatteryState:
     """Battery state definitions based on battery level."""
@@ -55,6 +56,7 @@ class BatteryState:
             return BatteryState.LOW
         return BatteryState.CRITICAL
 
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -72,10 +74,12 @@ async def async_setup_entry(
     if device_type == "mcw":
         spell_coordinator: DataUpdateCoordinator[str] = data["spell_coordinator"]
         calibration_coordinator: DataUpdateCoordinator[dict[str, str]] = data["calibration_coordinator"]
-        entities.extend([
-            McwSpellSensor(address, device, spell_coordinator, connection_coordinator),
-            McwSpellModeSensor(address, device, connection_coordinator),
-        ])
+        entities.extend(
+            [
+                McwSpellSensor(address, device, spell_coordinator, connection_coordinator),
+                McwSpellModeSensor(address, device, connection_coordinator),
+            ]
+        )
         # Add calibration sensors
         for sensor in CALIBRATION_SENSORS:
             entities.append(
@@ -89,10 +93,12 @@ async def async_setup_entry(
                     sensor_icon=sensor["icon"],
                 )
             )
-    entities.extend([
-        McwBatterySensor(address, device, battery_coordinator, connection_coordinator),
-        McwBatteryStateSensor(address, device, battery_coordinator, connection_coordinator),
-    ])
+    entities.extend(
+        [
+            McwBatterySensor(address, device, battery_coordinator, connection_coordinator),
+            McwBatteryStateSensor(address, device, battery_coordinator, connection_coordinator),
+        ]
+    )
     async_add_entities(entities)
 
 
@@ -145,11 +151,7 @@ class McwSpellSensor(
     async def async_added_to_hass(self) -> None:
         """Register connection coordinator listener."""
         await super().async_added_to_hass()
-        self.async_on_remove(
-            self._connection_coordinator.async_add_listener(
-                self._handle_connection_update
-            )
-        )
+        self.async_on_remove(self._connection_coordinator.async_add_listener(self._handle_connection_update))
 
     @callback
     def _handle_connection_update(self) -> None:
@@ -205,11 +207,7 @@ class McwBatterySensor(
     async def async_added_to_hass(self) -> None:
         """Register connection coordinator listener."""
         await super().async_added_to_hass()
-        self.async_on_remove(
-            self._connection_coordinator.async_add_listener(
-                self._handle_connection_update
-            )
-        )
+        self.async_on_remove(self._connection_coordinator.async_add_listener(self._handle_connection_update))
 
     @callback
     def _handle_connection_update(self) -> None:
@@ -268,11 +266,7 @@ class McwBatteryStateSensor(
     async def async_added_to_hass(self) -> None:
         """Register connection coordinator listener."""
         await super().async_added_to_hass()
-        self.async_on_remove(
-            self._connection_coordinator.async_add_listener(
-                self._handle_connection_update
-            )
-        )
+        self.async_on_remove(self._connection_coordinator.async_add_listener(self._handle_connection_update))
 
     @callback
     def _handle_connection_update(self) -> None:
@@ -342,11 +336,7 @@ class McwSpellModeSensor(McwBaseSensor):
     async def async_added_to_hass(self) -> None:
         """Register callbacks."""
         await super().async_added_to_hass()
-        self.async_on_remove(
-            self._connection_coordinator.async_add_listener(
-                self._handle_connection_update
-            )
-        )
+        self.async_on_remove(self._connection_coordinator.async_add_listener(self._handle_connection_update))
         self.async_on_remove(
             async_dispatcher_connect(
                 self.hass,
@@ -391,11 +381,7 @@ class McwCalibrationSensor(
     async def async_added_to_hass(self) -> None:
         """Register connection coordinator listener."""
         await super().async_added_to_hass()
-        self.async_on_remove(
-            self._connection_coordinator.async_add_listener(
-                self._handle_connection_update
-            )
-        )
+        self.async_on_remove(self._connection_coordinator.async_add_listener(self._handle_connection_update))
 
     @callback
     def _handle_connection_update(self) -> None:
@@ -425,7 +411,5 @@ class McwCalibrationSensor(
             # Only update state if this sensor's key is present in the data
             if self._sensor_key in calibration_states:
                 self._state = calibration_states[self._sensor_key]
-                _LOGGER.debug(
-                    "Calibration %s state: %s", self._sensor_key, self._state
-                )
+                _LOGGER.debug("Calibration %s state: %s", self._sensor_key, self._state)
         self.async_write_ha_state()

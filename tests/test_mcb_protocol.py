@@ -147,9 +147,7 @@ def test_handler_survives_unknown_opcode(client):
 
 def test_paired_wand_address_is_reversed_from_little_endian(client):
     """0x09 reports the address of the wand paired with this box, not the box's own."""
-    client._handler(
-        None, bytearray([RESPONSEIDS.WAND_ADDRESS, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01])
-    )
+    client._handler(None, bytearray([RESPONSEIDS.WAND_ADDRESS, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01]))
 
     assert client._wand_address == "01:02:03:04:05:06"
 
@@ -224,9 +222,7 @@ def test_get_box_sku_sends_product_info_read(client):
 
 def test_getters_are_cached_after_first_response(client):
     sent = _sent_packets(client)
-    client._handler(
-        None, bytearray([RESPONSEIDS.BOX_PRODUCT_INFORMATION, 0x01, 0x07, 0, 0, 0])
-    )
+    client._handler(None, bytearray([RESPONSEIDS.BOX_PRODUCT_INFORMATION, 0x01, 0x07, 0, 0, 0]))
 
     assert asyncio.run(client.get_box_serial_number()) == "7"
     assert sent == []

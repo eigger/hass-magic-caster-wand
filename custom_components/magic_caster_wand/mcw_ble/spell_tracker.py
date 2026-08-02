@@ -1,11 +1,12 @@
 import logging
-import numpy as np
-
 from dataclasses import dataclass, field
+
+import numpy as np
 
 from .spell_detector import SpellDetector
 
 _LOGGER = logging.getLogger(__name__)
+
 
 @dataclass
 class SpellTrackerState:
@@ -29,6 +30,7 @@ class SpellTrackerState:
     inv_quat_q1: np.float32 = 0.0
     inv_quat_q2: np.float32 = 0.0
     inv_quat_q3: np.float32 = 0.0
+
 
 class SpellTracker:
     _CONST_NEG_2_0 = np.float32(-2.0)
@@ -59,7 +61,7 @@ class SpellTracker:
         # use ndarray view to avoid scalar .view limitations
         y = np.array([x], dtype=np.float32)
         i = y.view(np.uint32)
-        i[:] = np.uint32(0x5f3759df) - (i >> 1)
+        i[:] = np.uint32(0x5F3759DF) - (i >> 1)
         y = i.view(np.float32)
         y = y * (SpellTracker._CONST_1_5 - (x2 * y * y))
         return np.float32(y[0])
@@ -68,9 +70,7 @@ class SpellTracker:
     def _wrap_to_2pi(angle: np.float32) -> np.float32:
         return angle if angle >= 0.0 else angle + SpellTracker._CONST_2_0 * SpellTracker._CONST_PI
 
-    def start(
-        self
-    ) -> None:
+    def start(self) -> None:
         self._state.position_count = 0
 
         roll, pitch, yaw = self._calc_eulers_from_attitude()
@@ -89,13 +89,18 @@ class SpellTracker:
         self._state.start_quat_q2 = np.float32(dStack_c * dStack_24 * SpellTracker._CONST_0_0 + dStack_14 * dStack_1c)
         self._state.start_quat_q3 = np.float32(dStack_14 * dStack_24 * SpellTracker._CONST_0_0 - dStack_c * dStack_1c)
 
-        fVar4: np.float32 = SpellTracker._CONST_NEG_1_0 / (self._state.start_quat_q3 * self._state.start_quat_q3 + self._state.start_quat_q2 * self._state.start_quat_q2 + self._state.start_quat_q1 * self._state.start_quat_q1 + self._state.start_quat_q0 * self._state.start_quat_q0)
-        fVar1: np.float32 = fVar4*self._state.start_quat_q0
-        self._state.inv_quat_q1 = fVar4*self._state.start_quat_q1
+        fVar4: np.float32 = SpellTracker._CONST_NEG_1_0 / (
+            self._state.start_quat_q3 * self._state.start_quat_q3
+            + self._state.start_quat_q2 * self._state.start_quat_q2
+            + self._state.start_quat_q1 * self._state.start_quat_q1
+            + self._state.start_quat_q0 * self._state.start_quat_q0
+        )
+        fVar1: np.float32 = fVar4 * self._state.start_quat_q0
+        self._state.inv_quat_q1 = fVar4 * self._state.start_quat_q1
         fVar2: np.float32 = fVar1 * SpellTracker._CONST_NEG_0_0
         fVar7: np.float32 = self._state.inv_quat_q1 * SpellTracker._CONST_0_0
-        self._state.inv_quat_q2 = fVar4*self._state.start_quat_q2
-        self._state.inv_quat_q3 = fVar4*self._state.start_quat_q3
+        self._state.inv_quat_q2 = fVar4 * self._state.start_quat_q2
+        self._state.inv_quat_q3 = fVar4 * self._state.start_quat_q3
         fVar8: np.float32 = self._state.inv_quat_q2 * SpellTracker._CONST_0_0
         fVar4: np.float32 = self._state.inv_quat_q3 * SpellTracker._CONST_0_0
 
@@ -104,32 +109,47 @@ class SpellTracker:
         fVar9: np.float32 = ((fVar8 + fVar2) - self._state.start_pos_z * self._state.inv_quat_q3) + fVar7
         fVar7: np.float32 = (self._state.start_pos_z * self._state.inv_quat_q2 + fVar4 + fVar2) - fVar7
 
-        fVar8: np.float32 = (fVar7 * self._state.start_quat_q2 + fVar3 * self._state.start_quat_q1 + fVar5 * self._state.start_quat_q0) - fVar9 * self._state.start_quat_q3
-        fVar4: np.float32 = fVar5 * self._state.start_quat_q3 + ((fVar3 * self._state.start_quat_q2 + fVar9 * self._state.start_quat_q0) - fVar7 * self._state.start_quat_q1)
-        fVar10: np.float32 = (fVar9 * self._state.start_quat_q1 + fVar3 * self._state.start_quat_q3 + fVar7 * self._state.start_quat_q0) - fVar5 * self._state.start_quat_q2
+        fVar8: np.float32 = (
+            fVar7 * self._state.start_quat_q2 + fVar3 * self._state.start_quat_q1 + fVar5 * self._state.start_quat_q0
+        ) - fVar9 * self._state.start_quat_q3
+        fVar4: np.float32 = fVar5 * self._state.start_quat_q3 + (
+            (fVar3 * self._state.start_quat_q2 + fVar9 * self._state.start_quat_q0) - fVar7 * self._state.start_quat_q1
+        )
+        fVar10: np.float32 = (
+            fVar9 * self._state.start_quat_q1 + fVar3 * self._state.start_quat_q3 + fVar7 * self._state.start_quat_q0
+        ) - fVar5 * self._state.start_quat_q2
 
-        fVar6: np.float32 = SpellTracker._CONST_NEG_1_0 / (self._state.inv_quat_q3 * self._state.inv_quat_q3 + self._state.inv_quat_q2 * self._state.inv_quat_q2 + self._state.inv_quat_q1 * self._state.inv_quat_q1 + fVar1 * fVar1)
+        fVar6: np.float32 = SpellTracker._CONST_NEG_1_0 / (
+            self._state.inv_quat_q3 * self._state.inv_quat_q3
+            + self._state.inv_quat_q2 * self._state.inv_quat_q2
+            + self._state.inv_quat_q1 * self._state.inv_quat_q1
+            + fVar1 * fVar1
+        )
         self._state.inv_quat_q0 = -fVar1
-        fVar2: np.float32 = -fVar1*fVar6
-        fVar5: np.float32 = self._state.inv_quat_q1*fVar6
-        fVar11: np.float32 = self._state.inv_quat_q2*fVar6
-        fVar6: np.float32 = self._state.inv_quat_q3*fVar6
+        fVar2: np.float32 = -fVar1 * fVar6
+        fVar5: np.float32 = self._state.inv_quat_q1 * fVar6
+        fVar11: np.float32 = self._state.inv_quat_q2 * fVar6
+        fVar6: np.float32 = self._state.inv_quat_q3 * fVar6
         fVar7: np.float32 = ((fVar2 * SpellTracker._CONST_NEG_0_0 - fVar5 * fVar8) - fVar11 * fVar4) - fVar6 * fVar10
         fVar9: np.float32 = (fVar6 * fVar4 + (fVar5 * SpellTracker._CONST_0_0 - fVar8 * fVar2)) - fVar11 * fVar10
         fVar3: np.float32 = fVar5 * fVar10 + ((fVar11 * SpellTracker._CONST_0_0 - fVar4 * fVar2) - fVar6 * fVar8)
         fVar4: np.float32 = (fVar11 * fVar8 + (fVar6 * SpellTracker._CONST_0_0 - fVar2 * fVar10)) - fVar5 * fVar4
 
-        self._state.ref_vec_x = (self._state.inv_quat_q2 * fVar4 + (self._state.inv_quat_q1 * fVar7 - fVar9 * fVar1)) - self._state.inv_quat_q3 * fVar3
-        self._state.ref_vec_y = (self._state.inv_quat_q3 * fVar9 + ((self._state.inv_quat_q2 * fVar7 - fVar3 * fVar1) - self._state.inv_quat_q1 * fVar4))
-        self._state.ref_vec_z = ((fVar3 * self._state.inv_quat_q1 + (fVar7 * self._state.inv_quat_q3 - fVar4 * fVar1)) - fVar9 * self._state.inv_quat_q2)
+        self._state.ref_vec_x = (
+            self._state.inv_quat_q2 * fVar4 + (self._state.inv_quat_q1 * fVar7 - fVar9 * fVar1)
+        ) - self._state.inv_quat_q3 * fVar3
+        self._state.ref_vec_y = self._state.inv_quat_q3 * fVar9 + (
+            (self._state.inv_quat_q2 * fVar7 - fVar3 * fVar1) - self._state.inv_quat_q1 * fVar4
+        )
+        self._state.ref_vec_z = (
+            fVar3 * self._state.inv_quat_q1 + (fVar7 * self._state.inv_quat_q3 - fVar4 * fVar1)
+        ) - fVar9 * self._state.inv_quat_q2
 
         self._state.positions[0] = np.float32(0.0), np.float32(0.0)
         self._state.position_count = 1
         self._state.tracking_active = 1
 
-    async def stop(
-        self
-    ) -> str | None:
+    async def stop(self) -> str | None:
         self._state.tracking_active = 0
         result = await self._recognize_spell()
         return result if isinstance(result, str) else None
@@ -150,13 +170,7 @@ class SpellTracker:
         return self._detector
 
     def update(
-        self,
-        ax: np.float32,
-        ay: np.float32,
-        az: np.float32,
-        gx: np.float32,
-        gy: np.float32,
-        gz: np.float32
+        self, ax: np.float32, ay: np.float32, az: np.float32, gx: np.float32, gy: np.float32, gz: np.float32
     ) -> tuple[np.float32, np.float32] | None:
 
         self._update_imu_only(
@@ -166,7 +180,8 @@ class SpellTracker:
             ax * SpellTracker._CONST_GRAVITY,
             ay * SpellTracker._CONST_GRAVITY,
             az * SpellTracker._CONST_GRAVITY,
-            np.float32(0.0042735))
+            np.float32(0.0042735),
+        )
 
         if self._state.tracking_active != 1:
             return None
@@ -182,23 +197,25 @@ class SpellTracker:
         half_pitch: np.float32 = pitch * SpellTracker._CONST_0_5
         dStack_14: np.float32 = np.sin(half_pitch)
         dStack_1c: np.float32 = np.cos(half_pitch)
-        
+
         half_yaw: np.float32 = fVar1 * SpellTracker._CONST_0_5
         dStack_34: np.float32 = np.sin(half_yaw)
         dStack_3c: np.float32 = np.cos(half_yaw)
 
         fVar9: np.float32 = dStack_34 * dStack_24 * dStack_14 + dStack_3c * dStack_2c * dStack_1c
         fVar5: np.float32 = dStack_3c * dStack_24 * dStack_1c - dStack_34 * dStack_2c * dStack_14
-        fVar11: np.float32 = dStack_24 * dStack_1c * dStack_34 +  dStack_2c * dStack_14 * dStack_3c
+        fVar11: np.float32 = dStack_24 * dStack_1c * dStack_34 + dStack_2c * dStack_14 * dStack_3c
         fVar3: np.float32 = dStack_2c * dStack_1c * dStack_34 - dStack_24 * dStack_14 * dStack_3c
 
-        fVar7: np.float32 = SpellTracker._CONST_NEG_1_0 / (fVar3 * fVar3 + fVar11 * fVar11 + fVar5 * fVar5 + fVar9 * fVar9)
+        fVar7: np.float32 = SpellTracker._CONST_NEG_1_0 / (
+            fVar3 * fVar3 + fVar11 * fVar11 + fVar5 * fVar5 + fVar9 * fVar9
+        )
         fVar2: np.float32 = fVar7 * fVar9 * SpellTracker._CONST_NEG_0_0
         fVar10: np.float32 = fVar7 * fVar5 * SpellTracker._CONST_0_0
         fVar6: np.float32 = fVar7 * fVar11 * SpellTracker._CONST_0_0
         fVar8: np.float32 = fVar7 * fVar3 * SpellTracker._CONST_0_0
 
-        fVar4: np.float32 =((fVar10 - self._state.start_pos_z * fVar7 * fVar9) + fVar8) - fVar6
+        fVar4: np.float32 = ((fVar10 - self._state.start_pos_z * fVar7 * fVar9) + fVar8) - fVar6
         fVar1: np.float32 = ((fVar2 - self._state.start_pos_z * fVar7 * fVar5) - fVar6) - fVar8
         fVar6: np.float32 = ((fVar6 + fVar2) - self._state.start_pos_z * fVar7 * fVar3) + fVar10
         fVar10: np.float32 = (fVar7 * fVar11 * self._state.start_pos_z + fVar8 + fVar2) - fVar10
@@ -206,7 +223,12 @@ class SpellTracker:
         fVar2: np.float32 = fVar4 * fVar3 + ((fVar1 * fVar11 + fVar6 * fVar9) - fVar10 * fVar5)
         fVar4: np.float32 = (fVar6 * fVar5 + fVar1 * fVar3 + fVar10 * fVar9) - fVar4 * fVar11
 
-        fVar6: np.float32 = SpellTracker._CONST_NEG_1_0 / (self._state.inv_quat_q3 * self._state.inv_quat_q3 + self._state.inv_quat_q2 * self._state.inv_quat_q2 + self._state.inv_quat_q1 * self._state.inv_quat_q1 + self._state.inv_quat_q0 * self._state.inv_quat_q0)
+        fVar6: np.float32 = SpellTracker._CONST_NEG_1_0 / (
+            self._state.inv_quat_q3 * self._state.inv_quat_q3
+            + self._state.inv_quat_q2 * self._state.inv_quat_q2
+            + self._state.inv_quat_q1 * self._state.inv_quat_q1
+            + self._state.inv_quat_q0 * self._state.inv_quat_q0
+        )
         fVar8: np.float32 = self._state.inv_quat_q0 * fVar6
         fVar5: np.float32 = self._state.inv_quat_q1 * fVar6
         fVar3: np.float32 = self._state.inv_quat_q2 * fVar6
@@ -217,14 +239,28 @@ class SpellTracker:
         fVar12: np.float32 = fVar5 * fVar4 + ((fVar3 * SpellTracker._CONST_0_0 - fVar2 * fVar8) - fVar6 * fVar7)
         fVar2: np.float32 = (fVar3 * fVar7 + (fVar6 * SpellTracker._CONST_0_0 - fVar8 * fVar4)) - fVar5 * fVar2
 
-        fVar9: np.float32 = SpellTracker._CONST_NEG_1_0 / (self._state.start_quat_q3 * self._state.start_quat_q3 + self._state.start_quat_q2 * self._state.start_quat_q2 + self._state.start_quat_q1 * self._state.start_quat_q1 + self._state.start_quat_q0 * self._state.start_quat_q0)
-        fVar3: np.float32 = ((self._state.inv_quat_q2 * fVar2 + self._state.inv_quat_q1 * fVar11 + self._state.inv_quat_q0 * fVar1) - self._state.inv_quat_q3 * fVar12) - self._state.ref_vec_x
+        fVar9: np.float32 = SpellTracker._CONST_NEG_1_0 / (
+            self._state.start_quat_q3 * self._state.start_quat_q3
+            + self._state.start_quat_q2 * self._state.start_quat_q2
+            + self._state.start_quat_q1 * self._state.start_quat_q1
+            + self._state.start_quat_q0 * self._state.start_quat_q0
+        )
+        fVar3: np.float32 = (
+            (self._state.inv_quat_q2 * fVar2 + self._state.inv_quat_q1 * fVar11 + self._state.inv_quat_q0 * fVar1)
+            - self._state.inv_quat_q3 * fVar12
+        ) - self._state.ref_vec_x
         fVar7: np.float32 = self._state.start_quat_q0 * fVar9
         fVar10: np.float32 = self._state.start_quat_q1 * fVar9
 
-        fVar4: np.float32 = (self._state.inv_quat_q3 * fVar1 + ((self._state.inv_quat_q2 * fVar11 + self._state.inv_quat_q0 * fVar12) - self._state.inv_quat_q1 * fVar2)) - self._state.ref_vec_y
+        fVar4: np.float32 = (
+            self._state.inv_quat_q3 * fVar1
+            + ((self._state.inv_quat_q2 * fVar11 + self._state.inv_quat_q0 * fVar12) - self._state.inv_quat_q1 * fVar2)
+        ) - self._state.ref_vec_y
         fVar8: np.float32 = self._state.start_quat_q2 * fVar9
-        fVar5: np.float32 = ((fVar12 * self._state.inv_quat_q1 + fVar11 * self._state.inv_quat_q3 + fVar2 * self._state.inv_quat_q0) - fVar1 * self._state.inv_quat_q2) - self._state.ref_vec_z
+        fVar5: np.float32 = (
+            (fVar12 * self._state.inv_quat_q1 + fVar11 * self._state.inv_quat_q3 + fVar2 * self._state.inv_quat_q0)
+            - fVar1 * self._state.inv_quat_q2
+        ) - self._state.ref_vec_z
         fVar9: np.float32 = fVar9 * self._state.start_quat_q3
 
         fVar2: np.float32 = ((fVar7 * SpellTracker._CONST_NEG_0_0 - fVar10 * fVar3) - fVar8 * fVar4) - fVar9 * fVar5
@@ -232,25 +268,27 @@ class SpellTracker:
         fVar6: np.float32 = fVar10 * fVar5 + ((fVar8 * SpellTracker._CONST_0_0 - fVar4 * fVar7) - fVar9 * fVar3)
         fVar4: np.float32 = (fVar8 * fVar3 + (fVar9 * SpellTracker._CONST_0_0 - fVar7 * fVar5)) - fVar10 * fVar4
 
-        fVar3: np.float32 = self._state.start_quat_q3 * fVar1 + ((self._state.start_quat_q2 * fVar2 + self._state.start_quat_q0 * fVar6) - self._state.start_quat_q1 * fVar4)
-        fVar1: np.float32 = (fVar6 * self._state.start_quat_q1 + fVar2 * self._state.start_quat_q3 + fVar4 * self._state.start_quat_q0) - fVar1 * self._state.start_quat_q2
+        fVar3: np.float32 = self._state.start_quat_q3 * fVar1 + (
+            (self._state.start_quat_q2 * fVar2 + self._state.start_quat_q0 * fVar6) - self._state.start_quat_q1 * fVar4
+        )
+        fVar1: np.float32 = (
+            fVar6 * self._state.start_quat_q1 + fVar2 * self._state.start_quat_q3 + fVar4 * self._state.start_quat_q0
+        ) - fVar1 * self._state.start_quat_q2
 
         if self._state.position_count < 0x2000:
             self._state.positions[self._state.position_count] = (fVar3, fVar1)
             self._state.position_count += 1
 
-        return (fVar3,fVar1)
+        return (fVar3, fVar1)
 
-    def _calc_eulers_from_attitude(
-        self
-    ) -> tuple[np.float32, np.float32, np.float32]:
+    def _calc_eulers_from_attitude(self) -> tuple[np.float32, np.float32, np.float32]:
         qw: np.float32 = self._state.ahrs_quat_q0
         qx: np.float32 = self._state.ahrs_quat_q1
         qy: np.float32 = self._state.ahrs_quat_q2
         qz: np.float32 = self._state.ahrs_quat_q3
 
         # Calculate roll
-        sinroll_cospitch: np.float32 = SpellTracker._CONST_2_0 * (qy*qz + qw*qx)
+        sinroll_cospitch: np.float32 = SpellTracker._CONST_2_0 * (qy * qz + qw * qx)
         cosroll_cospitch: np.float32 = SpellTracker._CONST_1_0 - SpellTracker._CONST_2_0 * (qx * qx + qy * qy)
         roll: np.float32 = np.float32(np.arctan2(sinroll_cospitch, cosroll_cospitch))
 
@@ -281,14 +319,31 @@ class SpellTracker:
         ax: np.float32,
         ay: np.float32,
         az: np.float32,
-        dt: np.float32
+        dt: np.float32,
     ) -> None:
-        if ax != SpellTracker._CONST_0_0 or np.isnan(ax) or ay != SpellTracker._CONST_0_0 or np.isnan(ay) or az != SpellTracker._CONST_0_0 or np.isnan(az):
+        if (
+            ax != SpellTracker._CONST_0_0
+            or np.isnan(ax)
+            or ay != SpellTracker._CONST_0_0
+            or np.isnan(ay)
+            or az != SpellTracker._CONST_0_0
+            or np.isnan(az)
+        ):
             fVar2: np.float32 = az * az + ay * ay + ax * ax
             fVar1: np.float32 = self._inv_sqrt(fVar2)
-            fVar3: np.float32 = self._state.ahrs_quat_q1 * self._state.ahrs_quat_q3 - self._state.ahrs_quat_q0 * self._state.ahrs_quat_q2
-            fVar2: np.float32 = self._state.ahrs_quat_q3 * self._state.ahrs_quat_q2 + self._state.ahrs_quat_q1 * self._state.ahrs_quat_q0
-            fVar4: np.float32 = self._state.ahrs_quat_q3 * self._state.ahrs_quat_q3 + self._state.ahrs_quat_q0 * self._state.ahrs_quat_q0 + SpellTracker._CONST_NEG_0_5
+            fVar3: np.float32 = (
+                self._state.ahrs_quat_q1 * self._state.ahrs_quat_q3
+                - self._state.ahrs_quat_q0 * self._state.ahrs_quat_q2
+            )
+            fVar2: np.float32 = (
+                self._state.ahrs_quat_q3 * self._state.ahrs_quat_q2
+                + self._state.ahrs_quat_q1 * self._state.ahrs_quat_q0
+            )
+            fVar4: np.float32 = (
+                self._state.ahrs_quat_q3 * self._state.ahrs_quat_q3
+                + self._state.ahrs_quat_q0 * self._state.ahrs_quat_q0
+                + SpellTracker._CONST_NEG_0_5
+            )
             gx: np.float32 = gx + (ay * fVar1 * fVar4 - fVar1 * az * fVar2)
             gy: np.float32 = gy + (fVar1 * az * fVar3 - fVar4 * ax * fVar1)
             gz: np.float32 = gz + (fVar2 * ax * fVar1 - fVar3 * ay * fVar1)
@@ -298,10 +353,20 @@ class SpellTracker:
         fVar4: np.float32 = gy * fVar1
         fVar1: np.float32 = fVar1 * gz
 
-        fVar3 = ((-(fVar6 * self._state.ahrs_quat_q1) - fVar4 * self._state.ahrs_quat_q2) - fVar1 * self._state.ahrs_quat_q3) + self._state.ahrs_quat_q0
-        fVar2 = ((fVar1 * self._state.ahrs_quat_q2 + self._state.ahrs_quat_q0 * fVar6) - fVar4 * self._state.ahrs_quat_q3) + self._state.ahrs_quat_q1
-        fVar5 = fVar6 * self._state.ahrs_quat_q3 + (fVar4 * self._state.ahrs_quat_q0 - fVar1 * self._state.ahrs_quat_q1) + self._state.ahrs_quat_q2
-        fVar4 = ((fVar4 * self._state.ahrs_quat_q1 + fVar1 * self._state.ahrs_quat_q0) - fVar6 * self._state.ahrs_quat_q2) + self._state.ahrs_quat_q3
+        fVar3 = (
+            (-(fVar6 * self._state.ahrs_quat_q1) - fVar4 * self._state.ahrs_quat_q2) - fVar1 * self._state.ahrs_quat_q3
+        ) + self._state.ahrs_quat_q0
+        fVar2 = (
+            (fVar1 * self._state.ahrs_quat_q2 + self._state.ahrs_quat_q0 * fVar6) - fVar4 * self._state.ahrs_quat_q3
+        ) + self._state.ahrs_quat_q1
+        fVar5 = (
+            fVar6 * self._state.ahrs_quat_q3
+            + (fVar4 * self._state.ahrs_quat_q0 - fVar1 * self._state.ahrs_quat_q1)
+            + self._state.ahrs_quat_q2
+        )
+        fVar4 = (
+            (fVar4 * self._state.ahrs_quat_q1 + fVar1 * self._state.ahrs_quat_q0) - fVar6 * self._state.ahrs_quat_q2
+        ) + self._state.ahrs_quat_q3
         fVar6 = fVar4 * fVar4 + fVar5 * fVar5 + fVar2 * fVar2 + fVar3 * fVar3
         fVar1 = self._inv_sqrt(fVar6)
 
@@ -310,10 +375,7 @@ class SpellTracker:
         self._state.ahrs_quat_q2 = fVar5 * fVar1
         self._state.ahrs_quat_q3 = fVar1 * fVar4
 
-    async def _recognize_spell(
-        self,
-        confidence_threshold: np.float32 = _CONST_0_99
-    ) -> str | int:
+    async def _recognize_spell(self, confidence_threshold: np.float32 = _CONST_0_99) -> str | int:
         _LOGGER.debug("Spell recognition started with %d positions", self._state.position_count)
         """
         Recognize a spell/gesture from recorded positions.
@@ -361,52 +423,52 @@ class SpellTracker:
 
         if position_count <= 99:
             return -2  # Not enough data points
-        
+
         # Phase 3: Trim stationary tail (end of gesture)
         threshold_sq = SpellTracker._CONST_MILLIMETERMOVETHRESHOLD * SpellTracker._CONST_MILLIMETERMOVETHRESHOLD
         end_index = position_count
-        
+
         if threshold_sq > SpellTracker._CONST_0_0:
             while end_index >= 121:  # 0x79 = 121
                 # Compare points 40 apart from the end
                 curr_idx = end_index - 1
                 prev_idx = curr_idx - 40
-                
+
                 dx = positions[curr_idx, 0] - positions[prev_idx, 0]
                 dy = positions[curr_idx, 1] - positions[prev_idx, 1]
                 dist_sq = dx * dx + dy * dy
-                
+
                 if dist_sq >= threshold_sq:
                     break
-                    
+
                 end_index -= 10
-        
+
         # Phase 4: Trim stationary head (start of gesture)
         start_index = 0
-        
+
         if threshold_sq > SpellTracker._CONST_0_0 and end_index > 120:
             while start_index < end_index - 120:  # Keep at least 120 points
                 # Compare points 10 apart from the start
                 curr_idx = start_index
                 next_idx = curr_idx + 10
-                
+
                 dx = positions[next_idx, 0] - positions[curr_idx, 0]
                 dy = positions[next_idx, 1] - positions[curr_idx, 1]
                 dist_sq = dx * dx + dy * dy
-                
+
                 if dist_sq >= threshold_sq:
                     break
-                    
+
                 start_index += 10
-        
+
         # Adjust indices for resampling
         start_float = np.float32(start_index + 1)
         trimmed_count = end_index - start_index
-        
+
         # Phase 5: Resample to 50 normalized points (100 floats)
         pos_inputs = np.zeros((50, 2), dtype=np.float32)
         step = np.float32(trimmed_count) / np.float32(50.0)
-        
+
         sample_pos = start_float
         for i in range(50):
             idx = int(sample_pos)
@@ -416,16 +478,16 @@ class SpellTracker:
                 idx = position_count - 1
             if idx < 0:
                 idx = 0
-                
+
             # Normalize to [0, 1] based on bounding box
             pos_inputs[i, 0] = (positions[idx, 0] - min_x) / bbox_size
             pos_inputs[i, 1] = (positions[idx, 1] - min_y) / bbox_size
-            
+
             sample_pos += step
-        
+
         # Phase 6: Run spell detection via the configured detector
         spell_name: str | None = await self._detector.detect(pos_inputs, confidence_threshold)
         if spell_name is None:
             return -3  # No spell recognized with sufficient confidence
-        
+
         return spell_name
