@@ -94,13 +94,13 @@ send_macro:
           - Fields:
               buzz: Duration in ms
 
-        **loop**
-          - Marks the start of a loop block.
-
         **set_loops**
-          - Sets the number of loop iterations.
+          - Starts the loop for a number of loop iterations.
           - Fields:
               set_loops: Number of loops (1–255)
+
+        **loop**
+          - Marks the end of a loop block.
 
         **wait**
           - Waits for previous commands to finish.
