@@ -7,3 +7,4 @@ pythonenv*
 .coverage
 venv
 .venv
+.pytest_cache

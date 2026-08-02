@@ -11,7 +11,7 @@ from bluetooth_sensor_state_data import BluetoothData
 from home_assistant_bluetooth import BluetoothServiceInfoBleak
 
 from .mcw import McwClient, LedGroup, Macro
-from .mcb import McbClient, LIDSTATE, LIDNOTIFY, WANDNOTIFY, CHARGENOTIFY
+from .mcb import McbClient, LIDNOTIFY, WANDNOTIFY, CHARGENOTIFY
 from .remote_tensor_spell_detector import RemoteTensorSpellDetector
 from .spell_tracker import SpellTracker
 
@@ -31,6 +31,79 @@ class BLEData:
     sensors: dict[str, str | float | None] = dataclasses.field(
         default_factory=lambda: {}
     )
+
+
+# A duration of 0 means "hold indefinitely"; the wire format has no such value,
+# so it is sent as the maximum the 16-bit duration field can hold.
+HOLD_DURATION_MS = 65535
+
+
+def _resolve_led_group(group_val: object) -> LedGroup:
+    """Resolve an LED group given either its index or its name."""
+    if isinstance(group_val, LedGroup):
+        return group_val
+    if isinstance(group_val, int):
+        return LedGroup(group_val)
+    return LedGroup[str(group_val).upper()]
+
+
+def build_macro(commands: list) -> Macro:
+    """Build a Macro from the command list accepted by the send_macro service.
+
+    Each command is either a mapping with a single command key (``{"delay": 100}``)
+    or, for commands that take no argument, the bare command name (``"clear"``).
+    Unknown commands are logged and skipped so one bad entry does not discard
+    the whole sequence.
+    """
+    macro = Macro()
+
+    for cmd in commands:
+        if isinstance(cmd, str):
+            key, value = cmd, None
+        elif isinstance(cmd, dict) and len(cmd) == 1:
+            key, value = next(iter(cmd.items()))
+        else:
+            _LOGGER.warning("Skipping malformed macro command: %r", cmd)
+            continue
+
+        try:
+            if key == "changeled":
+                params = value or {}
+                group = _resolve_led_group(params.get("group", "TIP"))
+                r, g, b = params.get("rgb", (255, 255, 255))
+                duration = int(params.get("duration", 800)) or HOLD_DURATION_MS
+                macro.add_led(group, int(r), int(g), int(b), duration)
+            elif key == "clear":
+                macro.add_clear()
+            elif key == "delay":
+                macro.add_delay(int(value))
+            elif key == "buzz":
+                macro.add_buzz(int(value))
+            elif key == "loop":
+                macro.add_loop()
+            elif key == "set_loops":
+                macro.add_set_loops(int(value))
+            elif key == "wait":
+                macro.add_wait()
+            else:
+                _LOGGER.warning("Skipping unknown macro command: %r", key)
+        except (KeyError, ValueError, TypeError) as err:
+            _LOGGER.warning("Skipping invalid macro command %r: %s", cmd, err)
+
+    return macro
+
+
+def build_set_led_macro(group: LedGroup, r: int, g: int, b: int, duration: int = 0) -> Macro:
+    """Build the macro behind the set_led service.
+
+    A non-zero duration fades the LED in and then clears it, so the colour lasts
+    exactly that long. A duration of 0 holds the colour until it is cleared.
+    """
+    hold = duration == 0
+    macro = Macro().add_led(group, r, g, b, HOLD_DURATION_MS if hold else duration)
+    if not hold:
+        macro.add_wait().add_clear()
+    return macro
 
 
 class McwDevice:
@@ -303,59 +376,13 @@ class McwDevice:
 
     async def send_macro_parse(self, commands: list) -> None:
         """Convert service commands into a Macro and send it."""
-        if not self.is_connected() or not self._mcw:
-            return
-
-        macro = Macro()
-
-        for cmd in commands:
-
-            if "changeled" in cmd:
-                c = cmd["changeled"]
-                group_val = c.get("group", "TIP")
-
-                # Accept both numeric and string groups
-                if isinstance(group_val, int):
-                    group = LedGroup(group_val)
-                else:
-                    group = LedGroup[group_val.upper()]
-
-                r, g, b = c.get("rgb", (255, 255, 255))
-                duration = int(c.get("duration", 800))
-                if duration == 0:
-                    duration = 65535
-
-                macro.add_led(group, r, g, b, duration)
-
-            elif "clear" in cmd:
-                macro.add_clear()
-
-            elif "delay" in cmd:
-                macro.add_delay(int(cmd["delay"]))
-
-            elif "buzz" in cmd:
-                macro.add_buzz(int(cmd["buzz"]))
-
-            elif "loop" in cmd:
-                macro.add_loop()
-
-            elif "set_loops" in cmd:
-                macro.add_set_loops(int(cmd["set_loops"]))
-
-            elif "wait" in cmd:
-                macro.add_wait()
-
-        await self._mcw.send_macro(macro)
+        if self.is_connected() and self._mcw:
+            await self._mcw.send_macro(build_macro(commands))
 
     async def set_led(self, group: LedGroup, r: int, g: int, b: int, duration: int = 0) -> None:
         """Set LED color."""
         if self.is_connected() and self._mcw:
-            use_wait_clear = duration != 0
-            actual_duration = 65535 if not use_wait_clear else duration
-            macro = Macro().add_led(group, r, g, b, actual_duration)
-            if use_wait_clear:
-                macro.add_wait().add_clear()
-            await self._mcw.send_macro(macro)
+            await self._mcw.send_macro(build_set_led_macro(group, r, g, b, duration))
 
     @property
     def casting_led_color(self) -> tuple[int, int, int]:
@@ -451,6 +478,9 @@ class McbDevice:
         self._mcb: McbClient | None = None
         self._data = BLEData()
         self._coordinator_battery = None
+        self._coordinator_lid = None
+        self._coordinator_charge = None
+        self._coordinator_wand = None
         self._coordinator_connection = None
 
     def register_coordinator(
@@ -461,7 +491,11 @@ class McbDevice:
         cn_wand,
         cn_connection=None,
     ) -> None:
-        """Register coordinators for all MCB notifications."""
+        """Register coordinators for all MCB notifications.
+
+        ``cn_charge`` backs the USB-plugged entity: the box reports the USB
+        power state through its charge notification.
+        """
         self._coordinator_battery = cn_battery
         self._coordinator_lid = cn_lid
         self._coordinator_charge = cn_charge
@@ -581,59 +615,13 @@ class McbDevice:
 
     async def send_macro_parse(self, commands: list) -> None:
         """Convert service commands into a Macro and send it."""
-        if not self.is_connected() or not self._mcb:
-            return
-
-        macro = Macro()
-
-        for cmd in commands:
-
-            if "changeled" in cmd:
-                c = cmd["changeled"]
-                group_val = c.get("group", "TIP")
-
-                # Accept both numeric and string groups
-                if isinstance(group_val, int):
-                    group = LedGroup(group_val)
-                else:
-                    group = LedGroup[group_val.upper()]
-
-                r, g, b = c.get("rgb", (255, 255, 255))
-                duration = int(c.get("duration", 800))
-                if duration == 0:
-                    duration = 65535
-
-                macro.add_led(group, r, g, b, duration)
-
-            elif "clear" in cmd:
-                macro.add_clear()
-
-            elif "delay" in cmd:
-                macro.add_delay(int(cmd["delay"]))
-
-            elif "buzz" in cmd:
-                macro.add_buzz(int(cmd["buzz"]))
-
-            elif "loop" in cmd:
-                macro.add_loop()
-
-            elif "set_loops" in cmd:
-                macro.add_set_loops(int(cmd["set_loops"]))
-
-            elif "wait" in cmd:
-                macro.add_wait()
-
-        await self._mcb.send_macro(macro)
+        if self.is_connected() and self._mcb:
+            await self._mcb.send_macro(build_macro(commands))
 
     async def set_led(self, group: LedGroup, r: int, g: int, b: int, duration: int = 0) -> None:
         """Set LED color."""
         if self.is_connected() and self._mcb:
-            use_wait_clear = duration != 0
-            actual_duration = 65535 if not use_wait_clear else duration
-            macro = Macro().add_led(group, r, g, b, actual_duration)
-            if use_wait_clear:
-                macro.add_wait().add_clear()
-            await self._mcb.send_macro(macro)
+            await self._mcb.send_macro(build_set_led_macro(group, r, g, b, duration))
 
     async def clear_leds(self) -> None:
         """Clear all LEDs."""

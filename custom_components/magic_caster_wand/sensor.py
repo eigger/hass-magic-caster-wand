@@ -1,6 +1,5 @@
 """Support for Magic Caster Wand BLE sensors."""
 
-from html import entities
 import logging
 
 from homeassistant.components.sensor import (

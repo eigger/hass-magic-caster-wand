@@ -17,7 +17,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import DEFAULT_SCAN_INTERVAL, DOMAIN, CONF_TFLITE_URL, DEFAULT_TFLITE_URL, CONF_SPELL_TIMEOUT, DEFAULT_SPELL_TIMEOUT
-from .mcw_ble import BLEData, McwDevice, McbDevice, LedGroup, LIDSTATE
+from .mcw_ble import BLEData, McwDevice, McbDevice, LedGroup
 
 PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH, Platform.TEXT, Platform.SELECT, Platform.BINARY_SENSOR, Platform.BUTTON, Platform.CAMERA]
 
@@ -124,7 +124,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if device_type == "mcw":
         device.register_coordinator(spell_coordinator, battery_coordinator, buttons_coordinator, calibration_coordinator, imu_coordinator, connection_coordinator)
     elif device_type == "mcb":
-        device.register_coordinator(battery_coordinator, lid_coordinator, usb_plugged_coordinator, wand_coordinator, connection_coordinator)
+        device.register_coordinator(
+            cn_battery=battery_coordinator,
+            cn_lid=lid_coordinator,
+            cn_charge=usb_plugged_coordinator,
+            cn_wand=wand_coordinator,
+            cn_connection=connection_coordinator,
+        )
 
     # Store data for platforms
     if device_type == "mcw":
@@ -197,7 +203,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 await device.set_led(group, rgb[0], rgb[1], rgb[2], duration)
 
     async def handle_send_macro(call: ServiceCall) -> None:
-        """Handle execution of send_frame service."""
+        """Handle execution of send_macro service."""
         commands = call.data.get("commands", [])
         device_ids = call.data.get("device_id", [])
         if isinstance(device_ids, str):
@@ -244,7 +250,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if not hass.services.has_service(DOMAIN, "play_spell"):
         hass.services.async_register(DOMAIN, "play_spell", handle_play_spell)
     if not hass.services.has_service(DOMAIN, "send_macro"):
-        hass.services.async_register(DOMAIN, "send_macro", handle_send_macro)        
+        hass.services.async_register(DOMAIN, "send_macro", handle_send_macro)
 
     return True
 
