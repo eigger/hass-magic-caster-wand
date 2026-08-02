@@ -23,7 +23,7 @@ from .const import (
     DEFAULT_TFLITE_URL,
     DOMAIN,
 )
-from .mcw_ble import BLEData, LedGroup, McbDevice, McwDevice
+from .mcw_ble import BLEData, McbDevice, McwDevice, resolve_led_group
 
 PLATFORMS: list[Platform] = [
     Platform.SENSOR,
@@ -208,8 +208,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def handle_set_led(call: ServiceCall) -> None:
         """Handle execution of set_led service."""
-        group_str = call.data.get("group", "TIP")
-        group = LedGroup[group_str]
+        # Accepts the selector's uppercase names, but also lowercase or an index,
+        # since script and automation calls bypass selector validation.
+        group = resolve_led_group(call.data.get("group", "TIP"))
         rgb = call.data.get("rgb_color", (255, 255, 255))
         duration = call.data.get("duration", 0)
         device_ids = call.data.get("device_id", [])

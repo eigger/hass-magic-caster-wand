@@ -37,7 +37,7 @@ class BLEData:
 HOLD_DURATION_MS = 65535
 
 
-def _resolve_led_group(group_val: object) -> LedGroup:
+def resolve_led_group(group_val: object) -> LedGroup:
     """Resolve an LED group given either its index or its name."""
     if isinstance(group_val, LedGroup):
         return group_val
@@ -81,7 +81,7 @@ def build_macro(commands: list) -> Macro:
         try:
             if key == "changeled":
                 params = value or {}
-                group = _resolve_led_group(params.get("group", "TIP"))
+                group = resolve_led_group(params.get("group", "TIP"))
                 r, g, b = params.get("rgb", (255, 255, 255))
                 duration = int(params.get("duration", 800)) or HOLD_DURATION_MS
                 macro.add_led(group, int(r), int(g), int(b), _clamp_duration(duration, "changeled"))
@@ -660,6 +660,14 @@ class McbDevice:
         """Clear all LEDs."""
         if self.is_connected() and self._mcb:
             await self._mcb.led_off()
+
+    async def buzz(self, duration: int) -> None:
+        """Ignore vibration requests: the box has no vibration motor.
+
+        The vibrate service targets the whole integration, so a box can be
+        picked in the UI. Without this the call would raise AttributeError.
+        """
+        _LOGGER.debug("Ignoring vibrate request: the Magic Caster Box has no vibration motor")
 
 
 class McwBluetoothDeviceData(BluetoothData):

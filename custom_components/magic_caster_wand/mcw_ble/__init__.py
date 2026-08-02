@@ -24,7 +24,14 @@ else:
     from .macros import Macro, get_spell_macro
     from .mcb import LIDSTATE
     from .mcw import LedGroup
-    from .parser import BLEData, McbBluetoothDeviceData, McbDevice, McwBluetoothDeviceData, McwDevice
+    from .parser import (
+        BLEData,
+        McbBluetoothDeviceData,
+        McbDevice,
+        McwBluetoothDeviceData,
+        McwDevice,
+        resolve_led_group,
+    )
 
     __all__ = [
         "McwDevice",
@@ -35,5 +42,6 @@ else:
         "LedGroup",
         "Macro",
         "get_spell_macro",
+        "resolve_led_group",
         "LIDSTATE",
     ]
