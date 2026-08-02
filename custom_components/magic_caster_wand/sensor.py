@@ -1,5 +1,6 @@
 """Support for Magic Caster Wand BLE sensors."""
 
+from html import entities
 import logging
 
 from homeassistant.components.sensor import (
@@ -62,34 +63,37 @@ async def async_setup_entry(
 ) -> None:
     """Set up the Magic Caster Wand BLE sensors."""
     data = hass.data[DOMAIN][entry.entry_id]
-    spell_coordinator: DataUpdateCoordinator[str] = data["spell_coordinator"]
     battery_coordinator: DataUpdateCoordinator[float] = data["battery_coordinator"]
-    calibration_coordinator: DataUpdateCoordinator[dict[str, str]] = data["calibration_coordinator"]
     connection_coordinator: DataUpdateCoordinator[bool] = data["connection_coordinator"]
     address = data["address"]
-    mcw = data["mcw"]
+    device = data["device"]
+    device_type = data["type"]
 
-    entities = [
-        McwSpellSensor(address, mcw, spell_coordinator, connection_coordinator),
-        McwBatterySensor(address, mcw, battery_coordinator, connection_coordinator),
-        McwBatteryStateSensor(address, mcw, battery_coordinator, connection_coordinator),
-        McwSpellModeSensor(address, mcw, connection_coordinator),
-    ]
-
-    # Add calibration sensors
-    for sensor in CALIBRATION_SENSORS:
-        entities.append(
-            McwCalibrationSensor(
-                address=address,
-                mcw=mcw,
-                coordinator=calibration_coordinator,
-                connection_coordinator=connection_coordinator,
-                sensor_key=sensor["key"],
-                sensor_name=sensor["name"],
-                sensor_icon=sensor["icon"],
+    entities = []
+    if device_type == "mcw":
+        spell_coordinator: DataUpdateCoordinator[str] = data["spell_coordinator"]
+        calibration_coordinator: DataUpdateCoordinator[dict[str, str]] = data["calibration_coordinator"]
+        entities.extend([
+            McwSpellSensor(address, device, spell_coordinator, connection_coordinator),
+            McwSpellModeSensor(address, device, connection_coordinator),
+        ])
+        # Add calibration sensors
+        for sensor in CALIBRATION_SENSORS:
+            entities.append(
+                McwCalibrationSensor(
+                    address=address,
+                    mcw=device,
+                    coordinator=calibration_coordinator,
+                    connection_coordinator=connection_coordinator,
+                    sensor_key=sensor["key"],
+                    sensor_name=sensor["name"],
+                    sensor_icon=sensor["icon"],
+                )
             )
-        )
-
+    entities.extend([
+        McwBatterySensor(address, device, battery_coordinator, connection_coordinator),
+        McwBatteryStateSensor(address, device, battery_coordinator, connection_coordinator),
+    ])
     async_add_entities(entities)
 
 

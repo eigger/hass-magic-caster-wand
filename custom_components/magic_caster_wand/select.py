@@ -23,9 +23,11 @@ async def async_setup_entry(
     """Set up the Magic Caster Wand BLE select entity."""
     data = hass.data[DOMAIN][entry.entry_id]
     address = data["address"]
-    mcw: McwDevice = data["mcw"]
+    device = data["device"]
+    device_type = data["type"]
 
-    async_add_entities([McwCastingLedColorSelect(address, mcw)])
+    if device_type == "mcw":
+        async_add_entities([McwCastingLedColorSelect(address, device)])
 
 
 class McwCastingLedColorSelect(SelectEntity, RestoreEntity):

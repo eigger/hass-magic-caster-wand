@@ -19,15 +19,19 @@ def _running_imuvisualizer_via_m() -> bool:
 if _running_imuvisualizer_via_m():
     __all__ = []
 else:
-    from .parser import McwDevice, BLEData, McwBluetoothDeviceData
+    from .parser import McwDevice, McbDevice, BLEData, McwBluetoothDeviceData, McbBluetoothDeviceData
     from .mcw import LedGroup
+    from .mcb import LIDSTATE
     from .macros import Macro, get_spell_macro
 
     __all__ = [
         "McwDevice",
+        "McbDevice",
         "BLEData",
         "McwBluetoothDeviceData",
+        "McbBluetoothDeviceData",
         "LedGroup",
         "Macro",
         "get_spell_macro",
+        "LIDSTATE",
     ]

@@ -33,13 +33,15 @@ async def async_setup_entry(
     """Set up the Magic Caster Wand BLE camera."""
     data = hass.data[DOMAIN][entry.entry_id]
     address = data["address"]
-    mcw = data["mcw"]
-    imu_coordinator = data["imu_coordinator"]
-    buttons_coordinator = data["buttons_coordinator"]
-    spell_coordinator = data["spell_coordinator"]
-    connection_coordinator = data["connection_coordinator"]
+    device = data["device"]
+    device_type = data["type"]
 
-    async_add_entities([McwSpellCamera(hass, address, mcw, imu_coordinator, buttons_coordinator, spell_coordinator, connection_coordinator)])
+    if device_type == "mcw":
+        imu_coordinator = data["imu_coordinator"]
+        buttons_coordinator = data["buttons_coordinator"]
+        spell_coordinator = data["spell_coordinator"]
+        connection_coordinator = data["connection_coordinator"]
+        async_add_entities([McwSpellCamera(hass, address, device, imu_coordinator, buttons_coordinator, spell_coordinator, connection_coordinator)])
 
 
 class McwSpellCamera(CoordinatorEntity, Camera):

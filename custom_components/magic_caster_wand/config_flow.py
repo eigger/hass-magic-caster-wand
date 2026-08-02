@@ -6,7 +6,9 @@ from collections.abc import Mapping
 import dataclasses
 from typing import Any
 
-from .mcw_ble import McwBluetoothDeviceData as DeviceData
+from .mcw_ble import McwBluetoothDeviceData, McbBluetoothDeviceData
+DEVICE_TYPES = [McwBluetoothDeviceData, McbBluetoothDeviceData]
+
 import voluptuous as vol
 
 from homeassistant.components import onboarding
@@ -26,10 +28,10 @@ class Discovery:
 
     title: str
     discovery_info: BluetoothServiceInfoBleak
-    device: DeviceData
+    device: McwBluetoothDeviceData  | McbBluetoothDeviceData
 
 
-def _title(discovery_info: BluetoothServiceInfoBleak, device: DeviceData) -> str:
+def _title(discovery_info: BluetoothServiceInfoBleak, device: McwBluetoothDeviceData | McbBluetoothDeviceData) -> str:
     return device.title or device.get_device_name() or discovery_info.name
 
 
@@ -49,7 +51,7 @@ class McwConfigFlow(ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         """Initialize the config flow."""
         self._discovery_info: BluetoothServiceInfoBleak | None = None
-        self._discovered_device: DeviceData | None = None
+        self._discovered_device: McwBluetoothDeviceData | McbBluetoothDeviceData | None = None
         self._discovered_devices: dict[str, Discovery] = {}
 
     async def async_step_bluetooth(
@@ -58,17 +60,16 @@ class McwConfigFlow(ConfigFlow, domain=DOMAIN):
         """Handle the bluetooth discovery step."""
         await self.async_set_unique_id(discovery_info.address)
         self._abort_if_unique_id_configured()
-        device = DeviceData()
+        for device_cls in DEVICE_TYPES:
+            device = device_cls()
+            if device.supported(discovery_info):
+                title = _title(discovery_info, device)
+                self.context["title_placeholders"] = {"name": title}
+                self._discovery_info = discovery_info
+                self._discovered_device = device
+                return await self.async_step_bluetooth_confirm()
 
-        if not device.supported(discovery_info):
-            return self.async_abort(reason="not_supported")
-
-        title = _title(discovery_info, device)
-        self.context["title_placeholders"] = {"name": title}
-        self._discovery_info = discovery_info
-        self._discovered_device = device
-
-        return await self.async_step_bluetooth_confirm()
+        return self.async_abort(reason="not_supported")
 
     async def async_step_bluetooth_confirm(
         self, user_input: dict[str, Any] | None = None
@@ -105,13 +106,15 @@ class McwConfigFlow(ConfigFlow, domain=DOMAIN):
             address = discovery_info.address
             if address in current_addresses or address in self._discovered_devices:
                 continue
-            device = DeviceData()
-            if device.supported(discovery_info):
-                self._discovered_devices[address] = Discovery(
-                    title=_title(discovery_info, device),
-                    discovery_info=discovery_info,
-                    device=device,
-                )
+            for device_cls in DEVICE_TYPES:
+                device = device_cls()
+                if device.supported(discovery_info):
+                    self._discovered_devices[address] = Discovery(
+                        title=_title(discovery_info, device),
+                        discovery_info=discovery_info,
+                        device=device,
+                    )
+                    break
 
         if not self._discovered_devices:
             return self.async_abort(reason="no_devices_found")
@@ -129,7 +132,7 @@ class McwConfigFlow(ConfigFlow, domain=DOMAIN):
         self, entry_data: Mapping[str, Any]
     ) -> ConfigFlowResult:
         """Handle a flow initialized by a reauth event."""
-        device: DeviceData = entry_data["device"]
+        device: McwBluetoothDeviceData | McbBluetoothDeviceData = entry_data["device"]
         self._discovered_device = device
 
         self._discovery_info = device.last_service_info
@@ -143,6 +146,9 @@ class McwConfigFlow(ConfigFlow, domain=DOMAIN):
         data: dict[str, Any] = {}
         if bindkey:
             data["bindkey"] = bindkey
+
+        if self._discovered_device is not None:
+            data["device_type"] = self._discovered_device.device_type
 
         if self.source == SOURCE_REAUTH:
             return self.async_update_reload_and_abort(
