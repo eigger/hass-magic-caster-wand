@@ -21,7 +21,7 @@ from homeassistant.helpers.update_coordinator import (
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, MANUFACTURER, SIGNAL_SPELL_MODE_CHANGED
-from .mcw_ble import McwDevice
+from .mcw_ble import McbDevice, McwDevice
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -107,7 +107,7 @@ class McwBaseSensor(SensorEntity):
 
     _attr_has_entity_name = True
 
-    def __init__(self, address: str, mcw: McwDevice) -> None:
+    def __init__(self, address: str, mcw: McwDevice | McbDevice) -> None:
         """Initialize the base sensor."""
         self._address = address
         self._mcw = mcw
@@ -116,9 +116,12 @@ class McwBaseSensor(SensorEntity):
     @property
     def device_info(self) -> DeviceInfo:
         """Return device info."""
+        # The battery sensors are shared with the box, and sensor is the first
+        # platform to load, so this name is the one the device registry keeps.
+        device_label = "Wand" if isinstance(self._mcw, McwDevice) else "Box"
         return DeviceInfo(
             connections={(CONNECTION_BLUETOOTH, self._address)},
-            name=f"Magic Caster Wand {self._identifier}",
+            name=f"Magic Caster {device_label} {self._identifier}",
             manufacturer=MANUFACTURER,
             model=self._mcw.model if self._mcw else None,
         )

@@ -95,6 +95,57 @@ def test_string_rgb_and_duration_are_coerced():
     assert (cmd.red, cmd.green, cmd.blue, cmd.duration_ms) == (1, 2, 3, 400)
 
 
+# ── Durations must fit the 16-bit wire field ─────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "cmd",
+    [
+        {"changeled": {"duration": 70000}},
+        {"changeled": {"duration": -5}},
+        {"delay": 70000},
+        {"delay": -5},
+        {"buzz": 70000},
+        {"buzz": -5},
+    ],
+)
+def test_out_of_range_duration_still_produces_a_sendable_macro(cmd):
+    """Durations are packed as '<H'; an unclamped value raised struct.error at send
+    time, discarding the whole sequence instead of just the bad value."""
+    macro = build_macro([cmd])
+
+    macro.to_bytes()  # must not raise
+
+
+def test_out_of_range_duration_does_not_discard_neighbouring_commands():
+    macro = build_macro([{"clear": None}, {"delay": 999999}, {"wait": None}])
+
+    assert opcodes(macro) == [
+        MACROIDS.LIGHT_CONTROL_CLEAR_ALL,
+        MACROIDS.DELAY,
+        MACROIDS.WAIT_BUSY,
+    ]
+    macro.to_bytes()
+
+
+def test_duration_is_clamped_to_the_field_maximum():
+    macro = build_macro([{"changeled": {"duration": 70000}}])
+
+    assert macro.commands[0].duration_ms == HOLD_DURATION_MS
+
+
+def test_set_led_out_of_range_duration_is_sendable():
+    build_set_led_macro(LedGroup.TIP, 1, 2, 3, duration=70000).to_bytes()
+    build_set_led_macro(LedGroup.TIP, 1, 2, 3, duration=-5).to_bytes()
+
+
+def test_in_range_durations_are_untouched():
+    macro = build_macro([{"changeled": {"duration": 500}}, {"delay": 65535}])
+
+    assert macro.commands[0].duration_ms == 500
+    assert macro.commands[1].duration_ms == 65535
+
+
 # ── Malformed input is skipped, not fatal ────────────────────────────────────
 
 

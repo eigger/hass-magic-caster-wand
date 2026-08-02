@@ -46,6 +46,19 @@ def _resolve_led_group(group_val: object) -> LedGroup:
     return LedGroup[str(group_val).upper()]
 
 
+def _clamp_duration(duration: int, what: str) -> int:
+    """Fit a duration into the 16-bit field the wire format uses.
+
+    Durations are packed as '<H'. Without this, an out-of-range value raises
+    struct.error at send time -- after the macro has been built -- which would
+    discard the whole sequence rather than just the offending value.
+    """
+    clamped = max(0, min(HOLD_DURATION_MS, duration))
+    if clamped != duration:
+        _LOGGER.warning("%s duration %d ms out of range, using %d ms", what, duration, clamped)
+    return clamped
+
+
 def build_macro(commands: list) -> Macro:
     """Build a Macro from the command list accepted by the send_macro service.
 
@@ -71,13 +84,13 @@ def build_macro(commands: list) -> Macro:
                 group = _resolve_led_group(params.get("group", "TIP"))
                 r, g, b = params.get("rgb", (255, 255, 255))
                 duration = int(params.get("duration", 800)) or HOLD_DURATION_MS
-                macro.add_led(group, int(r), int(g), int(b), duration)
+                macro.add_led(group, int(r), int(g), int(b), _clamp_duration(duration, "changeled"))
             elif key == "clear":
                 macro.add_clear()
             elif key == "delay":
-                macro.add_delay(int(value))
+                macro.add_delay(_clamp_duration(int(value), "delay"))
             elif key == "buzz":
-                macro.add_buzz(int(value))
+                macro.add_buzz(_clamp_duration(int(value), "buzz"))
             elif key == "loop":
                 macro.add_loop()
             elif key == "set_loops":
@@ -99,7 +112,8 @@ def build_set_led_macro(group: LedGroup, r: int, g: int, b: int, duration: int =
     exactly that long. A duration of 0 holds the colour until it is cleared.
     """
     hold = duration == 0
-    macro = Macro().add_led(group, r, g, b, HOLD_DURATION_MS if hold else duration)
+    fade = HOLD_DURATION_MS if hold else _clamp_duration(duration, "set_led")
+    macro = Macro().add_led(group, r, g, b, fade)
     if not hold:
         macro.add_wait().add_clear()
     return macro
