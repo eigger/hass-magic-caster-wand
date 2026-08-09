@@ -1,13 +1,17 @@
 vibrate:
   name: Vibrate Wand
-  description: Vibrate Wand
+  description: >
+    Vibrate Wand. Note: Due to wand firmware behavior, single vibrate commands
+    fire a fixed ~800ms pulse regardless of requested duration.
   target:
     device:
       integration: magic_caster_wand
   fields:
     duration:
       name: Duration
-      description: Duration of vibrate in milliseconds
+      description: >
+        Duration of vibrate in milliseconds. Note: Wand firmware outputs a fixed ~800ms
+        pulse for single commands; sending buzz packets <500ms apart can extend the pulse.
       required: true
       default: 500
       selector:
