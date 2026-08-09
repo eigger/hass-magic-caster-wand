@@ -231,6 +231,19 @@ Real-time visualization of wand movements.
   </tr>
 </table>
 
+## Available Services
+
+This integration provides custom actions (services) to control the wand and box:
+
+- **`magic_caster_wand.vibrate`**: Triggers wand vibration motor.
+  - `duration`: Vibration duration in milliseconds.  
+    > [!NOTE]
+    > Due to wand firmware behavior, a single vibrate command produces a fixed ~800ms pulse regardless of the requested `duration` value. Sending repeated `buzz` macro commands less than 500ms apart can extend the continuous vibration pulse.
+- **`magic_caster_wand.set_led`**: Controls LED color and duration for a specific LED group (`TIP`, `MID_UPPER`, `MID_LOWER`, `POMMEL`).
+- **`magic_caster_wand.clear_leds`**: Clears all wand LEDs immediately.
+- **`magic_caster_wand.play_spell`**: Plays a pre-defined spell macro effect (e.g. `lumos`, `nox`, `incendio`).
+- **`magic_caster_wand.send_macro`**: Sends a custom sequence of macro commands (`changeled`, `clear`, `delay`, `buzz`, `set_loops`, `loop`, `wait`).
+
 ## Automation Example
 
 ```yaml
