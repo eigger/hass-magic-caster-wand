@@ -132,11 +132,11 @@ class McwSpellTrackingSwitch(CoordinatorEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool:
-        """Return true if IMU streaming is active.
+        """Return true if spell tracking is actually running.
 
         Read from the device rather than tracked here, so the switch cannot report
-        "on" while the wand is idle -- the state the reconnect path restores is the
-        same one shown in the UI.
+        "on" while no IMU samples are arriving -- if a reconnect fails to re-arm
+        streaming, this goes off and tells the user there is something to fix.
         """
         if self.coordinator.data is not True or not self._mcw:
             return False
@@ -151,7 +151,11 @@ class McwSpellTrackingSwitch(CoordinatorEntity, SwitchEntity):
         """Start IMU streaming."""
         if self._mcw and self.coordinator.data is True:
             await self._mcw.async_spell_tracker_init()
-            await self._mcw.imu_streaming_start()
+            try:
+                await self._mcw.imu_streaming_start()
+            except Exception as err:
+                # is_on reads the device, so it already reports off; say why.
+                _LOGGER.error("Failed to start spell tracking: %s", err)
             async_dispatcher_send(self._hass, SIGNAL_SPELL_MODE_CHANGED)
             self.async_write_ha_state()
         elif self.coordinator.data is not True:

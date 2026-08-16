@@ -146,6 +146,7 @@ class McwDevice:
         self._spell_timeout = spell_timeout
         self._spell_tracker: SpellTracker | None = None
         self._button_all_pressed: bool = False
+        self._imu_streaming: bool = False
         self._spell_reset_timeout_task: asyncio.Task[None] | None = None
         self._background_tasks: set[asyncio.Task] = set()
         self._casting_led_color: tuple[int, int, int] = (0, 0, 255)  # Default color: blue
@@ -230,12 +231,10 @@ class McwDevice:
         if self._coordinator_buttons:
             self._coordinator_buttons.async_set_updated_data(data)
 
-        # Handle spell tracking start/stop when using server-side detection
-        if (
-            self._spell_tracker is not None
-            and self._spell_tracker.detector is not None
-            and self._spell_tracker.detector.is_active
-        ):
+        # Handle spell tracking start/stop when using server-side detection.
+        # Gated on streaming being armed too: without IMU samples a cast can only
+        # ever fail recognition, so lighting the casting LED would promise nothing.
+        if self.spell_tracking_active:
             button_all = data.get("button_all", False)
 
             # Transition: not pressed -> pressed = start tracking
@@ -293,11 +292,7 @@ class McwDevice:
         if self._coordinator_imu:
             self._coordinator_imu.async_set_updated_data(data)
 
-        if (
-            self._spell_tracker is not None
-            and self._spell_tracker.detector is not None
-            and self._spell_tracker.detector.is_active
-        ):
+        if self.spell_tracking_active:
             for sample in data:
                 self._spell_tracker.update(
                     ax=sample["accel_y"],
@@ -308,11 +303,25 @@ class McwDevice:
                     gz=sample["gyro_z"],
                 )
 
+    def _reset_cast_state(self) -> None:
+        """Drop any in-flight cast so it cannot bleed across a reconnect.
+
+        Disconnecting mid-cast leaves the recording open and button_all latched
+        true. The wand reports buttons as released while disconnected, so without
+        this the next press is not seen as a transition (no cast starts), and the
+        samples from the interrupted cast would be prepended to the following one.
+        """
+        self._imu_streaming = False
+        self._button_all_pressed = False
+        if self._spell_tracker is not None:
+            self._spell_tracker.abort()
+
     def _on_disconnect(self, client: BleakClient) -> None:
         """Handle BLE device disconnection."""
         _LOGGER.debug("Disconnected from Magic Caster Wand")
         self.client = None
         self._mcw = None
+        self._reset_cast_state()
         if self._coordinator_connection:
             self._coordinator_connection.async_set_updated_data(False)
 
@@ -386,14 +395,25 @@ class McwDevice:
         the callbacks still fire and light the casting LED, but no IMU samples ever
         arrive, so every cast is recognized from a single position and silently
         discarded until the Spell Tracking switch is toggled off and on again.
+
+        A failure here must not be swallowed: reporting the wand as tracking while
+        it is not is the very state this method exists to prevent, so _imu_streaming
+        stays False and the Spell Tracking switch shows off, which is both truthful
+        and the thing the user can act on.
         """
-        if not self.spell_tracking_active or not self._mcw:
+        if not self.spell_tracking_wanted or not self._mcw:
             return
         try:
             await self._mcw.imu_streaming_start()
+            self._imu_streaming = True
             _LOGGER.debug("Resumed IMU streaming after connect")
         except Exception as err:
-            _LOGGER.warning("Failed to resume IMU streaming after connect: %s", err)
+            self._imu_streaming = False
+            _LOGGER.warning(
+                "Failed to resume IMU streaming after connect: %s. "
+                "Spell tracking is off until the Spell Tracking switch is toggled",
+                err,
+            )
 
     async def _cancel_background_tasks(self) -> None:
         """Cancel anything still running so it cannot outlive the config entry."""
@@ -411,6 +431,9 @@ class McwDevice:
     async def disconnect(self) -> None:
         """Disconnect from the BLE device."""
         await self._cancel_background_tasks()
+        # Before the client check: an explicit disconnect must clear the cast even
+        # if the link is already gone, and _on_disconnect does not always fire.
+        self._reset_cast_state()
 
         if self.client:
             try:
@@ -489,17 +512,32 @@ class McwDevice:
 
     @property
     def spell_detection_mode(self) -> str:
-        """Get the current spell detection mode."""
-        return "Server" if self.spell_tracking_active else "Wand"
+        """Get the current spell detection mode.
+
+        Follows intent rather than streaming state: which detector is configured
+        does not change just because a reconnect has yet to re-arm the stream.
+        """
+        return "Server" if self.spell_tracking_wanted else "Wand"
+
+    @property
+    def spell_tracking_wanted(self) -> bool:
+        """Whether spell tracking is meant to be running.
+
+        The detector session is owned by this object and survives a disconnect,
+        so this is the user's intent: it stays true across a reconnect and is what
+        decides whether streaming should be re-armed.
+        """
+        return self._spell_tracker is not None and self._spell_tracker.is_active
 
     @property
     def spell_tracking_active(self) -> bool:
-        """Whether spell tracking is running.
+        """Whether spell tracking is actually running.
 
-        This is the same flag the button and IMU callbacks gate on, so anything
-        reading it cannot drift out of sync with what those callbacks will do.
+        Intent alone is not enough -- IMU streaming is firmware state that a
+        reconnect clears and a failed resume never restores. Requiring both means
+        this cannot claim tracking while no samples are arriving.
         """
-        return self._spell_tracker is not None and self._spell_tracker.is_active
+        return self.spell_tracking_wanted and self._imu_streaming
 
     @property
     def server_reachable(self) -> bool:
@@ -530,9 +568,11 @@ class McwDevice:
         """Start IMU streaming."""
         if self.is_connected() and self._mcw:
             await self._mcw.imu_streaming_start()
+            self._imu_streaming = True
 
     async def imu_streaming_stop(self) -> None:
         """Stop IMU streaming."""
+        self._imu_streaming = False
         if self.is_connected() and self._mcw:
             await self._mcw.imu_streaming_stop()
 

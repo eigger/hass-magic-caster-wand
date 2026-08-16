@@ -167,6 +167,15 @@ class SpellTracker:
         )
         return None
 
+    def abort(self) -> None:
+        """Discard an in-flight recording without attempting recognition.
+
+        Used when a cast is interrupted rather than completed -- a disconnect
+        mid-gesture -- so the partial sample run cannot be carried into the next one.
+        """
+        self._state.tracking_active = 0
+        self._state.position_count = 0
+
     async def close(self) -> None:
         """Close the underlying detector."""
         if hasattr(self._detector, "close"):
