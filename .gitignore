@@ -8,3 +8,7 @@ pythonenv*
 venv
 .venv
 .pytest_cache
+
+# Local backups of the bundled model. These are hundreds of KB of binary and
+# have no business in the history.
+*.bak
