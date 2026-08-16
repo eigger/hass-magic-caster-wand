@@ -12,3 +12,8 @@ venv
 # Local backups of the bundled model. These are hundreds of KB of binary and
 # have no business in the history.
 *.bak
+
+# The model itself, for the same reason. It is served by the TFLite add-on
+# rather than shipped with the integration -- model_name is only what the
+# client asks the server for, so nothing here needs to track one.
+*.tflite
