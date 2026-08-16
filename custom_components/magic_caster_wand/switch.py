@@ -115,7 +115,6 @@ class McwSpellTrackingSwitch(CoordinatorEntity, SwitchEntity):
         self._identifier = address.replace(":", "")[-8:]
         self._attr_name = "Spell Tracking"
         self._attr_unique_id = f"mcw_{self._identifier}_spell_tracking"
-        self._is_on = False
 
     @property
     def available(self) -> bool:
@@ -133,10 +132,15 @@ class McwSpellTrackingSwitch(CoordinatorEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool:
-        """Return true if IMU streaming is active."""
-        if self.coordinator.data is not True:
+        """Return true if spell tracking is actually running.
+
+        Read from the device rather than tracked here, so the switch cannot report
+        "on" while no IMU samples are arriving -- if a reconnect fails to re-arm
+        streaming, this goes off and tells the user there is something to fix.
+        """
+        if self.coordinator.data is not True or not self._mcw:
             return False
-        return self._is_on
+        return self._mcw.spell_tracking_active
 
     @property
     def icon(self) -> str:
@@ -147,8 +151,11 @@ class McwSpellTrackingSwitch(CoordinatorEntity, SwitchEntity):
         """Start IMU streaming."""
         if self._mcw and self.coordinator.data is True:
             await self._mcw.async_spell_tracker_init()
-            await self._mcw.imu_streaming_start()
-            self._is_on = True
+            try:
+                await self._mcw.imu_streaming_start()
+            except Exception as err:
+                # is_on reads the device, so it already reports off; say why.
+                _LOGGER.error("Failed to start spell tracking: %s", err)
             async_dispatcher_send(self._hass, SIGNAL_SPELL_MODE_CHANGED)
             self.async_write_ha_state()
         elif self.coordinator.data is not True:
@@ -159,7 +166,9 @@ class McwSpellTrackingSwitch(CoordinatorEntity, SwitchEntity):
         if self._mcw:
             if self.coordinator.data is True:
                 await self._mcw.imu_streaming_stop()
-                await self._mcw.async_spell_tracker_close()
-            self._is_on = False
+            # Closing the tracker session is what clears the tracking state, so it
+            # must happen even while disconnected -- otherwise the switch would stay
+            # on and the next connect would re-arm streaming the user just stopped.
+            await self._mcw.async_spell_tracker_close()
             async_dispatcher_send(self._hass, SIGNAL_SPELL_MODE_CHANGED)
             self.async_write_ha_state()

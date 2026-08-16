@@ -149,10 +149,32 @@ class SpellTracker:
         self._state.position_count = 1
         self._state.tracking_active = 1
 
+    _RECOGNITION_ERRORS = {
+        -1: "no movement detected",
+        -2: "not enough data points",
+        -3: "no spell recognized with sufficient confidence",
+        -4: "no detector configured",
+    }
+
     async def stop(self) -> str | None:
         self._state.tracking_active = 0
         result = await self._recognize_spell()
-        return result if isinstance(result, str) else None
+        if isinstance(result, str):
+            return result
+        _LOGGER.debug(
+            "Spell recognition failed: %s",
+            self._RECOGNITION_ERRORS.get(result, f"unknown error {result}"),
+        )
+        return None
+
+    def abort(self) -> None:
+        """Discard an in-flight recording without attempting recognition.
+
+        Used when a cast is interrupted rather than completed -- a disconnect
+        mid-gesture -- so the partial sample run cannot be carried into the next one.
+        """
+        self._state.tracking_active = 0
+        self._state.position_count = 0
 
     async def close(self) -> None:
         """Close the underlying detector."""
