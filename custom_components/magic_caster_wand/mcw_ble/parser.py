@@ -355,6 +355,7 @@ class McwDevice:
             )
             await self._mcw.start_notify()
             await self._refresh_model()
+            await self._resume_imu_streaming()
 
             _LOGGER.debug("Connected to Magic Caster Wand: %s, %s", ble_device.address, self.model)
             if self._coordinator_connection:
@@ -375,6 +376,24 @@ class McwDevice:
             return
         await self._mcw.init_wand()
         self.model = await self._mcw.get_wand_device_id()
+
+    async def _resume_imu_streaming(self) -> None:
+        """Re-arm IMU streaming if spell tracking is meant to be running.
+
+        IMU streaming is firmware state that dies with the connection, while the
+        detector session that gates the button and IMU callbacks is owned by this
+        object and outlives it. Without this, a reconnect leaves the two disagreeing:
+        the callbacks still fire and light the casting LED, but no IMU samples ever
+        arrive, so every cast is recognized from a single position and silently
+        discarded until the Spell Tracking switch is toggled off and on again.
+        """
+        if not self.spell_tracking_active or not self._mcw:
+            return
+        try:
+            await self._mcw.imu_streaming_start()
+            _LOGGER.debug("Resumed IMU streaming after connect")
+        except Exception as err:
+            _LOGGER.warning("Failed to resume IMU streaming after connect: %s", err)
 
     async def _cancel_background_tasks(self) -> None:
         """Cancel anything still running so it cannot outlive the config entry."""
@@ -471,10 +490,16 @@ class McwDevice:
     @property
     def spell_detection_mode(self) -> str:
         """Get the current spell detection mode."""
-        if self._spell_tracker is not None:
-            if self._spell_tracker.is_active:
-                return "Server"
-        return "Wand"
+        return "Server" if self.spell_tracking_active else "Wand"
+
+    @property
+    def spell_tracking_active(self) -> bool:
+        """Whether spell tracking is running.
+
+        This is the same flag the button and IMU callbacks gate on, so anything
+        reading it cannot drift out of sync with what those callbacks will do.
+        """
+        return self._spell_tracker is not None and self._spell_tracker.is_active
 
     @property
     def server_reachable(self) -> bool:
