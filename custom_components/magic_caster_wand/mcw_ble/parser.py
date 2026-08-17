@@ -317,7 +317,19 @@ class McwDevice:
             self._spell_tracker.abort()
 
     def _on_disconnect(self, client: BleakClient) -> None:
-        """Handle BLE device disconnection."""
+        """Handle BLE device disconnection.
+
+        Callbacks from a superseded connection are ignored. bleak dispatches this
+        through the event loop, so a quick reconnect can install a new client before
+        the old link's callback runs. Acting on that late callback would tear down
+        the connection that replaced it -- dropping _mcw and _imu_streaming while the
+        wand is connected and streaming, which reads as the wand being live but spell
+        tracking silently doing nothing until the switch is toggled.
+        """
+        if client is not self.client:
+            _LOGGER.debug("Ignoring disconnect callback from a superseded connection")
+            return
+
         _LOGGER.debug("Disconnected from Magic Caster Wand")
         self.client = None
         self._mcw = None
@@ -665,7 +677,16 @@ class McbDevice:
             self._coordinator_charge.async_set_updated_data(data)
 
     def _on_disconnect(self, client: BleakClient) -> None:
-        """Handle BLE device disconnection."""
+        """Handle BLE device disconnection.
+
+        Ignores callbacks from a superseded connection, for the same reason as the
+        wand: a late callback would otherwise clear _mcb and mark the box offline
+        while it is in fact connected.
+        """
+        if client is not self.client:
+            _LOGGER.debug("Ignoring disconnect callback from a superseded connection")
+            return
+
         _LOGGER.debug("Disconnected from Magic Caster Box")
         self.client = None
         self._mcb = None

@@ -4,14 +4,19 @@ IMU streaming is firmware state that dies with the connection, while the detecto
 session that gates the button and IMU callbacks outlives it. These tests pin the
 two together: a reconnect must re-arm streaming when tracking was on, must not
 when it was off, and must not claim to be tracking when re-arming failed.
+
+They also cover the ordering hazard on a quick reconnect: bleak dispatches the
+disconnect callback through the event loop, so the old link's callback can arrive
+after a new connection is already up, and must not tear it down.
 """
 
 import asyncio
+from unittest.mock import MagicMock
 
 import pytest
 
 from custom_components.magic_caster_wand.mcw_ble import parser
-from custom_components.magic_caster_wand.mcw_ble.parser import McwDevice
+from custom_components.magic_caster_wand.mcw_ble.parser import McbDevice, McwDevice
 
 
 class FakeClient:
@@ -313,6 +318,115 @@ def test_a_cast_works_normally_after_reconnecting():
 
     assert device._button_all_pressed is True, "the press must register as a new cast"
     assert device._spell_tracker._state.tracking_active == 1
+
+
+# ── A late disconnect callback must not tear down the new connection ─────────
+
+
+def test_superseded_disconnect_callback_is_ignored():
+    """bleak dispatches the disconnect callback through the event loop, so a quick
+    reconnect can install a new client before the old link's callback runs. Acting
+    on it then would clear the state of the connection that replaced it."""
+    device = make_device(tracking_wanted=True)
+    old_client = device.client
+    asyncio.run(device._resume_imu_streaming())
+
+    # Reconnect lands first: new client, new protocol client, streaming re-armed.
+    device.client = FakeClient()
+    device._mcw = FakeMcwClient()
+    asyncio.run(device._resume_imu_streaming())
+
+    device._on_disconnect(old_client)  # the old link's callback, arriving late
+
+    assert device.client is not None, "the live connection must survive"
+    assert device._mcw is not None, "clearing this would break buzz, LEDs and macros"
+    assert device.spell_tracking_active is True, "streaming is armed on the new link"
+
+
+def test_superseded_disconnect_callback_does_not_report_offline():
+    """The connection coordinator drives entity availability, so a stale False
+    would mark a live wand unavailable."""
+    device = make_device(tracking_wanted=True)
+    old_client = device.client
+    coordinator = MagicMock()
+    device._coordinator_connection = coordinator
+    device.client = FakeClient()
+
+    device._on_disconnect(old_client)
+
+    coordinator.async_set_updated_data.assert_not_called()
+
+
+def test_superseded_disconnect_callback_does_not_abort_a_live_cast():
+    """A cast in flight on the new connection must not be discarded by the old
+    connection's callback."""
+    device = make_device(tracking_wanted=True)
+    old_client = device.client
+    device.client = FakeClient()
+    device._mcw = FakeMcwClient()
+    asyncio.run(device._resume_imu_streaming())
+    press_all_buttons(device)
+    feed_imu(device, 5)
+
+    device._on_disconnect(old_client)
+
+    assert device._button_all_pressed is True, "the press is still held on the live link"
+    assert device._spell_tracker._state.tracking_active == 1, "the recording must stay open"
+    assert device._spell_tracker._state.position_count > 1, "samples must not be discarded"
+
+
+def test_disconnect_callback_for_the_current_client_still_applies():
+    """The guard must not swallow the real thing."""
+    device = make_device(tracking_wanted=True)
+    asyncio.run(device._resume_imu_streaming())
+
+    device._on_disconnect(device.client)
+
+    assert device.client is None
+    assert device._mcw is None
+    assert device._imu_streaming is False
+
+
+def test_disconnect_callback_after_an_explicit_disconnect_is_ignored():
+    """disconnect() clears the client, so the callback it triggers arrives with
+    self.client already None and must not be mistaken for a live connection."""
+    device = make_device(tracking_wanted=True)
+    old_client = device.client
+    coordinator = MagicMock()
+    asyncio.run(device.disconnect())
+    device._coordinator_connection = coordinator
+    device.client = FakeClient()  # a reconnect that beat the callback
+    device._mcw = FakeMcwClient()
+
+    device._on_disconnect(old_client)
+
+    assert device.client is not None
+    coordinator.async_set_updated_data.assert_not_called()
+
+
+def test_box_ignores_a_superseded_disconnect_callback():
+    """McbDevice has the identical shape and the identical exposure."""
+    device = McbDevice("AA:BB:CC:DD:EE:FF")
+    old_client = FakeClient()
+    device.client = old_client
+    device._mcb = object()
+
+    device.client = FakeClient()  # reconnected before the callback ran
+    device._on_disconnect(old_client)
+
+    assert device.client is not None
+    assert device._mcb is not None
+
+
+def test_box_disconnect_callback_for_the_current_client_still_applies():
+    device = McbDevice("AA:BB:CC:DD:EE:FF")
+    device.client = FakeClient()
+    device._mcb = object()
+
+    device._on_disconnect(device.client)
+
+    assert device.client is None
+    assert device._mcb is None
 
 
 # ── Streaming state tracks the explicit start/stop calls ─────────────────────
