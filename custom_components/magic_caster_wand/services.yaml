@@ -4,7 +4,7 @@ vibrate:
     Vibrate Wand. Note: Due to wand firmware behavior, single vibrate commands
     fire a fixed ~800ms pulse regardless of requested duration.
   target:
-    device:
+    entity:
       integration: magic_caster_wand
   fields:
     duration:
@@ -24,7 +24,7 @@ set_led:
   name: Set LED
   description: Set the color of a specific LED group on the wand.
   target:
-    device:
+    entity:
       integration: magic_caster_wand
   fields:
     group:
@@ -70,7 +70,7 @@ send_macro:
     vibration, loop markers, loop counts, and wait instructions. The box has a
     single LED group (TIP) and no vibration motor, so buzz is ignored there.
   target:
-    device:
+    entity:
       integration: magic_caster_wand
   fields:
     commands:
@@ -118,14 +118,14 @@ clear_leds:
   name: Clear LEDs
   description: Turn off all LEDs on the wand.
   target:
-    device:
+    entity:
       integration: magic_caster_wand
 
 play_spell:
   name: Play Spell Effect
   description: Play a pre-defined spell macro effect.
   target:
-    device:
+    entity:
       integration: magic_caster_wand
   fields:
     spell:

@@ -97,7 +97,7 @@ def test_set_led_group_rejects_nonsense(value):
 
 def test_selector_options_all_resolve():
     """Every option offered in services.yaml must map to a real LED group."""
-    text = (COMPONENT / "services.yaml").read_text()
+    text = (COMPONENT / "services.yaml").read_text(encoding="utf-8")
     options = [line.split("value:")[1].strip() for line in text.splitlines() if "value:" in line]
 
     assert options, "no selector options found in services.yaml"

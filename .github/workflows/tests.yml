@@ -13,7 +13,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v5
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -31,14 +31,15 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    needs: lint
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.12", "3.13", "3.14"]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v5
 
-      - name: Set up Python
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
@@ -47,9 +48,9 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install pytest
-          python -c "import json; print('\\n'.join(json.load(open('custom_components/magic_caster_wand/manifest.json'))['requirements']))" > requirements.txt
+          python -c "import json; print('\n'.join(json.load(open('custom_components/magic_caster_wand/manifest.json'))['requirements']))" > requirements.txt
           pip install -r requirements.txt
 
       - name: Run tests
         run: |
-          python -m pytest tests/
+          python -m pytest tests/ -v
