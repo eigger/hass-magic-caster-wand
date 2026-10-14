@@ -170,8 +170,13 @@ def test_box_notification_setup_continues_when_initial_battery_read_fails(monkey
     calls = []
 
     class Client:
+        is_connected = True
+
         async def start_notify(self, *args):
             calls.append("start_notify")
+
+        async def stop_notify(self, *args):
+            calls.append("stop_notify")
 
         async def read_gatt_char(self, *args):
             raise RuntimeError("battery read failed")
@@ -189,14 +194,23 @@ def test_box_notification_setup_continues_when_initial_battery_read_fails(monkey
     protocol.request_lid_notifications = lambda: record_request("lid")
     protocol.request_lid_status = lambda: record_request("status")
 
-    asyncio.run(protocol.start_notify())
+    async def lifecycle():
+        await protocol.start_notify()
+        await protocol.stop_notify()
 
-    assert calls == ["start_notify", "start_notify", "box", "charge", "lid", "status"]
+    asyncio.run(lifecycle())
+
+    assert calls == ["start_notify", "start_notify", "box", "charge", "lid", "status", "stop_notify", "stop_notify"]
 
 
 def test_box_notification_setup_propagates_required_state_request_failure(monkeypatch):
     class Client:
+        is_connected = True
+
         async def start_notify(self, *args):
+            pass
+
+        async def stop_notify(self, *args):
             pass
 
         async def read_gatt_char(self, *args):
@@ -212,8 +226,12 @@ def test_box_notification_setup_propagates_required_state_request_failure(monkey
     protocol = mcb.McbClient(Client())
     protocol.request_box_notifications = fail_request
 
-    with pytest.raises(RuntimeError, match="box state request failed"):
-        asyncio.run(protocol.start_notify())
+    async def lifecycle():
+        with pytest.raises(RuntimeError, match="box state request failed"):
+            await protocol.start_notify()
+        await protocol.stop_notify()
+
+    asyncio.run(lifecycle())
 
 
 @pytest.mark.parametrize(("device_cls", "client_name"), [(McwDevice, "McwClient"), (McbDevice, "McbClient")])

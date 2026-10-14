@@ -13,6 +13,7 @@ from typing import Any, Callable, TypeVar
 from bleak import BleakClient, BleakError
 
 from .macros import LedGroup, Macro
+from .notification_dispatcher import NotificationDispatcher
 
 SERVICE_UUID = "57420001-587e-48a0-974c-54686f72c577"
 COMMAND_UUID = "57420002-587e-48a0-974c-54686f72c577"
@@ -178,6 +179,7 @@ class McbClient:
         self._box_serial_number: str | None = None
         self._box_sku: str | None = None
         self._box_type: str | None = None
+        self._notification_dispatcher: NotificationDispatcher | None = None
 
     def is_connected(self) -> bool:
         """Check if client is connected."""
@@ -200,8 +202,15 @@ class McbClient:
     @disconnect_on_missing_services
     async def start_notify(self) -> None:
         """Start receiving notifications."""
-        await self.client.start_notify(NOTIFY_UUID, self._handler)
-        await self.client.start_notify(BATTERY_UUID, self._handler_battery)
+        if self._notification_dispatcher is None:
+            self._notification_dispatcher = NotificationDispatcher(
+                self.client,
+                {
+                    NOTIFY_UUID: self._handler,
+                    BATTERY_UUID: self._handler_battery,
+                },
+            )
+        await self._notification_dispatcher.start()
         await sleep(1.0)
 
         # A battery read is best-effort; it must not prevent the required state
@@ -228,8 +237,8 @@ class McbClient:
     async def stop_notify(self) -> None:
         """Stop receiving notifications."""
         try:
-            await self.client.stop_notify(NOTIFY_UUID)
-            await self.client.stop_notify(BATTERY_UUID)
+            if self._notification_dispatcher is not None:
+                await self._notification_dispatcher.stop()
         except Exception as err:
             _LOGGER.debug("Error stopping notifications: %s", err)
 
