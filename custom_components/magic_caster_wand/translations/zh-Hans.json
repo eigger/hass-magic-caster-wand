@@ -1,0 +1,195 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "description": "选择要设置的设备",
+        "data": {
+          "address": "设备"
+        }
+      },
+      "bluetooth_confirm": {
+        "description": "要设置 {name} 吗？"
+      }
+    },
+    "abort": {
+      "no_devices_found": "未发现设备",
+      "already_in_progress": "设置已在进行中",
+      "already_configured": "设备已配置",
+      "not_supported": "不支持此设备",
+      "reauth_successful": "重新认证成功",
+      "cannot_connect": "连接失败",
+      "unknown": "意外错误"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "配置 Magic Caster Wand",
+        "description": "配置用于咒语检测的 TFLite 服务器 URL 和超时时间。",
+        "data": {
+          "tflite_url": "TFLite 服务器 URL",
+          "spell_timeout": "咒语超时（秒）"
+        },
+        "data_description": {
+          "spell_timeout": "检测到的咒语恢复为等待状态前的秒数。设为 0 可禁用超时。"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "spell": {
+        "name": "咒语"
+      },
+      "battery": {
+        "name": "电池"
+      },
+      "battery_state": {
+        "name": "电池状态"
+      },
+      "spell_mode": {
+        "name": "咒语检测模式"
+      },
+      "calibration_button": {
+        "name": "按键校准"
+      },
+      "calibration_imu": {
+        "name": "IMU 校准"
+      },
+      "ble_connection_duration": {
+        "name": "BLE 连接时长"
+      },
+      "ble_last_operation": {
+        "name": "最近的 BLE 操作"
+      },
+      "ble_failure_count": {
+        "name": "BLE 失败次数"
+      },
+      "ble_last_failure": {
+        "name": "最近一次 BLE 失败"
+      }
+    },
+    "binary_sensor": {
+      "button_1": {
+        "name": "按键 1"
+      },
+      "button_2": {
+        "name": "按键 2"
+      },
+      "button_3": {
+        "name": "按键 3"
+      },
+      "button_4": {
+        "name": "按键 4"
+      },
+      "connected": {
+        "name": "已连接"
+      },
+      "lid": {
+        "name": "盖子"
+      },
+      "usb_plugged": {
+        "name": "USB 已连接"
+      },
+      "wand_present": {
+        "name": "魔杖已放置"
+      }
+    },
+    "button": {
+      "calibration_button": {
+        "name": "按键校准"
+      },
+      "calibration_imu": {
+        "name": "IMU 校准"
+      }
+    },
+    "switch": {
+      "connect": {
+        "name": "连接"
+      },
+      "spell_tracking": {
+        "name": "咒语追踪"
+      }
+    },
+    "select": {
+      "casting_led_color": {
+        "name": "施法 LED 颜色"
+      }
+    },
+    "text": {
+      "alias": {
+        "name": "别名"
+      }
+    },
+    "camera": {
+      "spell_canvas": {
+        "name": "咒语画布"
+      }
+    }
+  },
+  "services": {
+    "vibrate": {
+      "name": "魔杖振动",
+      "description": "使魔杖振动，单次命令会产生约 800 毫秒的固定脉冲。",
+      "fields": {
+        "duration": {
+          "name": "持续时间",
+          "description": "请求的振动时长（毫秒）。"
+        }
+      }
+    },
+    "set_led": {
+      "name": "设置 LED",
+      "description": "设置指定 LED 组的颜色。",
+      "fields": {
+        "group": {
+          "name": "LED 组",
+          "description": "要控制的 LED 组。"
+        },
+        "rgb_color": {
+          "name": "RGB 颜色",
+          "description": "RGB 格式的颜色。"
+        },
+        "duration": {
+          "name": "持续时间",
+          "description": "灯光持续时间（毫秒），设为 0 表示常亮。"
+        }
+      }
+    },
+    "send_macro": {
+      "name": "发送宏",
+      "description": "向魔杖或盒子按顺序发送宏命令。",
+      "fields": {
+        "commands": {
+          "name": "宏命令",
+          "description": "命令对象列表。changeled 使用 group（TIP、MID_UPPER、MID_LOWER、POMMEL 或 0–3）、rgb（[R,G,B]，每个通道 0–255）和 duration（毫秒，最大 65535）。clear 关闭所有 LED；delay 使用 delay（毫秒），buzz 使用 buzz（毫秒）。set_loops 设置 1–255 次循环；loop 结束循环块，wait 等待之前的命令完成。"
+        }
+      }
+    },
+    "clear_leds": {
+      "name": "关闭 LED",
+      "description": "关闭魔杖上的所有 LED。"
+    },
+    "play_spell": {
+      "name": "播放咒语效果",
+      "description": "播放预定义的咒语宏效果。",
+      "fields": {
+        "spell": {
+          "name": "咒语",
+          "description": "要播放的咒语效果。"
+        }
+      }
+    }
+  },
+  "selector": {
+    "led_group": {
+      "options": {
+        "tip": "尖端",
+        "pommel": "手柄末端",
+        "mid_lower": "中部下方",
+        "mid_upper": "中部上方"
+      }
+    }
+  }
+}

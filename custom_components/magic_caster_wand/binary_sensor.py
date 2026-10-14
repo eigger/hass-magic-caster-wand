@@ -99,7 +99,7 @@ class McwButtonBinarySensor(
         self._identifier = address.replace(":", "")[-8:]
         self._button_key = button_key
 
-        self._attr_name = button_name
+        self._attr_translation_key = button_key
         self._attr_unique_id = f"mcw_{self._identifier}_{button_key}"
         self._is_on = False
 
@@ -170,7 +170,7 @@ class McwConnectionBinarySensor(
         self._device = device
         self._identifier = address.replace(":", "")[-8:]
 
-        self._attr_name = "Connected"
+        self._attr_translation_key = "connected"
         self._attr_unique_id = f"mcw_{self._identifier}_connected"
 
     @property
@@ -207,7 +207,7 @@ class McbBaseBinarySensor(CoordinatorEntity[DataUpdateCoordinator[bool]], Binary
         self._identifier = address.replace(":", "")[-8:]
         # Same shape as every other entity in the integration, box included.
         self._attr_unique_id = f"mcw_{self._identifier}_{key}"
-        self._attr_name = name
+        self._attr_translation_key = key
         self._key = key
         self._connection_coordinator = connection_coordinator
 

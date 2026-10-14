@@ -1,50 +1,195 @@
 {
-    "config": {
-        "abort": {
-            "already_configured": "Device is already configured",
-            "already_in_progress": "Configuration flow is already in progress",
-            "cannot_connect": "Failed to connect",
-            "no_devices_found": "No devices found",
-            "unknown": "Unexpected error"
-        },
-        "flow_title": "{name}",
-        "step": {
-            "bluetooth_confirm": {
-                "description": "Do you want to set up {name}?"
-            },
-            "user": {
-                "data": {
-                    "address": "Device",
-                    "use_sound": "Use Sound",
-                    "scan_interval": "Scan Interval",
-                    "wait_between_each_print_line": "Wait time between print lines",
-                    "confirm_every_nth_print_line": "How often to confirm reception of print lines"
-                },
-                "description": "Choose a device to set up"
-            }
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "description": "Choose a device to set up",
+        "data": {
+          "address": "Device"
         }
+      },
+      "bluetooth_confirm": {
+        "description": "Do you want to set up {name}?"
+      }
     },
-    "options": {
-        "flow_title": "{name}",
-        "step": {
-            "init": {
-                "data": {
-                    "tflite_url": "TFLite Server URL",
-                    "spell_timeout": "Spell Timeout (seconds)"
-                },
-                "data_description": {
-                    "spell_timeout": "Time in seconds before a detected spell resets to awaiting. Set to 0 to disable timeout."
-                },
-                "description": "Configure the TFLite server URL for spell detection and spell timeout."
-            }
-        }
-    },
-    "entity": {
-        "sensor": {
-            "ble_connection_duration": {"name": "BLE Connection Duration"},
-            "ble_last_operation": {"name": "BLE Last Operation"},
-            "ble_failure_count": {"name": "BLE Failure Count"},
-            "ble_last_failure": {"name": "BLE Last Failure"}
-        }
+    "abort": {
+      "no_devices_found": "No devices found",
+      "already_in_progress": "Configuration flow is already in progress",
+      "already_configured": "Device is already configured",
+      "not_supported": "Device is not supported",
+      "reauth_successful": "Reauthentication successful",
+      "cannot_connect": "Failed to connect",
+      "unknown": "Unexpected error"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Magic Caster Wand Configuration",
+        "description": "Configure the TFLite server URL for spell detection and spell timeout.",
+        "data": {
+          "tflite_url": "TFLite Server URL",
+          "spell_timeout": "Spell Timeout (seconds)"
+        },
+        "data_description": {
+          "spell_timeout": "Time in seconds before a detected spell resets to awaiting. Set to 0 to disable timeout."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "spell": {
+        "name": "Spell"
+      },
+      "battery": {
+        "name": "Battery"
+      },
+      "battery_state": {
+        "name": "Battery State"
+      },
+      "spell_mode": {
+        "name": "Spell Detection Mode"
+      },
+      "calibration_button": {
+        "name": "Calibration Button"
+      },
+      "calibration_imu": {
+        "name": "Calibration IMU"
+      },
+      "ble_connection_duration": {
+        "name": "BLE Connection Duration"
+      },
+      "ble_last_operation": {
+        "name": "BLE Last Operation"
+      },
+      "ble_failure_count": {
+        "name": "BLE Failure Count"
+      },
+      "ble_last_failure": {
+        "name": "BLE Last Failure"
+      }
+    },
+    "binary_sensor": {
+      "button_1": {
+        "name": "Button 1"
+      },
+      "button_2": {
+        "name": "Button 2"
+      },
+      "button_3": {
+        "name": "Button 3"
+      },
+      "button_4": {
+        "name": "Button 4"
+      },
+      "connected": {
+        "name": "Connected"
+      },
+      "lid": {
+        "name": "Lid"
+      },
+      "usb_plugged": {
+        "name": "USB Plugged"
+      },
+      "wand_present": {
+        "name": "Wand"
+      }
+    },
+    "button": {
+      "calibration_button": {
+        "name": "Calibration Button"
+      },
+      "calibration_imu": {
+        "name": "Calibration IMU"
+      }
+    },
+    "switch": {
+      "connect": {
+        "name": "Connect"
+      },
+      "spell_tracking": {
+        "name": "Spell Tracking"
+      }
+    },
+    "select": {
+      "casting_led_color": {
+        "name": "Casting LED Color"
+      }
+    },
+    "text": {
+      "alias": {
+        "name": "Alias"
+      }
+    },
+    "camera": {
+      "spell_canvas": {
+        "name": "Spell Canvas"
+      }
+    }
+  },
+  "services": {
+    "vibrate": {
+      "name": "Vibrate Wand",
+      "description": "Vibrate the wand. A single command produces a fixed pulse of about 800 ms, regardless of the requested duration.",
+      "fields": {
+        "duration": {
+          "name": "Duration",
+          "description": "Requested vibration duration in milliseconds. Closely spaced commands may extend the firmware pulse."
+        }
+      }
+    },
+    "set_led": {
+      "name": "Set LED",
+      "description": "Set the color of a specific LED group on the wand.",
+      "fields": {
+        "group": {
+          "name": "LED Group",
+          "description": "The LED group to control."
+        },
+        "rgb_color": {
+          "name": "RGB Color",
+          "description": "The color in RGB format."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "Light duration in milliseconds. Use 0 for permanent."
+        }
+      }
+    },
+    "send_macro": {
+      "name": "Send Macro",
+      "description": "Send a sequence of macro commands to a wand or box. Commands run in order and can change LEDs, wait, vibrate, and define loops. The box has one LED group (TIP) and no vibration motor.",
+      "fields": {
+        "commands": {
+          "name": "Macro Commands",
+          "description": "A list of command objects. Supported keys: changeled (group, rgb, duration), clear, delay (delay), buzz (buzz), set_loops (1–255), loop, and wait. LED groups: TIP, MID_UPPER, MID_LOWER, POMMEL (or 0–3). RGB channels range from 0 to 255; duration is in milliseconds."
+        }
+      }
+    },
+    "clear_leds": {
+      "name": "Clear LEDs",
+      "description": "Turn off all LEDs on the wand."
+    },
+    "play_spell": {
+      "name": "Play Spell Effect",
+      "description": "Play a predefined spell macro effect.",
+      "fields": {
+        "spell": {
+          "name": "Spell",
+          "description": "The spell effect to play."
+        }
+      }
+    }
+  },
+  "selector": {
+    "led_group": {
+      "options": {
+        "tip": "Tip",
+        "pommel": "Pommel",
+        "mid_lower": "Mid Lower",
+        "mid_upper": "Mid Upper"
+      }
+    }
+  }
 }

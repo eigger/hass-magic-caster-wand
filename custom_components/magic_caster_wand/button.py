@@ -95,7 +95,7 @@ class McwButtonCalibration(McwBaseCalibrationButton):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._attr_name = "Calibration Button"
+        self._attr_translation_key = "calibration_button"
         self._attr_unique_id = f"mcw_{self._identifier}_calibration_button"
         self._attr_icon = "mdi:gesture-tap-button"
 
@@ -115,7 +115,7 @@ class McwImuCalibration(McwBaseCalibrationButton):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._attr_name = "Calibration IMU"
+        self._attr_translation_key = "calibration_imu"
         self._attr_unique_id = f"mcw_{self._identifier}_calibration_imu"
         self._attr_icon = "mdi:compass-outline"
 

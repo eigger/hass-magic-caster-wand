@@ -1,0 +1,195 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "description": "Gerät zur Einrichtung auswählen",
+        "data": {
+          "address": "Gerät"
+        }
+      },
+      "bluetooth_confirm": {
+        "description": "Möchtest du {name} einrichten?"
+      }
+    },
+    "abort": {
+      "no_devices_found": "Keine Geräte gefunden",
+      "already_in_progress": "Einrichtung läuft bereits",
+      "already_configured": "Gerät ist bereits eingerichtet",
+      "not_supported": "Gerät wird nicht unterstützt",
+      "reauth_successful": "Erneute Authentifizierung erfolgreich",
+      "cannot_connect": "Verbindung fehlgeschlagen",
+      "unknown": "Unerwarteter Fehler"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Magic Caster Wand konfigurieren",
+        "description": "TFLite-Server-URL und Zeitlimit für die Zaubererkennung konfigurieren.",
+        "data": {
+          "tflite_url": "TFLite-Server-URL",
+          "spell_timeout": "Zauber-Zeitlimit (Sekunden)"
+        },
+        "data_description": {
+          "spell_timeout": "Zeit bis ein erkannter Zauber auf Warten zurückgesetzt wird. 0 deaktiviert das Zeitlimit."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "spell": {
+        "name": "Zauber"
+      },
+      "battery": {
+        "name": "Akku"
+      },
+      "battery_state": {
+        "name": "Akkustatus"
+      },
+      "spell_mode": {
+        "name": "Zaubererkennungsmodus"
+      },
+      "calibration_button": {
+        "name": "Tastenkalibrierung"
+      },
+      "calibration_imu": {
+        "name": "IMU-Kalibrierung"
+      },
+      "ble_connection_duration": {
+        "name": "BLE-Verbindungsdauer"
+      },
+      "ble_last_operation": {
+        "name": "Letzter BLE-Vorgang"
+      },
+      "ble_failure_count": {
+        "name": "BLE-Fehleranzahl"
+      },
+      "ble_last_failure": {
+        "name": "Letzter BLE-Fehler"
+      }
+    },
+    "binary_sensor": {
+      "button_1": {
+        "name": "Taste 1"
+      },
+      "button_2": {
+        "name": "Taste 2"
+      },
+      "button_3": {
+        "name": "Taste 3"
+      },
+      "button_4": {
+        "name": "Taste 4"
+      },
+      "connected": {
+        "name": "Verbunden"
+      },
+      "lid": {
+        "name": "Deckel"
+      },
+      "usb_plugged": {
+        "name": "USB verbunden"
+      },
+      "wand_present": {
+        "name": "Zauberstab vorhanden"
+      }
+    },
+    "button": {
+      "calibration_button": {
+        "name": "Tastenkalibrierung"
+      },
+      "calibration_imu": {
+        "name": "IMU-Kalibrierung"
+      }
+    },
+    "switch": {
+      "connect": {
+        "name": "Verbinden"
+      },
+      "spell_tracking": {
+        "name": "Zauber verfolgen"
+      }
+    },
+    "select": {
+      "casting_led_color": {
+        "name": "Farbton der Zauber-LED"
+      }
+    },
+    "text": {
+      "alias": {
+        "name": "Alias"
+      }
+    },
+    "camera": {
+      "spell_canvas": {
+        "name": "Zauberleinwand"
+      }
+    }
+  },
+  "services": {
+    "vibrate": {
+      "name": "Zauberstab vibrieren",
+      "description": "Erzeugt einen festen Vibrationsimpuls von etwa 800 ms.",
+      "fields": {
+        "duration": {
+          "name": "Dauer",
+          "description": "Angeforderte Dauer in Millisekunden."
+        }
+      }
+    },
+    "set_led": {
+      "name": "LED einstellen",
+      "description": "Stellt die Farbe einer LED-Gruppe ein.",
+      "fields": {
+        "group": {
+          "name": "LED-Gruppe",
+          "description": "Zu steuernde LED-Gruppe."
+        },
+        "rgb_color": {
+          "name": "RGB-Farbe",
+          "description": "Farbe im RGB-Format."
+        },
+        "duration": {
+          "name": "Dauer",
+          "description": "Dauer in Millisekunden; 0 bedeutet dauerhaft."
+        }
+      }
+    },
+    "send_macro": {
+      "name": "Makro senden",
+      "description": "Sendet Makrobefehle der Reihe nach an einen Zauberstab oder eine Box.",
+      "fields": {
+        "commands": {
+          "name": "Makrobefehle",
+          "description": "Liste von Befehlsobjekten. changeled verwendet group (TIP, MID_UPPER, MID_LOWER, POMMEL oder 0–3), rgb ([R,G,B], jeder Kanal 0–255) und duration (ms, maximal 65535). clear schaltet alle LEDs aus; delay verwendet delay (ms), buzz verwendet buzz (ms). set_loops legt 1–255 Durchläufe fest; loop beendet den Schleifenblock und wait wartet auf vorherige Befehle."
+        }
+      }
+    },
+    "clear_leds": {
+      "name": "LEDs ausschalten",
+      "description": "Schaltet alle LEDs am Zauberstab aus."
+    },
+    "play_spell": {
+      "name": "Zaubereffekt abspielen",
+      "description": "Spielt einen vordefinierten Makroeffekt ab.",
+      "fields": {
+        "spell": {
+          "name": "Zauber",
+          "description": "Abzuspielender Effekt."
+        }
+      }
+    }
+  },
+  "selector": {
+    "led_group": {
+      "options": {
+        "tip": "Spitze",
+        "pommel": "Griffende",
+        "mid_lower": "Mitte unten",
+        "mid_upper": "Mitte oben"
+      }
+    }
+  }
+}

@@ -1,0 +1,195 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "description": "설정할 기기를 선택하세요",
+        "data": {
+          "address": "기기"
+        }
+      },
+      "bluetooth_confirm": {
+        "description": "{name} 기기를 설정하시겠습니까?"
+      }
+    },
+    "abort": {
+      "no_devices_found": "기기를 찾을 수 없습니다",
+      "already_in_progress": "설정이 이미 진행 중입니다",
+      "already_configured": "기기가 이미 설정되어 있습니다",
+      "not_supported": "지원하지 않는 기기입니다",
+      "reauth_successful": "재인증되었습니다",
+      "cannot_connect": "연결할 수 없습니다",
+      "unknown": "알 수 없는 오류입니다"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Magic Caster Wand 설정",
+        "description": "주문 감지를 위한 TFLite 서버 URL과 주문 시간 제한을 설정합니다.",
+        "data": {
+          "tflite_url": "TFLite 서버 URL",
+          "spell_timeout": "주문 시간 제한(초)"
+        },
+        "data_description": {
+          "spell_timeout": "감지된 주문이 대기 상태로 초기화되기까지의 시간(초)입니다. 0으로 설정하면 시간 제한을 사용하지 않습니다."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "spell": {
+        "name": "주문"
+      },
+      "battery": {
+        "name": "배터리"
+      },
+      "battery_state": {
+        "name": "배터리 상태"
+      },
+      "spell_mode": {
+        "name": "주문 감지 모드"
+      },
+      "calibration_button": {
+        "name": "버튼 보정"
+      },
+      "calibration_imu": {
+        "name": "IMU 보정"
+      },
+      "ble_connection_duration": {
+        "name": "BLE 연결 소요 시간"
+      },
+      "ble_last_operation": {
+        "name": "마지막 BLE 작업"
+      },
+      "ble_failure_count": {
+        "name": "BLE 실패 횟수"
+      },
+      "ble_last_failure": {
+        "name": "마지막 BLE 실패"
+      }
+    },
+    "binary_sensor": {
+      "button_1": {
+        "name": "버튼 1"
+      },
+      "button_2": {
+        "name": "버튼 2"
+      },
+      "button_3": {
+        "name": "버튼 3"
+      },
+      "button_4": {
+        "name": "버튼 4"
+      },
+      "connected": {
+        "name": "연결됨"
+      },
+      "lid": {
+        "name": "뚜껑"
+      },
+      "usb_plugged": {
+        "name": "USB 연결됨"
+      },
+      "wand_present": {
+        "name": "지팡이 있음"
+      }
+    },
+    "button": {
+      "calibration_button": {
+        "name": "버튼 보정"
+      },
+      "calibration_imu": {
+        "name": "IMU 보정"
+      }
+    },
+    "switch": {
+      "connect": {
+        "name": "연결"
+      },
+      "spell_tracking": {
+        "name": "주문 추적"
+      }
+    },
+    "select": {
+      "casting_led_color": {
+        "name": "시전 LED 색상"
+      }
+    },
+    "text": {
+      "alias": {
+        "name": "별칭"
+      }
+    },
+    "camera": {
+      "spell_canvas": {
+        "name": "주문 캔버스"
+      }
+    }
+  },
+  "services": {
+    "vibrate": {
+      "name": "지팡이 진동",
+      "description": "지팡이를 진동시킵니다. 단일 명령은 약 800ms의 고정 진동을 발생시킵니다.",
+      "fields": {
+        "duration": {
+          "name": "지속 시간",
+          "description": "요청하는 진동 시간(밀리초)입니다."
+        }
+      }
+    },
+    "set_led": {
+      "name": "LED 설정",
+      "description": "지팡이의 특정 LED 그룹 색상을 설정합니다.",
+      "fields": {
+        "group": {
+          "name": "LED 그룹",
+          "description": "제어할 LED 그룹입니다."
+        },
+        "rgb_color": {
+          "name": "RGB 색상",
+          "description": "RGB 형식의 색상입니다."
+        },
+        "duration": {
+          "name": "지속 시간",
+          "description": "조명 지속 시간(밀리초)입니다. 0은 계속 켜짐입니다."
+        }
+      }
+    },
+    "send_macro": {
+      "name": "매크로 전송",
+      "description": "지팡이나 상자에 매크로 명령을 순서대로 전송합니다. LED 변경, 대기, 진동, 반복을 지원합니다.",
+      "fields": {
+        "commands": {
+          "name": "매크로 명령",
+          "description": "명령 객체 목록입니다. changeled는 group(TIP, MID_UPPER, MID_LOWER, POMMEL 또는 0–3), rgb([R,G,B], 각 0–255), duration(밀리초, 최대 65535)을 받습니다. clear는 모든 LED를 끄고, delay는 delay(밀리초), buzz는 buzz(밀리초)를 받습니다. set_loops는 반복 횟수 1–255를 설정하며 loop는 반복 블록을 끝내고 wait는 이전 명령 완료를 기다립니다."
+        }
+      }
+    },
+    "clear_leds": {
+      "name": "LED 끄기",
+      "description": "지팡이의 모든 LED를 끕니다."
+    },
+    "play_spell": {
+      "name": "주문 효과 재생",
+      "description": "미리 정의된 주문 매크로 효과를 재생합니다.",
+      "fields": {
+        "spell": {
+          "name": "주문",
+          "description": "재생할 주문 효과입니다."
+        }
+      }
+    }
+  },
+  "selector": {
+    "led_group": {
+      "options": {
+        "tip": "끝부분",
+        "pommel": "손잡이 끝",
+        "mid_lower": "중앙 아래",
+        "mid_upper": "중앙 위"
+      }
+    }
+  }
+}

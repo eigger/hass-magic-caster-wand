@@ -53,7 +53,7 @@ class McwConnectionSwitch(CoordinatorEntity, SwitchEntity):
         self._address = address
         self._device = device
         self._identifier = address.replace(":", "")[-8:]
-        self._attr_name = "Connect"
+        self._attr_translation_key = "connect"
         self._attr_unique_id = f"mcw_{self._identifier}_connect"
 
     @property
@@ -111,7 +111,7 @@ class McwSpellTrackingSwitch(CoordinatorEntity, SwitchEntity):
         self._address = address
         self._mcw = mcw
         self._identifier = address.replace(":", "")[-8:]
-        self._attr_name = "Spell Tracking"
+        self._attr_translation_key = "spell_tracking"
         self._attr_unique_id = f"mcw_{self._identifier}_spell_tracking"
 
     @property

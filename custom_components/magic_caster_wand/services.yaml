@@ -31,18 +31,19 @@ set_led:
       name: LED Group
       description: The LED group to control.
       required: true
-      default: TIP
+      default: tip
       selector:
         select:
+          translation_key: led_group
           options:
             - label: Tip
-              value: TIP
+              value: tip
             - label: Pommel
-              value: POMMEL
+              value: pommel
             - label: Mid Lower
-              value: MID_LOWER
+              value: mid_lower
             - label: Mid Upper
-              value: MID_UPPER
+              value: mid_upper
     rgb_color:
       name: RGB Color
       description: The color in RGB format.

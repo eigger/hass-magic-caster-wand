@@ -73,7 +73,7 @@ class McwSpellCamera(CoordinatorEntity, Camera):
         self._spell_coordinator = spell_coordinator
         self._connection_coordinator = connection_coordinator
         self._identifier = address.replace(":", "")[-8:]
-        self._attr_name = "Spell Canvas"
+        self._attr_translation_key = "spell_canvas"
         self._attr_unique_id = f"mcw_{self._identifier}_camera"
 
         # Spell tracking components
