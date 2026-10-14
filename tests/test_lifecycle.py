@@ -307,6 +307,26 @@ def test_disconnect_cancels_pending_background_work():
     asyncio.run(scenario())
 
 
+def test_replacing_spell_reset_timer_keeps_new_task_reference():
+    device = McwDevice("AA:BB:CC:DD:EE:FF", spell_timeout=3600)
+
+    async def scenario():
+        device._schedule_spell_reset()
+        old_task = device._spell_reset_timeout_task
+        await asyncio.sleep(0)
+
+        device._schedule_spell_reset()
+        new_task = device._spell_reset_timeout_task
+        assert new_task is not old_task
+
+        await asyncio.sleep(0)
+        assert device._spell_reset_timeout_task is new_task
+
+        await device._cancel_background_tasks()
+
+    asyncio.run(scenario())
+
+
 def test_spawn_is_used_instead_of_bare_create_task():
     """Guard against a new fire-and-forget task being added without tracking."""
     tree = ast.parse((COMPONENT / "mcw_ble" / "parser.py").read_text())

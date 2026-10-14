@@ -213,7 +213,10 @@ class McwDevice:
             # Task was cancelled (likely because a new spell was detected)
             pass
         finally:
-            self._spell_reset_timeout_task = None
+            # A cancelled older timer can finish after its replacement is
+            # scheduled. Only clear the reference when this task still owns it.
+            if self._spell_reset_timeout_task is asyncio.current_task():
+                self._spell_reset_timeout_task = None
 
     def _callback_spell(self, data: str) -> None:
         """Handle spell detection callback from wand-native detection."""
