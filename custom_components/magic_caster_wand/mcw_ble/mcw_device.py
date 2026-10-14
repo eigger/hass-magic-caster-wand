@@ -6,10 +6,12 @@ from contextlib import AsyncExitStack
 
 from bleak import BleakClient
 from bleak.backends.device import BLEDevice
-from blesession import ble_session
+from blesession import SessionDropped, ble_session
+from homeassistant.core import HomeAssistant
 
 from ..common_ble.common import BLEData, build_macro, build_set_led_macro
 from ..common_ble.macros import LedGroup, Macro
+from ..common_ble.session_diagnostics import BLESessionDiagnostics
 from .mcw import McwClient
 from .remote_tensor_spell_detector import RemoteTensorSpellDetector
 from .spell_tracker import SpellTracker
@@ -28,13 +30,19 @@ class McwDevice:
         tflite_url: str = "http://b5e3f765-tflite-server:8000",
         model_name: str = "model.tflite",
         spell_timeout: int = 0,
+        hass: HomeAssistant | None = None,
     ) -> None:
         """Initialize the device."""
         self.address = address
+        self.diagnostics = BLESessionDiagnostics(address, "wand")
+        if hass is not None:
+            self.diagnostics.bind_hass(hass)
         self.tflite_url = tflite_url
         self.model_name = model_name
         self.client: BleakClient | None = None
         self._ble_session_stack: AsyncExitStack | None = None
+        self._disconnecting = False
+        self._connecting = False
         self.model: str | None = None
         self._mcw: McwClient | None = None
         self._data = BLEData()
@@ -235,6 +243,10 @@ class McwDevice:
             return
 
         _LOGGER.debug("Disconnected from Magic Caster Wand")
+        if not self._disconnecting and not self._connecting:
+            self.diagnostics.record_failure(
+                "connection", "session", SessionDropped("The wand disconnected unexpectedly")
+            )
         self.client = None
         self._mcw = None
         self._reset_cast_state()
@@ -258,14 +270,17 @@ class McwDevice:
         if self._ble_session_stack is not None:
             await self._close_ble_session()
 
+        trace = self.diagnostics.new_trace()
         client: BleakClient | None = None
         session_stack = AsyncExitStack()
+        self._connecting = True
         try:
             await session_stack.__aenter__()
             self._ble_session_stack = session_stack
             client = await session_stack.enter_async_context(
                 ble_session(
                     ble_device,
+                    trace=trace,
                     name=ble_device.address,
                     disconnected_callback=self._on_disconnect,
                 )
@@ -273,6 +288,8 @@ class McwDevice:
             self.client = client
 
             if not client.is_connected:
+                trace.fail("session")
+                self.diagnostics.record("connect", trace, SessionDropped("Disconnected during connection setup"))
                 await self._cleanup_failed_connection(client)
                 return False
 
@@ -284,6 +301,10 @@ class McwDevice:
             if not self._data.identifier:
                 self._data.identifier = ble_device.address.replace(":", "")[-8:]
             self._mcw = McwClient(client)
+            if hasattr(self._mcw, "register_error_callback"):
+                self._mcw.register_error_callback(
+                    lambda err: self.diagnostics.record_failure("notification", "notification", err)
+                )
             self._mcw.register_callback(
                 self._callback_spell,
                 self._callback_battery,
@@ -291,25 +312,37 @@ class McwDevice:
                 self._callback_calibration,
                 self._callback_imu,
             )
-            await self._mcw.start_notify()
-            await self._refresh_model()
+            with trace.timed("subscribe"):
+                await self._mcw.start_notify()
+            with trace.timed("initialize"):
+                await self._refresh_model()
             await self._resume_imu_streaming()
+            if self.client is not client or not client.is_connected:
+                trace.fail("session")
+                self.diagnostics.record("connect", trace, SessionDropped("Disconnected during connection setup"))
+                await self._cleanup_failed_connection(client)
+                return False
 
             _LOGGER.debug("Connected to Magic Caster Wand: %s, %s", ble_device.address, self.model)
             if self._coordinator_connection:
                 self._coordinator_connection.async_set_updated_data(True)
+            self.diagnostics.record("connect", trace)
             return True
 
         except asyncio.CancelledError:
             await self._cleanup_failed_connection(client)
             raise
         except Exception as err:
+            self.diagnostics.record("connect", trace, err)
             await self._cleanup_failed_connection(client)
             _LOGGER.warning("Failed to connect to %s: %s", ble_device.address, err)
             return False
+        finally:
+            self._connecting = False
 
     async def _cleanup_failed_connection(self, client: BleakClient | None) -> None:
         """Release a link whose notification or device initialization failed."""
+        self._disconnecting = True
         try:
             if client is not None and self._mcw is not None and self._mcw.client is client:
                 try:
@@ -331,6 +364,7 @@ class McwDevice:
                     self._reset_cast_state()
                     if self._coordinator_connection:
                         self._coordinator_connection.async_set_updated_data(False)
+                self._disconnecting = False
 
     async def _close_ble_session(self) -> None:
         """Close the context that owns the active BLE connection."""
@@ -373,6 +407,7 @@ class McwDevice:
             _LOGGER.debug("Resumed IMU streaming after connect")
         except Exception as err:
             self._imu_streaming = False
+            self.diagnostics.record_failure("imu_streaming_start", "transfer", err)
             _LOGGER.warning(
                 "Failed to resume IMU streaming after connect: %s. "
                 "Spell tracking is off until the Spell Tracking switch is toggled",
@@ -394,6 +429,7 @@ class McwDevice:
 
     async def disconnect(self) -> None:
         """Disconnect from the BLE device."""
+        self._disconnecting = True
         await self._cancel_background_tasks()
         # Before the client check: an explicit disconnect must clear the cast even
         # if the link is already gone, and _on_disconnect does not always fire.
@@ -429,6 +465,7 @@ class McwDevice:
                     )
                 if self._coordinator_connection:
                     self._coordinator_connection.async_set_updated_data(False)
+                self._disconnecting = False
 
     async def update_device(self, ble_device: BLEDevice) -> BLEData:
         """Update device data. Sends keep-alive if connected."""
@@ -454,18 +491,19 @@ class McwDevice:
 
     async def send_macro(self, macro: Macro) -> None:
         """Send a macro sequence to the wand."""
-        if self.is_connected() and self._mcw:
-            await self._mcw.send_macro(macro)
+        await self.diagnostics.run_operation(
+            "send_macro",
+            lambda: self._mcw.send_macro(macro),
+            connected=self.is_connected() and self._mcw is not None,
+        )
 
     async def send_macro_parse(self, commands: list) -> None:
         """Convert service commands into a Macro and send it."""
-        if self.is_connected() and self._mcw:
-            await self._mcw.send_macro(build_macro(commands))
+        await self.send_macro(build_macro(commands))
 
     async def set_led(self, group: LedGroup, r: int, g: int, b: int, duration: int = 0) -> None:
         """Set LED color."""
-        if self.is_connected() and self._mcw:
-            await self._mcw.send_macro(build_set_led_macro(group, r, g, b, duration))
+        await self.send_macro(build_set_led_macro(group, r, g, b, duration))
 
     @property
     def casting_led_color(self) -> tuple[int, int, int]:
@@ -513,35 +551,49 @@ class McwDevice:
 
     async def buzz(self, duration: int) -> None:
         """Vibrate the wand."""
-        if self.is_connected() and self._mcw:
-            await self._mcw.buzz(duration)
+        await self.diagnostics.run_operation(
+            "buzz", lambda: self._mcw.buzz(duration), connected=self.is_connected() and self._mcw is not None
+        )
 
     async def clear_leds(self) -> None:
         """Clear all LEDs."""
-        if self.is_connected() and self._mcw:
-            await self._mcw.led_off()
+        await self.diagnostics.run_operation(
+            "clear_leds", lambda: self._mcw.led_off(), connected=self.is_connected() and self._mcw is not None
+        )
 
     async def send_button_calibration(self) -> None:
         """Send button calibration packet."""
-        if self.is_connected() and self._mcw:
-            await self._mcw.calibration_button()
+        await self.diagnostics.run_operation(
+            "button_calibration",
+            lambda: self._mcw.calibration_button(),
+            connected=self.is_connected() and self._mcw is not None,
+        )
 
     async def send_imu_calibration(self) -> None:
         """Send IMU calibration packet."""
-        if self.is_connected() and self._mcw:
-            await self._mcw.calibration_imu()
+        await self.diagnostics.run_operation(
+            "imu_calibration",
+            lambda: self._mcw.calibration_imu(),
+            connected=self.is_connected() and self._mcw is not None,
+        )
 
     async def imu_streaming_start(self) -> None:
         """Start IMU streaming."""
         if self.is_connected() and self._mcw:
-            await self._mcw.imu_streaming_start()
+            await self.diagnostics.run_operation(
+                "imu_streaming_start",
+                lambda: self._mcw.imu_streaming_start(),
+                connected=True,
+            )
             self._imu_streaming = True
 
     async def imu_streaming_stop(self) -> None:
         """Stop IMU streaming."""
         self._reset_cast_state()
         if self.is_connected() and self._mcw:
-            await self._mcw.imu_streaming_stop()
+            await self.diagnostics.run_operation(
+                "imu_streaming_stop", lambda: self._mcw.imu_streaming_stop(), connected=True
+            )
 
     async def async_spell_tracker_init(self) -> bool:
         """Initialize spell tracking and report whether the model is ready."""

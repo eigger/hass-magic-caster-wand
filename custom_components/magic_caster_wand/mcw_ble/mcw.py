@@ -10,6 +10,7 @@ from asyncio import Event, sleep, wait_for
 from typing import Any, Callable, TypeVar
 
 from bleak import BleakClient, BleakError
+from blesession import guarded_write
 
 from ..common_ble.macros import LedGroup, Macro
 from ..common_ble.notification_dispatcher import NotificationDispatcher
@@ -184,6 +185,11 @@ class McwClient:
         self._wand_sku: str | None = None
         self._wand_type: str | None = None
         self._notification_dispatcher: NotificationDispatcher | None = None
+        self._error_callback: Callable[[Exception], None] | None = None
+
+    def register_error_callback(self, callback: Callable[[Exception], None]) -> None:
+        """Register a callback for notification parsing failures."""
+        self._error_callback = callback
 
     def is_connected(self) -> bool:
         """Check if client is connected."""
@@ -238,7 +244,7 @@ class McwClient:
     async def write(self, uuid: str, data: bytes, response: bool = False) -> None:
         """Write data to the specified characteristic."""
         _LOGGER.debug("Write UUID=%s data=%s", uuid, data.hex())
-        await self.client.write_gatt_char(uuid, data, response)
+        await guarded_write(self.client, uuid, data, response=response, step="protocol_write")
 
     def _handler_battery(self, _: Any, data: bytearray) -> None:
         """Handle battery notification."""
@@ -287,6 +293,8 @@ class McwClient:
         except Exception as e:
             _LOGGER.error("Error in message handler for opcode 0x%02X: %s", opcode, e)
             _LOGGER.debug("Stack trace:", exc_info=True)
+            if self._error_callback:
+                self._error_callback(e)
 
         # Signal waiting command if this message matches expected response
         if self._response_matches_waiter(data):
@@ -332,6 +340,8 @@ class McwClient:
 
         except Exception as err:
             _LOGGER.warning("Spell parse error: %s", err)
+            if self._error_callback:
+                self._error_callback(err)
 
     def _parse_buttons(self, data: bytearray) -> None:
         """Parse button states from notification.
@@ -362,6 +372,8 @@ class McwClient:
 
         except Exception as err:
             _LOGGER.warning("Button parse error: %s", err)
+            if self._error_callback:
+                self._error_callback(err)
 
     def _parse_calibration(self, data: bytearray) -> None:
         """Parse calibration response from notification.
@@ -386,6 +398,8 @@ class McwClient:
 
         except Exception as err:
             _LOGGER.warning("Calibration parse error: %s", err)
+            if self._error_callback:
+                self._error_callback(err)
 
     async def write_command(self, packet: bytes, timeout: float = 5.0) -> None:
         """Write command and optionally wait for response."""
@@ -544,6 +558,8 @@ class McwClient:
             _LOGGER.debug("Box address: %s", self._box_address)
         except Exception as e:
             _LOGGER.error("Error parsing box address: %s", e)
+            if self._error_callback:
+                self._error_callback(e)
 
     def _parse_challenge(self, data: bytearray) -> None:
         """Parse challenge response (ID 0x01)"""
@@ -569,6 +585,8 @@ class McwClient:
             self._wand_firmware_version = version
         except Exception as e:
             _LOGGER.error("Error parsing firmware version: %s", e)
+            if self._error_callback:
+                self._error_callback(e)
 
     def _parse_imu_payload(self, data: bytearray) -> None:
         """Parse IMU data message (ID 0x2C)
@@ -619,6 +637,8 @@ class McwClient:
                 offset += 12
             except Exception as e:
                 _LOGGER.error("Error parsing IMU sample %d: %s", i, e)
+                if self._error_callback:
+                    self._error_callback(e)
                 break
 
         if samples:
@@ -661,6 +681,8 @@ class McwClient:
                 _LOGGER.debug("Wand device id: %s", self._wand_device_id)
         except Exception as e:
             _LOGGER.error("Error parsing wand information: %s", e)
+            if self._error_callback:
+                self._error_callback(e)
 
     def _wand_device_id_to_type(self, device_id: str) -> str:
         """Extract wand type from device ID string
