@@ -50,7 +50,14 @@ sys.modules["homeassistant.helpers.update_coordinator"] = MagicMock()
 bleak = MagicMock()
 bleak.BleakError = type("BleakError", (Exception,), {})
 sys.modules["bleak"] = bleak
+sys.modules["bleak.backends"] = MagicMock()
 sys.modules["bleak.backends.device"] = MagicMock()
+bleak_characteristic = MagicMock()
+bleak_characteristic.BleakGATTCharacteristic = MockBase
+sys.modules["bleak.backends.characteristic"] = bleak_characteristic
+bleak_exc = MagicMock()
+bleak_exc.BleakError = bleak.BleakError
+sys.modules["bleak.exc"] = bleak_exc
 sys.modules["bleak_retry_connector"] = MagicMock()
 
 bt_sensor_state_data = MagicMock()
