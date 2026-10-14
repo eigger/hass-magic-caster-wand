@@ -275,6 +275,39 @@ def test_every_request_that_expects_a_reply_is_in_the_response_map():
         assert request in MESSAGE_TO_RESPONSE_MAP
 
 
+def test_product_information_waiter_requires_the_requested_subtype(client):
+    client._waiting_for_msg_id = RESPONSEIDS.BOX_PRODUCT_INFORMATION
+    client._waiting_for_info_type = 0x04
+
+    assert client._response_matches_waiter(bytearray([0x0E, 0x02, 0x41])) is False
+    assert client._response_matches_waiter(bytearray([0x0E, 0x04, 0x41])) is True
+
+
+def test_malformed_response_does_not_complete_waiter(client):
+    client._waiting_for_msg_id = RESPONSEIDS.CHALLENGE
+
+    client._handler(None, bytearray([RESPONSEIDS.CHALLENGE, 0x01]))
+
+    assert not client._waiting_cmd_event.is_set()
+    assert client._waiting_for_msg_id == RESPONSEIDS.CHALLENGE
+
+
+def test_cancelled_command_clears_waiter_state(client):
+    async def scenario():
+        async def cancel_after_write(*args, **kwargs):
+            raise asyncio.CancelledError
+
+        client.write = cancel_after_write
+        with pytest.raises(asyncio.CancelledError):
+            await client.write_command(bytes([MESSAGEIDS.CHALLENGE]))
+
+    asyncio.run(scenario())
+
+    assert client._waiting_for_msg_id is None
+    assert client._waiting_for_info_type is None
+    assert not client._waiting_cmd_event.is_set()
+
+
 def test_lidstate_covers_every_two_bit_combination():
     assert {s for s in LIDSTATE} == {
         LIDSTATE.LID_ON_NO_WAND,

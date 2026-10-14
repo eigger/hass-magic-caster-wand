@@ -171,6 +171,7 @@ class McbClient:
         self._wand_address: str | None = None
         self._waiting_cmd_event: Event = Event()
         self._waiting_for_msg_id: int | None = None
+        self._waiting_for_info_type: int | None = None
         self._box_challenge: int | None = None
         self._box_device_id: str | None = None
         self._box_firmware_version: str | None = None
@@ -287,10 +288,35 @@ class McbClient:
             _LOGGER.debug("Stack trace:", exc_info=True)
 
         # Signal waiting command if this message matches expected response
-        if self._waiting_for_msg_id is not None and opcode == self._waiting_for_msg_id:
+        if self._response_matches_waiter(data):
             _LOGGER.debug("Received expected response 0x%02X, signaling caller", opcode)
             self._waiting_cmd_event.set()
             self._waiting_for_msg_id = None
+
+    def _response_matches_waiter(self, data: bytearray) -> bool:
+        """Return whether a notification is a valid response to the pending request."""
+        if not data or data[0] != self._waiting_for_msg_id:
+            return False
+
+        opcode = data[0]
+        if opcode == RESPONSEIDS.CHALLENGE:
+            return len(data) == 3
+        if opcode == RESPONSEIDS.FIRMWARE_VERSION:
+            return len(data) >= 2
+        if opcode == RESPONSEIDS.WAND_ADDRESS:
+            return len(data) >= 7
+        if opcode == RESPONSEIDS.BOX_PRODUCT_INFORMATION:
+            if len(data) < 3 or data[1] != self._waiting_for_info_type:
+                return False
+            return data[1] != 0x01 or len(data) >= 6
+        if opcode in (
+            RESPONSEIDS.LID_STATUS,
+            RESPONSEIDS.LID_NOTIFY,
+            RESPONSEIDS.WAND_NOTIFY,
+            RESPONSEIDS.CHARGE_NOTIFY,
+        ):
+            return len(data) >= 2
+        return True
 
     async def write_command(self, packet: bytes, timeout: float = 5.0) -> None:
         """Write command and optionally wait for response."""
@@ -305,6 +331,9 @@ class McbClient:
             # Check if this command expects a response
             expected_msg_id: int | None = MESSAGE_TO_RESPONSE_MAP.get(cmd_id)
             expects_response: bool = expected_msg_id is not None
+            expected_info_type = (
+                packet[1] if cmd_id == MESSAGEIDS.BOX_PRODUCT_INFORMATION_READ and len(packet) > 1 else None
+            )
 
             for attempt in range(1, max_retries + 1):
                 try:
@@ -312,6 +341,7 @@ class McbClient:
                         _LOGGER.debug("Sending command 0x%02X, expecting response 0x%02X", cmd_id, expected_msg_id)
                         self._waiting_cmd_event.clear()
                         self._waiting_for_msg_id = expected_msg_id
+                        self._waiting_for_info_type = expected_info_type
                     else:
                         _LOGGER.debug("Sending command 0x%02X (no response expected)", cmd_id)
 
@@ -323,11 +353,18 @@ class McbClient:
 
                     return
                 except Exception as err:
-                    if attempt < max_retries:
-                        _LOGGER.warning("Write retry (attempt %d/%d): %s", attempt, max_retries, err)
-                        await sleep(0.5)
-                    else:
+                    self._waiting_for_msg_id = None
+                    self._waiting_for_info_type = None
+                    self._waiting_cmd_event.clear()
+                    if attempt >= max_retries:
                         raise
+                    _LOGGER.warning("Write retry (attempt %d/%d): %s", attempt, max_retries, err)
+                    await sleep(0.5)
+                finally:
+                    if expects_response:
+                        self._waiting_for_msg_id = None
+                        self._waiting_for_info_type = None
+                        self._waiting_cmd_event.clear()
 
     async def request_lid_status(self):
         await self.write_command(struct.pack("B", MESSAGEIDS.LID_STATUS_SEND))

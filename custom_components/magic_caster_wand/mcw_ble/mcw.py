@@ -175,6 +175,7 @@ class McwClient:
         self._box_address: str | None = None
         self._waiting_cmd_event: Event = Event()
         self._waiting_for_msg_id: int | None = None
+        self._waiting_for_info_type: int | None = None
         self._wand_challenge: int | None = None
         self._wand_device_id: str | None = None
         self._wand_firmware_version: str | None = None
@@ -279,10 +280,28 @@ class McwClient:
             _LOGGER.debug("Stack trace:", exc_info=True)
 
         # Signal waiting command if this message matches expected response
-        if self._waiting_for_msg_id is not None and opcode == self._waiting_for_msg_id:
+        if self._response_matches_waiter(data):
             _LOGGER.debug("Received expected response 0x%02X, signaling caller", opcode)
             self._waiting_cmd_event.set()
             self._waiting_for_msg_id = None
+
+    def _response_matches_waiter(self, data: bytearray) -> bool:
+        """Return whether a notification is a valid response to the pending request."""
+        if not data or data[0] != self._waiting_for_msg_id:
+            return False
+
+        opcode = data[0]
+        if opcode == RESPONSEIDS.CHALLENGE:
+            return len(data) == 3
+        if opcode == RESPONSEIDS.FIRMWARE_VERSION:
+            return len(data) >= 2
+        if opcode == RESPONSEIDS.BOX_ADDRESS:
+            return len(data) >= 7
+        if opcode == RESPONSEIDS.WAND_PRODUCT_INFORMATION:
+            if len(data) < 3 or data[1] != self._waiting_for_info_type:
+                return False
+            return data[1] != 0x01 or len(data) >= 6
+        return True
 
     def _parse_spell(self, data: bytearray) -> None:
         """Parse spell data from notification."""
@@ -372,6 +391,9 @@ class McwClient:
             # Check if this command expects a response
             expected_msg_id: int | None = MESSAGE_TO_RESPONSE_MAP.get(cmd_id)
             expects_response: bool = expected_msg_id is not None
+            expected_info_type = (
+                packet[1] if cmd_id == MESSAGEIDS.WAND_PRODUCT_INFORMATION_READ and len(packet) > 1 else None
+            )
 
             for attempt in range(1, max_retries + 1):
                 try:
@@ -379,6 +401,7 @@ class McwClient:
                         _LOGGER.debug("Sending command 0x%02X, expecting response 0x%02X", cmd_id, expected_msg_id)
                         self._waiting_cmd_event.clear()
                         self._waiting_for_msg_id = expected_msg_id
+                        self._waiting_for_info_type = expected_info_type
                     else:
                         _LOGGER.debug("Sending command 0x%02X (no response expected)", cmd_id)
 
@@ -390,11 +413,18 @@ class McwClient:
 
                     return
                 except Exception as err:
-                    if attempt < max_retries:
-                        _LOGGER.warning("Write retry (attempt %d/%d): %s", attempt, max_retries, err)
-                        await sleep(0.5)
-                    else:
+                    self._waiting_for_msg_id = None
+                    self._waiting_for_info_type = None
+                    self._waiting_cmd_event.clear()
+                    if attempt >= max_retries:
                         raise
+                    _LOGGER.warning("Write retry (attempt %d/%d): %s", attempt, max_retries, err)
+                    await sleep(0.5)
+                finally:
+                    if expects_response:
+                        self._waiting_for_msg_id = None
+                        self._waiting_for_info_type = None
+                        self._waiting_cmd_event.clear()
 
     async def imu_streaming_start(self) -> None:
         """Start IMU data streaming"""
