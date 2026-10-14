@@ -203,10 +203,15 @@ class McbClient:
         await self.client.start_notify(BATTERY_UUID, self._handler_battery)
         await sleep(1.0)
 
+        # A battery read is best-effort; it must not prevent the required state
+        # notification subscriptions from being initialized.
         try:
-            # Query initial battery level
             battery_data = await self.client.read_gatt_char(BATTERY_UUID)
             self._handler_battery(None, bytearray(battery_data))
+        except Exception as err:
+            _LOGGER.warning("Error reading initial battery level: %s", err)
+
+        try:
             await self.request_box_notifications()
             await self.request_charge_notifications()
             await self.request_lid_notifications()
@@ -216,6 +221,7 @@ class McbClient:
 
         except Exception as err:
             _LOGGER.warning("Error during initial box query: %s", err)
+            raise
 
     @disconnect_on_missing_services
     async def stop_notify(self) -> None:

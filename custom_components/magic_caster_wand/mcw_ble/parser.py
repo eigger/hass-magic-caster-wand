@@ -351,12 +351,15 @@ class McwDevice:
         if self.is_connected():
             return True
 
+        client: BleakClient | None = None
         try:
-            self.client = await establish_connection(
+            client = await establish_connection(
                 BleakClient, ble_device, ble_device.address, disconnected_callback=self._on_disconnect
             )
+            self.client = client
 
-            if not self.client.is_connected:
+            if not client.is_connected:
+                await self._cleanup_failed_connection(client)
                 return False
 
             # Update basic device info
@@ -366,7 +369,7 @@ class McwDevice:
                 self._data.address = ble_device.address
             if not self._data.identifier:
                 self._data.identifier = ble_device.address.replace(":", "")[-8:]
-            self._mcw = McwClient(self.client)
+            self._mcw = McwClient(client)
             self._mcw.register_callback(
                 self._callback_spell,
                 self._callback_battery,
@@ -383,9 +386,38 @@ class McwDevice:
                 self._coordinator_connection.async_set_updated_data(True)
             return True
 
+        except asyncio.CancelledError:
+            await self._cleanup_failed_connection(client)
+            raise
         except Exception as err:
+            await self._cleanup_failed_connection(client)
             _LOGGER.warning("Failed to connect to %s: %s", ble_device.address, err)
             return False
+
+    async def _cleanup_failed_connection(self, client: BleakClient | None) -> None:
+        """Release a link whose notification or device initialization failed."""
+        if client is None:
+            return
+
+        try:
+            if self._mcw is not None and self._mcw.client is client:
+                try:
+                    await self._mcw.stop_notify()
+                except Exception as err:
+                    _LOGGER.debug("Failed to stop notifications after connect failure: %s", err)
+        finally:
+            try:
+                if client.is_connected:
+                    await client.disconnect()
+            except Exception as err:
+                _LOGGER.debug("Failed to disconnect after connect failure: %s", err)
+            finally:
+                if self.client is client:
+                    self.client = None
+                    self._mcw = None
+                    self._reset_cast_state()
+                    if self._coordinator_connection:
+                        self._coordinator_connection.async_set_updated_data(False)
 
     async def _refresh_model(self) -> None:
         """Ask the wand for its model, if it is still unknown.
@@ -707,12 +739,15 @@ class McbDevice:
         if self.is_connected():
             return True
 
+        client: BleakClient | None = None
         try:
-            self.client = await establish_connection(
+            client = await establish_connection(
                 BleakClient, ble_device, ble_device.address, disconnected_callback=self._on_disconnect
             )
+            self.client = client
 
-            if not self.client.is_connected:
+            if not client.is_connected:
+                await self._cleanup_failed_connection(client)
                 return False
 
             # Update basic device info
@@ -722,7 +757,7 @@ class McbDevice:
                 self._data.address = ble_device.address
             if not self._data.identifier:
                 self._data.identifier = ble_device.address.replace(":", "")[-8:]
-            self._mcb = McbClient(self.client)
+            self._mcb = McbClient(client)
             self._mcb.register_callback(
                 self._callback_battery,
                 self._callback_lid,
@@ -737,9 +772,37 @@ class McbDevice:
                 self._coordinator_connection.async_set_updated_data(True)
             return True
 
+        except asyncio.CancelledError:
+            await self._cleanup_failed_connection(client)
+            raise
         except Exception as err:
+            await self._cleanup_failed_connection(client)
             _LOGGER.warning("Failed to connect to %s: %s", ble_device.address, err)
             return False
+
+    async def _cleanup_failed_connection(self, client: BleakClient | None) -> None:
+        """Release a link whose notification or device initialization failed."""
+        if client is None:
+            return
+
+        try:
+            if self._mcb is not None and self._mcb.client is client:
+                try:
+                    await self._mcb.stop_notify()
+                except Exception as err:
+                    _LOGGER.debug("Failed to stop notifications after connect failure: %s", err)
+        finally:
+            try:
+                if client.is_connected:
+                    await client.disconnect()
+            except Exception as err:
+                _LOGGER.debug("Failed to disconnect after connect failure: %s", err)
+            finally:
+                if self.client is client:
+                    self.client = None
+                    self._mcb = None
+                    if self._coordinator_connection:
+                        self._coordinator_connection.async_set_updated_data(False)
 
     async def _refresh_model(self) -> None:
         """Ask the box for its model, if it is still unknown.
