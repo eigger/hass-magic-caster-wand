@@ -20,7 +20,8 @@ from homeassistant.helpers.update_coordinator import (
 from homeassistant.util import dt as dt_util
 
 from .const import MANUFACTURER, SIGNAL_SPELL_MODE_CHANGED
-from .mcw_ble import McbDevice, McwDevice
+from .mcb_ble import McbDevice
+from .mcw_ble import McwDevice
 from .runtime_data import MagicCasterWandConfigEntry, McwRuntimeData
 
 _LOGGER = logging.getLogger(__name__)

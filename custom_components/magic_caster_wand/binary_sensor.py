@@ -15,7 +15,8 @@ from homeassistant.helpers.update_coordinator import (
 )
 
 from .const import MANUFACTURER
-from .mcw_ble import McbDevice, McwDevice
+from .mcb_ble import McbDevice
+from .mcw_ble import McwDevice
 from .runtime_data import MagicCasterWandConfigEntry, McbRuntimeData, McwRuntimeData
 
 _LOGGER = logging.getLogger(__name__)

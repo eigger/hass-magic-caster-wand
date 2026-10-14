@@ -20,29 +20,39 @@ from pathlib import Path
 # Add the custom_components path and set up mcw_ble as a package
 # We need to import submodules without triggering __init__.py (which has HA dependencies)
 _CUSTOM_COMPONENTS_PATH = Path(__file__).parent.parent / "custom_components"
-_MCW_BLE_PATH = _CUSTOM_COMPONENTS_PATH / "magic_caster_wand" / "mcw_ble"
+_INTEGRATION_PATH = _CUSTOM_COMPONENTS_PATH / "magic_caster_wand"
+_MCW_BLE_PATH = _INTEGRATION_PATH / "mcw_ble"
+_BLE_COMMON_PATH = _INTEGRATION_PATH / "ble_common"
 sys.path.insert(0, str(_CUSTOM_COMPONENTS_PATH))
 
 # Import submodules using importlib to avoid __init__.py
 import importlib.util
 
-def _load_module(name: str, filepath: Path):
+def _load_module(name: str, filepath: Path, package: str = "magic_caster_wand.mcw_ble"):
     """Load a module from a file path without going through __init__.py."""
-    spec = importlib.util.spec_from_file_location(f"magic_caster_wand.mcw_ble.{name}", filepath)
+    module_name = f"{package}.{name}"
+    spec = importlib.util.spec_from_file_location(module_name, filepath)
     module = importlib.util.module_from_spec(spec)
     # Register as part of mcw_ble package so relative imports work
-    sys.modules[f"magic_caster_wand.mcw_ble.{name}"] = module
+    sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module
 
-# Create a fake mcw_ble package entry so relative imports resolve
+# Create fake packages so imports resolve without loading Home Assistant.
 import types
+_fake_integration = types.ModuleType("magic_caster_wand")
+_fake_integration.__path__ = [str(_INTEGRATION_PATH)]
+sys.modules["magic_caster_wand"] = _fake_integration
+
 _fake_mcw_ble = types.ModuleType("magic_caster_wand.mcw_ble")
 _fake_mcw_ble.__path__ = [str(_MCW_BLE_PATH)]
 sys.modules["magic_caster_wand.mcw_ble"] = _fake_mcw_ble
+_fake_ble_common = types.ModuleType("magic_caster_wand.ble_common")
+_fake_ble_common.__path__ = [str(_BLE_COMMON_PATH)]
+sys.modules["magic_caster_wand.ble_common"] = _fake_ble_common
 
 # Load modules in dependency order
-_macros = _load_module("macros", _MCW_BLE_PATH / "macros.py")
+_macros = _load_module("macros", _BLE_COMMON_PATH / "macros.py", "magic_caster_wand.ble_common")
 _mcw = _load_module("mcw", _MCW_BLE_PATH / "mcw.py")
 _spell_tracker = _load_module("spell_tracker", _MCW_BLE_PATH / "spell_tracker.py")
 _spells = _load_module("spells", _MCW_BLE_PATH / "spells.py")

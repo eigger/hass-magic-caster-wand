@@ -8,7 +8,8 @@ from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceIn
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import MANUFACTURER
-from .mcw_ble import McbDevice, McwDevice
+from .mcb_ble import McbDevice
+from .mcw_ble import McwDevice
 from .runtime_data import MagicCasterWandConfigEntry
 
 _LOGGER = logging.getLogger(__name__)

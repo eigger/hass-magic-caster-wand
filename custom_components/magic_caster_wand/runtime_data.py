@@ -5,7 +5,9 @@ from dataclasses import dataclass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .mcw_ble import BLEData, McbDevice, McwDevice
+from .ble_common import BLEData
+from .mcb_ble import McbDevice
+from .mcw_ble import McwDevice
 
 
 @dataclass

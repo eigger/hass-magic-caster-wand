@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from custom_components.magic_caster_wand.mcw_ble.mcb import (
+from custom_components.magic_caster_wand.mcb_ble.mcb import (
     CHARGENOTIFY,
     LIDNOTIFY,
     LIDSTATE,

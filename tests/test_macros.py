@@ -4,12 +4,12 @@ import struct
 
 import pytest
 
-from custom_components.magic_caster_wand.mcw_ble.macros import (
+from custom_components.magic_caster_wand.ble_common.macros import (
     MACROIDS,
     LedGroup,
     Macro,
-    get_spell_macro,
 )
+from custom_components.magic_caster_wand.mcw_ble.macros import get_spell_macro
 
 
 def test_change_led_encoding():

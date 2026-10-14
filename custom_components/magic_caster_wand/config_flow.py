@@ -17,7 +17,8 @@ from homeassistant.const import CONF_ADDRESS
 from homeassistant.core import callback
 
 from .const import CONF_SPELL_TIMEOUT, CONF_TFLITE_URL, DEFAULT_SPELL_TIMEOUT, DEFAULT_TFLITE_URL, DOMAIN
-from .mcw_ble import McbBluetoothDeviceData, McwBluetoothDeviceData
+from .mcb_ble import McbBluetoothDeviceData
+from .mcw_ble import McwBluetoothDeviceData
 
 # Checked in order; the first handler that claims the advertisement wins.
 DEVICE_TYPES = [McwBluetoothDeviceData, McbBluetoothDeviceData]

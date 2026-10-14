@@ -11,6 +11,7 @@ from homeassistant.const import CONF_SCAN_INTERVAL, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
+from .ble_common import BLEData
 from .const import (
     CONF_SPELL_TIMEOUT,
     CONF_TFLITE_URL,
@@ -20,8 +21,8 @@ from .const import (
     DOMAIN,
 )
 from .device_setup import create_device, create_runtime_data
-from .mcw_ble import BLEData, McwDevice
-from .mcw_ble import McbDevice as McbDevice
+from .mcb_ble import McbDevice as McbDevice
+from .mcw_ble import McwDevice
 from .runtime_data import MagicCasterWandConfigEntry
 from .runtime_data import MagicCasterWandRuntimeData as MagicCasterWandRuntimeData
 from .services import async_setup_services, async_unload_services

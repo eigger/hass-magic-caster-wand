@@ -8,8 +8,8 @@ from bleak import BleakClient
 from bleak.backends.device import BLEDevice
 from blesession import ble_session
 
-from .common import BLEData, build_macro, build_set_led_macro
-from .macros import LedGroup, Macro
+from ..ble_common.common import BLEData, build_macro, build_set_led_macro
+from ..ble_common.macros import LedGroup, Macro
 from .mcb import CHARGENOTIFY, LIDNOTIFY, WANDNOTIFY, McbClient
 
 _LOGGER = logging.getLogger(__name__)
