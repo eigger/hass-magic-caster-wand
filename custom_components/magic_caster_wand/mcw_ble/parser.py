@@ -257,7 +257,7 @@ class McwDevice:
             return
 
         spell_name = await self._spell_tracker.stop()
-        if spell_name and self._coordinator_spell:
+        if spell_name and self._coordinator_spell and self.spell_tracking_active:
             _LOGGER.debug("Server-side spell detected: %s", spell_name)
             self._coordinator_spell.async_set_updated_data(spell_name)
             self._schedule_spell_reset()
@@ -616,18 +616,18 @@ class McwDevice:
 
     async def imu_streaming_stop(self) -> None:
         """Stop IMU streaming."""
-        self._imu_streaming = False
+        self._reset_cast_state()
         if self.is_connected() and self._mcw:
             await self._mcw.imu_streaming_stop()
 
-    async def async_spell_tracker_init(self) -> None:
-        """Initialize spell tracker and detector session."""
+    async def async_spell_tracker_init(self) -> bool:
+        """Initialize spell tracking and report whether the model is ready."""
         if self._spell_tracker is None:
             self._init_spell_tracker()
 
         if self._spell_tracker is None:
             _LOGGER.warning("Spell tracker not created, cannot initialize")
-            return
+            return False
 
         try:
             # Perform connectivity check before opening full session
@@ -636,21 +636,40 @@ class McwDevice:
                 # async_init will handle session creation and one-time upload
                 await self._spell_tracker.detector.async_init()
                 _LOGGER.debug("Spell tracker session initialized and verified")
+                return True
             else:
                 _LOGGER.warning(
                     "TFLite server at %s is not reachable. Spell detection will not be available.",
                     self._spell_tracker.detector._base_url,
                 )
+        except asyncio.CancelledError:
+            self._server_reachable = False
+            try:
+                await self._spell_tracker.close()
+            except Exception as close_err:
+                _LOGGER.debug("Failed to close detector after initialization cancellation: %s", close_err)
+            raise
         except Exception as err:
             self._server_reachable = False
             _LOGGER.warning("Failed to initialize remote spell detector session: %s", err)
+            try:
+                await self._spell_tracker.close()
+            except Exception as close_err:
+                _LOGGER.debug("Failed to close detector after initialization error: %s", close_err)
+
+        return False
 
     async def async_spell_tracker_close(self) -> None:
-        """Close spell tracker session but keep the object."""
+        """Stop spell tracking and close its detector session, keeping the tracker."""
+        self._reset_cast_state()
+        self._server_reachable = False
         if self._spell_tracker is not None:
             _LOGGER.debug("Closing spell tracker session")
-            await self._spell_tracker.close()
-            # Do NOT set self._spell_tracker = None to keep upload state
+            try:
+                await self._spell_tracker.close()
+            except Exception as err:
+                _LOGGER.warning("Failed to close spell tracker session: %s", err)
+        # Keep the tracker object so it can be initialized again if tracking is re-enabled.
 
 
 class McbDevice:

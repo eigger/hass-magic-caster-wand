@@ -300,6 +300,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await mcw.disconnect()
 
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        if isinstance(mcw, McwDevice):
+            await mcw.async_spell_tracker_close()
         hass.data[DOMAIN].pop(entry.entry_id)
 
         # The services are registered once for the whole integration, so they
