@@ -47,7 +47,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install pytest
+          pip install pytest Pillow
           python -c "import json; print('\n'.join(json.load(open('custom_components/magic_caster_wand/manifest.json'))['requirements']))" > requirements.txt
           pip install -r requirements.txt
 
