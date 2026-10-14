@@ -8,11 +8,7 @@ from bleak_retry_connector import close_stale_connections_by_address
 from homeassistant.components import bluetooth
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_SCAN_INTERVAL, Platform
-from homeassistant.core import (
-    HomeAssistant,
-    ServiceCall,
-)
-from homeassistant.helpers import device_registry as dr
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
@@ -23,8 +19,9 @@ from .const import (
     DEFAULT_TFLITE_URL,
     DOMAIN,
 )
-from .mcw_ble import BLEData, McbDevice, McwDevice, resolve_led_group
+from .mcw_ble import BLEData, McbDevice, McwDevice
 from .runtime_data import MagicCasterWandConfigEntry, MagicCasterWandRuntimeData
+from .services import async_setup_services, async_unload_services
 
 PLATFORMS: list[Platform] = [
     Platform.SENSOR,
@@ -37,9 +34,6 @@ PLATFORMS: list[Platform] = [
 ]
 
 _LOGGER = logging.getLogger(__name__)
-
-# Registered once for the whole integration, removed when the last entry unloads.
-SERVICES = ("vibrate", "set_led", "clear_leds", "play_spell", "send_macro")
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: MagicCasterWandConfigEntry) -> bool:
@@ -188,80 +182,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MagicCasterWandConfigEnt
     # Register update listener to handle options changes
     entry.async_on_unload(entry.add_update_listener(async_update_options))
 
-    # Register services
-    async def handle_vibrate(call: ServiceCall) -> None:
-        """Handle execution of vibrate service."""
-        duration = call.data.get("duration", 500)
-        device_ids = call.data.get("device_id", [])
-        if isinstance(device_ids, str):
-            device_ids = [device_ids]
-        for device_id in device_ids:
-            entry_id = await get_entry_id_from_device(hass, device_id)
-            if device := _get_device_by_entry_id(hass, entry_id):
-                await device.buzz(duration)
-
-    async def handle_set_led(call: ServiceCall) -> None:
-        """Handle execution of set_led service."""
-        # Accepts the selector's uppercase names, but also lowercase or an index,
-        # since script and automation calls bypass selector validation.
-        group = resolve_led_group(call.data.get("group", "TIP"))
-        rgb = call.data.get("rgb_color", (255, 255, 255))
-        duration = call.data.get("duration", 0)
-        device_ids = call.data.get("device_id", [])
-        if isinstance(device_ids, str):
-            device_ids = [device_ids]
-        for device_id in device_ids:
-            entry_id = await get_entry_id_from_device(hass, device_id)
-            if device := _get_device_by_entry_id(hass, entry_id):
-                await device.set_led(group, rgb[0], rgb[1], rgb[2], duration)
-
-    async def handle_send_macro(call: ServiceCall) -> None:
-        """Handle execution of send_macro service."""
-        commands = call.data.get("commands", [])
-        device_ids = call.data.get("device_id", [])
-        if isinstance(device_ids, str):
-            device_ids = [device_ids]
-        for device_id in device_ids:
-            entry_id = await get_entry_id_from_device(hass, device_id)
-            if device := _get_device_by_entry_id(hass, entry_id):
-                await device.send_macro_parse(commands)
-
-    async def handle_clear_leds(call: ServiceCall) -> None:
-        """Handle execution of clear_leds service."""
-        device_ids = call.data.get("device_id", [])
-        if isinstance(device_ids, str):
-            device_ids = [device_ids]
-        for device_id in device_ids:
-            entry_id = await get_entry_id_from_device(hass, device_id)
-            if device := _get_device_by_entry_id(hass, entry_id):
-                await device.clear_leds()
-
-    async def handle_play_spell(call: ServiceCall) -> None:
-        """Handle execution of play_spell service."""
-        spell_name = call.data.get("spell")
-        device_ids = call.data.get("device_id", [])
-        if isinstance(device_ids, str):
-            device_ids = [device_ids]
-        for device_id in device_ids:
-            entry_id = await get_entry_id_from_device(hass, device_id)
-            if device := _get_device_by_entry_id(hass, entry_id):
-                # Use helper for more robust spell matching
-                from .mcw_ble import get_spell_macro
-
-                macro = get_spell_macro(spell_name)
-                if macro:
-                    await device.send_macro(macro)
-
-    handlers = {
-        "vibrate": handle_vibrate,
-        "set_led": handle_set_led,
-        "clear_leds": handle_clear_leds,
-        "play_spell": handle_play_spell,
-        "send_macro": handle_send_macro,
-    }
-    for name in SERVICES:
-        if not hass.services.has_service(DOMAIN, name):
-            hass.services.async_register(DOMAIN, name, handlers[name])
+    await async_setup_services(hass)
 
     return True
 
@@ -289,44 +210,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: MagicCasterWandConfigEn
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         if isinstance(mcw, McwDevice):
             await mcw.async_spell_tracker_close()
-        # The services are registered once for the whole integration, so they
-        # are only removed once the last device is gone.
-        other_loaded_entries = [
-            config_entry
-            for config_entry in hass.config_entries.async_entries(DOMAIN)
-            if config_entry.entry_id != entry.entry_id and config_entry.runtime_data is not None
-        ]
-        if not other_loaded_entries:
-            for name in SERVICES:
-                hass.services.async_remove(DOMAIN, name)
+        await async_unload_services(hass, entry)
 
     return unload_ok
-
-
-def _get_device_by_entry_id(hass: HomeAssistant, entry_id: str | None) -> McwDevice | McbDevice | None:
-    """Get a loaded device from a config entry ID."""
-    if entry_id is None:
-        return None
-    config_entry = hass.config_entries.async_get_entry(entry_id)
-    return config_entry.runtime_data.device if config_entry and config_entry.runtime_data else None
-
-
-async def get_entry_id_from_device(hass, device_id: str) -> str:
-    device_reg = dr.async_get(hass)
-    device_entry = device_reg.async_get(device_id)
-    if not device_entry:
-        raise ValueError(f"Unknown device_id: {device_id}")
-    if not device_entry.config_entries:
-        raise ValueError(f"No config entries for device {device_id}")
-
-    _LOGGER.debug("%s to %s", device_id, device_entry.config_entries)
-    try:
-        entry_id = next(iter(device_entry.config_entries))
-    except StopIteration:
-        _LOGGER.error("%s None", device_id)
-        return None
-
-    return entry_id
 
 
 async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
