@@ -15,7 +15,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from custom_components.magic_caster_wand.mcw_ble import parser
+from custom_components.magic_caster_wand.mcw_ble import mcw_device
 from custom_components.magic_caster_wand.mcw_ble.parser import McbDevice, McwDevice
 
 
@@ -172,8 +172,8 @@ def connect_device(device: McwDevice, monkeypatch, start_error: Exception | None
     def fake_session(ble_device, **kwargs):
         return FakeBleSession(ble_device, **kwargs)
 
-    monkeypatch.setattr(parser, "ble_session", fake_session)
-    monkeypatch.setattr(parser, "McwClient", lambda client: fake_client)
+    monkeypatch.setattr(mcw_device, "ble_session", fake_session)
+    monkeypatch.setattr(mcw_device, "McwClient", lambda client: fake_client)
     # The model probe talks to the wand; it is not what these tests are about.
     device.model = "WBMC22G1SHNW"
 
