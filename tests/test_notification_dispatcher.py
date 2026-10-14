@@ -2,7 +2,7 @@
 
 import asyncio
 
-from custom_components.magic_caster_wand.ble_common.notification_dispatcher import NotificationDispatcher
+from custom_components.magic_caster_wand.common_ble.notification_dispatcher import NotificationDispatcher
 
 
 def test_dispatcher_delivers_queued_frames_in_order_and_unsubscribes():

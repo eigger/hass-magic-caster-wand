@@ -8,7 +8,7 @@ from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceIn
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
 
-from .ble_common import BLEData
+from .common_ble import BLEData
 from .const import MANUFACTURER
 from .runtime_data import MagicCasterWandConfigEntry, McwRuntimeData
 

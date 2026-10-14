@@ -9,7 +9,7 @@ from typing import TypeAlias
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .ble_common import BLEData
+from .common_ble import BLEData
 from .const import DOMAIN
 from .mcb_ble import McbDevice
 from .mcw_ble import McwDevice

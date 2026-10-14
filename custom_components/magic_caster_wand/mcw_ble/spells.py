@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 
-from ..ble_common.macros import LedGroup, Macro
+from ..common_ble.macros import LedGroup, Macro
 
 
 class Spell(ABC):

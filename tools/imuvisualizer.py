@@ -22,7 +22,7 @@ from pathlib import Path
 _CUSTOM_COMPONENTS_PATH = Path(__file__).parent.parent / "custom_components"
 _INTEGRATION_PATH = _CUSTOM_COMPONENTS_PATH / "magic_caster_wand"
 _MCW_BLE_PATH = _INTEGRATION_PATH / "mcw_ble"
-_BLE_COMMON_PATH = _INTEGRATION_PATH / "ble_common"
+_COMMON_BLE_PATH = _INTEGRATION_PATH / "common_ble"
 sys.path.insert(0, str(_CUSTOM_COMPONENTS_PATH))
 
 # Import submodules using importlib to avoid __init__.py
@@ -47,12 +47,12 @@ sys.modules["magic_caster_wand"] = _fake_integration
 _fake_mcw_ble = types.ModuleType("magic_caster_wand.mcw_ble")
 _fake_mcw_ble.__path__ = [str(_MCW_BLE_PATH)]
 sys.modules["magic_caster_wand.mcw_ble"] = _fake_mcw_ble
-_fake_ble_common = types.ModuleType("magic_caster_wand.ble_common")
-_fake_ble_common.__path__ = [str(_BLE_COMMON_PATH)]
-sys.modules["magic_caster_wand.ble_common"] = _fake_ble_common
+_fake_common_ble = types.ModuleType("magic_caster_wand.common_ble")
+_fake_common_ble.__path__ = [str(_COMMON_BLE_PATH)]
+sys.modules["magic_caster_wand.common_ble"] = _fake_common_ble
 
 # Load modules in dependency order
-_macros = _load_module("macros", _BLE_COMMON_PATH / "macros.py", "magic_caster_wand.ble_common")
+_macros = _load_module("macros", _COMMON_BLE_PATH / "macros.py", "magic_caster_wand.common_ble")
 _mcw = _load_module("mcw", _MCW_BLE_PATH / "mcw.py")
 _spell_tracker = _load_module("spell_tracker", _MCW_BLE_PATH / "spell_tracker.py")
 _spells = _load_module("spells", _MCW_BLE_PATH / "spells.py")

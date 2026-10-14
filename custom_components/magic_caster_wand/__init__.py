@@ -11,7 +11,7 @@ from homeassistant.const import CONF_SCAN_INTERVAL, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .ble_common import BLEData
+from .common_ble import BLEData
 from .const import (
     CONF_SPELL_TIMEOUT,
     CONF_TFLITE_URL,
