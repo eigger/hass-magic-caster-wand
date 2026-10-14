@@ -6,6 +6,7 @@ import pathlib
 
 import pytest
 
+from custom_components.magic_caster_wand.mcw_ble import mcb, parser
 from custom_components.magic_caster_wand.mcw_ble.parser import McbDevice, McwDevice
 
 COMPONENT = pathlib.Path(__file__).resolve().parents[1] / "custom_components" / "magic_caster_wand"
@@ -116,6 +117,141 @@ def test_no_probe_once_the_model_is_known(device_cls):
     device.connect = lambda ble: pytest.fail("must not reconnect once the model is known")
 
     asyncio.run(device.update_device(object()))
+
+
+@pytest.mark.parametrize(("device_cls", "client_name"), [(McwDevice, "McwClient"), (McbDevice, "McbClient")])
+def test_connect_failure_releases_partially_initialized_link(device_cls, client_name, monkeypatch):
+    device = device_cls("AA:BB:CC:DD:EE:FF")
+    device.model = "known-model"
+    calls = []
+
+    class Client:
+        is_connected = True
+
+        async def disconnect(self):
+            calls.append("disconnect")
+            self.is_connected = False
+
+    client = Client()
+
+    class ProtocolClient:
+        def __init__(self, ble_client):
+            self.client = ble_client
+
+        def register_callback(self, *callbacks):
+            pass
+
+        async def start_notify(self):
+            raise RuntimeError("notification setup failed")
+
+        async def stop_notify(self):
+            calls.append("stop_notify")
+
+    async def establish(*args, **kwargs):
+        return client
+
+    monkeypatch.setattr(parser, "establish_connection", establish)
+    monkeypatch.setattr(parser, client_name, ProtocolClient)
+
+    assert (
+        asyncio.run(device.connect(type("BleDevice", (), {"address": "AA:BB:CC:DD:EE:FF", "name": "test"})())) is False
+    )
+    assert calls == ["stop_notify", "disconnect"]
+    assert device.client is None
+    assert getattr(device, "_mcw", getattr(device, "_mcb", None)) is None
+
+
+def test_box_notification_setup_continues_when_initial_battery_read_fails(monkeypatch):
+    calls = []
+
+    class Client:
+        async def start_notify(self, *args):
+            calls.append("start_notify")
+
+        async def read_gatt_char(self, *args):
+            raise RuntimeError("battery read failed")
+
+    async def no_sleep(_seconds):
+        pass
+
+    async def record_request(name):
+        calls.append(name)
+
+    monkeypatch.setattr(mcb, "sleep", no_sleep)
+    protocol = mcb.McbClient(Client())
+    protocol.request_box_notifications = lambda: record_request("box")
+    protocol.request_charge_notifications = lambda: record_request("charge")
+    protocol.request_lid_notifications = lambda: record_request("lid")
+    protocol.request_lid_status = lambda: record_request("status")
+
+    asyncio.run(protocol.start_notify())
+
+    assert calls == ["start_notify", "start_notify", "box", "charge", "lid", "status"]
+
+
+def test_box_notification_setup_propagates_required_state_request_failure(monkeypatch):
+    class Client:
+        async def start_notify(self, *args):
+            pass
+
+        async def read_gatt_char(self, *args):
+            return b"\x64"
+
+    async def no_sleep(_seconds):
+        pass
+
+    async def fail_request():
+        raise RuntimeError("box state request failed")
+
+    monkeypatch.setattr(mcb, "sleep", no_sleep)
+    protocol = mcb.McbClient(Client())
+    protocol.request_box_notifications = fail_request
+
+    with pytest.raises(RuntimeError, match="box state request failed"):
+        asyncio.run(protocol.start_notify())
+
+
+@pytest.mark.parametrize(("device_cls", "client_name"), [(McwDevice, "McwClient"), (McbDevice, "McbClient")])
+def test_cancel_during_failed_connect_cleanup_still_disconnects(device_cls, client_name, monkeypatch):
+    device = device_cls("AA:BB:CC:DD:EE:FF")
+    device.model = "known-model"
+    calls = []
+
+    class Client:
+        is_connected = True
+
+        async def disconnect(self):
+            calls.append("disconnect")
+            self.is_connected = False
+
+    client = Client()
+
+    class ProtocolClient:
+        def __init__(self, ble_client):
+            self.client = ble_client
+
+        def register_callback(self, *callbacks):
+            pass
+
+        async def start_notify(self):
+            raise RuntimeError("notification setup failed")
+
+        async def stop_notify(self):
+            raise asyncio.CancelledError
+
+    async def establish(*args, **kwargs):
+        return client
+
+    monkeypatch.setattr(parser, "establish_connection", establish)
+    monkeypatch.setattr(parser, client_name, ProtocolClient)
+
+    ble_device = type("BleDevice", (), {"address": "AA:BB:CC:DD:EE:FF", "name": "test"})()
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(device.connect(ble_device))
+
+    assert calls == ["disconnect"]
+    assert device.client is None
+    assert getattr(device, "_mcw", getattr(device, "_mcb", None)) is None
 
 
 # ── Background tasks are tracked and cancelled ───────────────────────────────
