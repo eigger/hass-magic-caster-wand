@@ -242,7 +242,7 @@ class McwSpellSensor(
         McwBaseSensor.__init__(self, address, mcw)
 
         self._connection_coordinator = connection_coordinator
-        self._attr_name = "Spell"
+        self._attr_translation_key = "spell"
         self._attr_unique_id = f"mcw_{self._identifier}_spell"
         self._attr_icon = "mdi:magic-staff"
         self._spell = "awaiting"
@@ -300,7 +300,7 @@ class McwBatterySensor(
         McwBaseSensor.__init__(self, address, mcw)
 
         self._connection_coordinator = connection_coordinator
-        self._attr_name = "Battery"
+        self._attr_translation_key = "battery"
         self._attr_unique_id = f"mcw_{self._identifier}_battery"
         self._battery: float | None = None
 
@@ -359,7 +359,7 @@ class McwBatteryStateSensor(
         CoordinatorEntity.__init__(self, coordinator)
         McwBaseSensor.__init__(self, address, mcw)
         self._connection_coordinator = connection_coordinator
-        self._attr_name = "Battery State"
+        self._attr_translation_key = "battery_state"
         self._attr_unique_id = f"mcw_{self._identifier}_battery_state"
         self._state: str | None = None
 
@@ -419,7 +419,7 @@ class McwSpellModeSensor(McwBaseSensor):
         McwBaseSensor.__init__(self, address, mcw)
 
         self._connection_coordinator = connection_coordinator
-        self._attr_name = "Spell Detection Mode"
+        self._attr_translation_key = "spell_mode"
         self._attr_unique_id = f"mcw_{self._identifier}_spell_mode"
         self._attr_icon = "mdi:auto-fix"
 
@@ -474,7 +474,7 @@ class McwCalibrationSensor(
         self._connection_coordinator = connection_coordinator
         self._sensor_key = sensor_key
         self._sensor_icon = sensor_icon
-        self._attr_name = sensor_name
+        self._attr_translation_key = sensor_key
         self._attr_unique_id = f"mcw_{self._identifier}_{sensor_key}"
         self._state: str = "Pending"
 

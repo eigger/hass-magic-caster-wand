@@ -1,0 +1,195 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "description": "設定するデバイスを選択してください",
+        "data": {
+          "address": "デバイス"
+        }
+      },
+      "bluetooth_confirm": {
+        "description": "{name} を設定しますか？"
+      }
+    },
+    "abort": {
+      "no_devices_found": "デバイスが見つかりません",
+      "already_in_progress": "設定はすでに進行中です",
+      "already_configured": "デバイスはすでに設定されています",
+      "not_supported": "サポートされていないデバイスです",
+      "reauth_successful": "再認証しました",
+      "cannot_connect": "接続できません",
+      "unknown": "予期しないエラーです"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Magic Caster Wand の設定",
+        "description": "呪文検出用の TFLite サーバー URL とタイムアウトを設定します。",
+        "data": {
+          "tflite_url": "TFLite サーバー URL",
+          "spell_timeout": "呪文のタイムアウト（秒）"
+        },
+        "data_description": {
+          "spell_timeout": "検出した呪文が待機状態に戻るまでの秒数です。0 で無効になります。"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "spell": {
+        "name": "呪文"
+      },
+      "battery": {
+        "name": "バッテリー"
+      },
+      "battery_state": {
+        "name": "バッテリー状態"
+      },
+      "spell_mode": {
+        "name": "呪文検出モード"
+      },
+      "calibration_button": {
+        "name": "ボタンの調整"
+      },
+      "calibration_imu": {
+        "name": "IMU の調整"
+      },
+      "ble_connection_duration": {
+        "name": "BLE 接続時間"
+      },
+      "ble_last_operation": {
+        "name": "最後の BLE 操作"
+      },
+      "ble_failure_count": {
+        "name": "BLE 失敗回数"
+      },
+      "ble_last_failure": {
+        "name": "最後の BLE 失敗"
+      }
+    },
+    "binary_sensor": {
+      "button_1": {
+        "name": "ボタン 1"
+      },
+      "button_2": {
+        "name": "ボタン 2"
+      },
+      "button_3": {
+        "name": "ボタン 3"
+      },
+      "button_4": {
+        "name": "ボタン 4"
+      },
+      "connected": {
+        "name": "接続済み"
+      },
+      "lid": {
+        "name": "ふた"
+      },
+      "usb_plugged": {
+        "name": "USB 接続"
+      },
+      "wand_present": {
+        "name": "杖あり"
+      }
+    },
+    "button": {
+      "calibration_button": {
+        "name": "ボタンの調整"
+      },
+      "calibration_imu": {
+        "name": "IMU の調整"
+      }
+    },
+    "switch": {
+      "connect": {
+        "name": "接続"
+      },
+      "spell_tracking": {
+        "name": "呪文の追跡"
+      }
+    },
+    "select": {
+      "casting_led_color": {
+        "name": "詠唱 LED の色"
+      }
+    },
+    "text": {
+      "alias": {
+        "name": "別名"
+      }
+    },
+    "camera": {
+      "spell_canvas": {
+        "name": "呪文キャンバス"
+      }
+    }
+  },
+  "services": {
+    "vibrate": {
+      "name": "杖を振動",
+      "description": "杖に約 800 ms の固定振動パルスを発生させます。",
+      "fields": {
+        "duration": {
+          "name": "時間",
+          "description": "指定する振動時間（ミリ秒）です。"
+        }
+      }
+    },
+    "set_led": {
+      "name": "LED を設定",
+      "description": "杖の LED グループの色を設定します。",
+      "fields": {
+        "group": {
+          "name": "LED グループ",
+          "description": "操作する LED グループです。"
+        },
+        "rgb_color": {
+          "name": "RGB 色",
+          "description": "RGB 形式の色です。"
+        },
+        "duration": {
+          "name": "点灯時間",
+          "description": "点灯時間（ミリ秒）です。0 は常時点灯です。"
+        }
+      }
+    },
+    "send_macro": {
+      "name": "マクロを送信",
+      "description": "杖またはボックスにマクロコマンドを順番に送信します。",
+      "fields": {
+        "commands": {
+          "name": "マクロコマンド",
+          "description": "コマンドオブジェクトのリストです。changeled は group（TIP、MID_UPPER、MID_LOWER、POMMEL または 0–3）、rgb（[R,G,B]、各 0–255）、duration（ミリ秒、最大 65535）を指定します。clear は全 LED を消灯し、delay は delay（ミリ秒）、buzz は buzz（ミリ秒）を指定します。set_loops は 1–255 回の反復を設定し、loop はループを終了、wait は前のコマンド完了を待ちます。"
+        }
+      }
+    },
+    "clear_leds": {
+      "name": "LED を消灯",
+      "description": "杖のすべての LED を消灯します。"
+    },
+    "play_spell": {
+      "name": "呪文エフェクトを再生",
+      "description": "定義済みの呪文マクロエフェクトを再生します。",
+      "fields": {
+        "spell": {
+          "name": "呪文",
+          "description": "再生する呪文エフェクトです。"
+        }
+      }
+    }
+  },
+  "selector": {
+    "led_group": {
+      "options": {
+        "tip": "先端",
+        "pommel": "柄の端",
+        "mid_lower": "中央下",
+        "mid_upper": "中央上"
+      }
+    }
+  }
+}

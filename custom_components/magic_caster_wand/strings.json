@@ -16,6 +16,8 @@
       "no_devices_found": "[%key:common::config_flow::abort::no_devices_found%]",
       "already_in_progress": "[%key:common::config_flow::abort::already_in_progress%]",
       "already_configured": "[%key:common::config_flow::abort::already_configured_device%]",
+      "not_supported": "Device is not supported",
+      "reauth_successful": "Reauthentication successful",
       "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
       "unknown": "[%key:common::config_flow::error::unknown%]"
     }
@@ -37,10 +39,157 @@
   },
   "entity": {
     "sensor": {
-      "ble_connection_duration": {"name": "BLE Connection Duration"},
-      "ble_last_operation": {"name": "BLE Last Operation"},
-      "ble_failure_count": {"name": "BLE Failure Count"},
-      "ble_last_failure": {"name": "BLE Last Failure"}
+      "spell": {
+        "name": "Spell"
+      },
+      "battery": {
+        "name": "Battery"
+      },
+      "battery_state": {
+        "name": "Battery State"
+      },
+      "spell_mode": {
+        "name": "Spell Detection Mode"
+      },
+      "calibration_button": {
+        "name": "Calibration Button"
+      },
+      "calibration_imu": {
+        "name": "Calibration IMU"
+      },
+      "ble_connection_duration": {
+        "name": "BLE Connection Duration"
+      },
+      "ble_last_operation": {
+        "name": "BLE Last Operation"
+      },
+      "ble_failure_count": {
+        "name": "BLE Failure Count"
+      },
+      "ble_last_failure": {
+        "name": "BLE Last Failure"
+      }
+    },
+    "binary_sensor": {
+      "button_1": {
+        "name": "Button 1"
+      },
+      "button_2": {
+        "name": "Button 2"
+      },
+      "button_3": {
+        "name": "Button 3"
+      },
+      "button_4": {
+        "name": "Button 4"
+      },
+      "connected": {
+        "name": "Connected"
+      },
+      "lid": {
+        "name": "Lid"
+      },
+      "usb_plugged": {
+        "name": "USB Plugged"
+      },
+      "wand_present": {
+        "name": "Wand"
+      }
+    },
+    "button": {
+      "calibration_button": {
+        "name": "Calibration Button"
+      },
+      "calibration_imu": {
+        "name": "Calibration IMU"
+      }
+    },
+    "switch": {
+      "connect": {
+        "name": "Connect"
+      },
+      "spell_tracking": {
+        "name": "Spell Tracking"
+      }
+    },
+    "select": {
+      "casting_led_color": {
+        "name": "Casting LED Color"
+      }
+    },
+    "text": {
+      "alias": {
+        "name": "Alias"
+      }
+    },
+    "camera": {
+      "spell_canvas": {
+        "name": "Spell Canvas"
+      }
+    }
+  },
+  "services": {
+    "vibrate": {
+      "name": "Vibrate Wand",
+      "description": "Vibrate the wand. A single command produces a fixed pulse of about 800 ms, regardless of the requested duration.",
+      "fields": {
+        "duration": {
+          "name": "Duration",
+          "description": "Requested vibration duration in milliseconds. Closely spaced commands may extend the firmware pulse."
+        }
+      }
+    },
+    "set_led": {
+      "name": "Set LED",
+      "description": "Set the color of a specific LED group on the wand.",
+      "fields": {
+        "group": {
+          "name": "LED Group",
+          "description": "The LED group to control."
+        },
+        "rgb_color": {
+          "name": "RGB Color",
+          "description": "The color in RGB format."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "Light duration in milliseconds. Use 0 for permanent."
+        }
+      }
+    },
+    "send_macro": {
+      "name": "Send Macro",
+      "description": "Send a sequence of macro commands to a wand or box. Commands run in order and can change LEDs, wait, vibrate, and define loops. The box has one LED group (TIP) and no vibration motor.",
+      "fields": {
+        "commands": {
+          "name": "Macro Commands",
+          "description": "A list of command objects. Supported keys: changeled (group, rgb, duration), clear, delay (delay), buzz (buzz), set_loops (1–255), loop, and wait. LED groups: TIP, MID_UPPER, MID_LOWER, POMMEL (or 0–3). RGB channels range from 0 to 255; duration is in milliseconds."
+        }
+      }
+    },
+    "clear_leds": {
+      "name": "Clear LEDs",
+      "description": "Turn off all LEDs on the wand."
+    },
+    "play_spell": {
+      "name": "Play Spell Effect",
+      "description": "Play a predefined spell macro effect.",
+      "fields": {
+        "spell": {
+          "name": "Spell",
+          "description": "The spell effect to play."
+        }
+      }
+    }
+  },
+  "selector": {
+    "led_group": {
+      "options": {
+        "tip": "Tip",
+        "pommel": "Pommel",
+        "mid_lower": "Mid Lower",
+        "mid_upper": "Mid Upper"
+      }
     }
   }
 }

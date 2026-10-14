@@ -1,0 +1,195 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "description": "Sélectionnez un appareil à configurer",
+        "data": {
+          "address": "Appareil"
+        }
+      },
+      "bluetooth_confirm": {
+        "description": "Voulez-vous configurer {name} ?"
+      }
+    },
+    "abort": {
+      "no_devices_found": "Aucun appareil trouvé",
+      "already_in_progress": "La configuration est déjà en cours",
+      "already_configured": "Appareil déjà configuré",
+      "not_supported": "Appareil non pris en charge",
+      "reauth_successful": "Nouvelle authentification réussie",
+      "cannot_connect": "Connexion impossible",
+      "unknown": "Erreur inattendue"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configuration de Magic Caster Wand",
+        "description": "Configurez l’URL du serveur TFLite et le délai de détection des sorts.",
+        "data": {
+          "tflite_url": "URL du serveur TFLite",
+          "spell_timeout": "Délai du sort (secondes)"
+        },
+        "data_description": {
+          "spell_timeout": "Délai avant le retour d’un sort détecté à l’état d’attente. 0 désactive le délai."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "spell": {
+        "name": "Sort"
+      },
+      "battery": {
+        "name": "Batterie"
+      },
+      "battery_state": {
+        "name": "État de la batterie"
+      },
+      "spell_mode": {
+        "name": "Mode de détection des sorts"
+      },
+      "calibration_button": {
+        "name": "Calibration du bouton"
+      },
+      "calibration_imu": {
+        "name": "Calibration IMU"
+      },
+      "ble_connection_duration": {
+        "name": "Durée de connexion BLE"
+      },
+      "ble_last_operation": {
+        "name": "Dernière opération BLE"
+      },
+      "ble_failure_count": {
+        "name": "Échecs BLE"
+      },
+      "ble_last_failure": {
+        "name": "Dernier échec BLE"
+      }
+    },
+    "binary_sensor": {
+      "button_1": {
+        "name": "Bouton 1"
+      },
+      "button_2": {
+        "name": "Bouton 2"
+      },
+      "button_3": {
+        "name": "Bouton 3"
+      },
+      "button_4": {
+        "name": "Bouton 4"
+      },
+      "connected": {
+        "name": "Connecté"
+      },
+      "lid": {
+        "name": "Couvercle"
+      },
+      "usb_plugged": {
+        "name": "USB branché"
+      },
+      "wand_present": {
+        "name": "Baguette présente"
+      }
+    },
+    "button": {
+      "calibration_button": {
+        "name": "Calibration du bouton"
+      },
+      "calibration_imu": {
+        "name": "Calibration IMU"
+      }
+    },
+    "switch": {
+      "connect": {
+        "name": "Connexion"
+      },
+      "spell_tracking": {
+        "name": "Suivi des sorts"
+      }
+    },
+    "select": {
+      "casting_led_color": {
+        "name": "Couleur LED de lancement"
+      }
+    },
+    "text": {
+      "alias": {
+        "name": "Alias"
+      }
+    },
+    "camera": {
+      "spell_canvas": {
+        "name": "Toile des sorts"
+      }
+    }
+  },
+  "services": {
+    "vibrate": {
+      "name": "Faire vibrer la baguette",
+      "description": "Fait vibrer la baguette avec une impulsion fixe d’environ 800 ms.",
+      "fields": {
+        "duration": {
+          "name": "Durée",
+          "description": "Durée demandée en millisecondes."
+        }
+      }
+    },
+    "set_led": {
+      "name": "Régler la LED",
+      "description": "Définit la couleur d’un groupe LED.",
+      "fields": {
+        "group": {
+          "name": "Groupe LED",
+          "description": "Groupe LED à contrôler."
+        },
+        "rgb_color": {
+          "name": "Couleur RGB",
+          "description": "Couleur au format RGB."
+        },
+        "duration": {
+          "name": "Durée",
+          "description": "Durée en millisecondes ; 0 signifie permanent."
+        }
+      }
+    },
+    "send_macro": {
+      "name": "Envoyer une macro",
+      "description": "Envoie des commandes macro dans l’ordre à une baguette ou une boîte.",
+      "fields": {
+        "commands": {
+          "name": "Commandes macro",
+          "description": "Liste d’objets de commande. changeled accepte group (TIP, MID_UPPER, MID_LOWER, POMMEL ou 0–3), rgb ([R,G,B], chaque canal de 0 à 255) et duration (ms, maximum 65535). clear éteint toutes les LED ; delay utilise delay (ms) et buzz utilise buzz (ms). set_loops définit 1–255 répétitions ; loop termine le bloc et wait attend la fin des commandes précédentes."
+        }
+      }
+    },
+    "clear_leds": {
+      "name": "Éteindre les LED",
+      "description": "Éteint toutes les LED de la baguette."
+    },
+    "play_spell": {
+      "name": "Jouer un effet",
+      "description": "Joue un effet macro prédéfini.",
+      "fields": {
+        "spell": {
+          "name": "Sort",
+          "description": "Effet à jouer."
+        }
+      }
+    }
+  },
+  "selector": {
+    "led_group": {
+      "options": {
+        "tip": "Pointe",
+        "pommel": "Extrémité du manche",
+        "mid_lower": "Milieu inférieur",
+        "mid_upper": "Milieu supérieur"
+      }
+    }
+  }
+}

@@ -1,0 +1,195 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "description": "Selecciona un dispositivo para configurar",
+        "data": {
+          "address": "Dispositivo"
+        }
+      },
+      "bluetooth_confirm": {
+        "description": "¿Quieres configurar {name}?"
+      }
+    },
+    "abort": {
+      "no_devices_found": "No se encontraron dispositivos",
+      "already_in_progress": "La configuración ya está en curso",
+      "already_configured": "El dispositivo ya está configurado",
+      "not_supported": "Dispositivo no compatible",
+      "reauth_successful": "Reautenticación completada",
+      "cannot_connect": "No se pudo conectar",
+      "unknown": "Error inesperado"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configuración de Magic Caster Wand",
+        "description": "Configura la URL del servidor TFLite para detectar hechizos y el tiempo de espera.",
+        "data": {
+          "tflite_url": "URL del servidor TFLite",
+          "spell_timeout": "Tiempo de espera del hechizo (segundos)"
+        },
+        "data_description": {
+          "spell_timeout": "Segundos antes de que un hechizo detectado vuelva al estado de espera. Usa 0 para desactivar el límite."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "spell": {
+        "name": "Hechizo"
+      },
+      "battery": {
+        "name": "Batería"
+      },
+      "battery_state": {
+        "name": "Estado de la batería"
+      },
+      "spell_mode": {
+        "name": "Modo de detección de hechizos"
+      },
+      "calibration_button": {
+        "name": "Calibración del botón"
+      },
+      "calibration_imu": {
+        "name": "Calibración IMU"
+      },
+      "ble_connection_duration": {
+        "name": "Duración de conexión BLE"
+      },
+      "ble_last_operation": {
+        "name": "Última operación BLE"
+      },
+      "ble_failure_count": {
+        "name": "Fallos BLE"
+      },
+      "ble_last_failure": {
+        "name": "Último fallo BLE"
+      }
+    },
+    "binary_sensor": {
+      "button_1": {
+        "name": "Botón 1"
+      },
+      "button_2": {
+        "name": "Botón 2"
+      },
+      "button_3": {
+        "name": "Botón 3"
+      },
+      "button_4": {
+        "name": "Botón 4"
+      },
+      "connected": {
+        "name": "Conectado"
+      },
+      "lid": {
+        "name": "Tapa"
+      },
+      "usb_plugged": {
+        "name": "USB conectado"
+      },
+      "wand_present": {
+        "name": "Varita presente"
+      }
+    },
+    "button": {
+      "calibration_button": {
+        "name": "Calibración del botón"
+      },
+      "calibration_imu": {
+        "name": "Calibración IMU"
+      }
+    },
+    "switch": {
+      "connect": {
+        "name": "Conectar"
+      },
+      "spell_tracking": {
+        "name": "Seguimiento de hechizos"
+      }
+    },
+    "select": {
+      "casting_led_color": {
+        "name": "Color del LED de lanzamiento"
+      }
+    },
+    "text": {
+      "alias": {
+        "name": "Alias"
+      }
+    },
+    "camera": {
+      "spell_canvas": {
+        "name": "Lienzo de hechizos"
+      }
+    }
+  },
+  "services": {
+    "vibrate": {
+      "name": "Vibrar varita",
+      "description": "Vibra la varita. Un comando produce un pulso fijo de unos 800 ms.",
+      "fields": {
+        "duration": {
+          "name": "Duración",
+          "description": "Duración solicitada en milisegundos."
+        }
+      }
+    },
+    "set_led": {
+      "name": "Configurar LED",
+      "description": "Configura el color de un grupo LED.",
+      "fields": {
+        "group": {
+          "name": "Grupo LED",
+          "description": "Grupo LED que se controlará."
+        },
+        "rgb_color": {
+          "name": "Color RGB",
+          "description": "Color en formato RGB."
+        },
+        "duration": {
+          "name": "Duración",
+          "description": "Duración en milisegundos; 0 significa permanente."
+        }
+      }
+    },
+    "send_macro": {
+      "name": "Enviar macro",
+      "description": "Envía comandos macro en orden a una varita o caja.",
+      "fields": {
+        "commands": {
+          "name": "Comandos macro",
+          "description": "Lista de objetos de comando. changeled acepta group (TIP, MID_UPPER, MID_LOWER, POMMEL o 0–3), rgb ([R,G,B], cada canal 0–255) y duration (ms, máximo 65535). clear apaga todos los LED; delay usa delay (ms) y buzz usa buzz (ms). set_loops establece 1–255 iteraciones; loop cierra el bloque y wait espera a que terminen los comandos anteriores."
+        }
+      }
+    },
+    "clear_leds": {
+      "name": "Apagar LED",
+      "description": "Apaga todos los LED de la varita."
+    },
+    "play_spell": {
+      "name": "Reproducir efecto",
+      "description": "Reproduce un efecto macro predefinido.",
+      "fields": {
+        "spell": {
+          "name": "Hechizo",
+          "description": "Efecto que se reproducirá."
+        }
+      }
+    }
+  },
+  "selector": {
+    "led_group": {
+      "options": {
+        "tip": "Punta",
+        "pommel": "Extremo del mango",
+        "mid_lower": "Centro inferior",
+        "mid_upper": "Centro superior"
+      }
+    }
+  }
+}
