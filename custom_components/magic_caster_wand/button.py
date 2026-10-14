@@ -3,33 +3,34 @@
 import logging
 
 from homeassistant.components.button import ButtonEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
 
-from .const import DOMAIN, MANUFACTURER
+from .const import MANUFACTURER
 from .mcw_ble import BLEData
+from .runtime_data import MagicCasterWandConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: MagicCasterWandConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Magic Caster Wand BLE buttons."""
-    data = hass.data[DOMAIN][entry.entry_id]
-    address = data["address"]
-    device = data["device"]
-    device_type = data["type"]
-    coordinator = data["coordinator"]
+    data = entry.runtime_data
+    address = data.address
+    device = data.device
+    device_type = data.device_type
+    coordinator = data.coordinator
 
     if device_type == "mcw":
-        calibration_coordinator = data["calibration_coordinator"]
-        connection_coordinator = data["connection_coordinator"]
+        assert data.calibration_coordinator is not None
+        calibration_coordinator = data.calibration_coordinator
+        connection_coordinator = data.connection_coordinator
         async_add_entities(
             [
                 McwButtonCalibration(address, device, coordinator, calibration_coordinator, connection_coordinator),

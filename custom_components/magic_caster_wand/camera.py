@@ -8,15 +8,15 @@ import logging
 from collections import deque
 
 from homeassistant.components.camera import Camera
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
 from PIL import Image, ImageDraw
 
-from .const import DOMAIN, MANUFACTURER
+from .const import MANUFACTURER
 from .mcw_ble.spell_tracker import SpellTracker
+from .runtime_data import MagicCasterWandConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,20 +27,23 @@ TRAIL_LENGTH = 1000
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: MagicCasterWandConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Magic Caster Wand BLE camera."""
-    data = hass.data[DOMAIN][entry.entry_id]
-    address = data["address"]
-    device = data["device"]
-    device_type = data["type"]
+    data = entry.runtime_data
+    address = data.address
+    device = data.device
+    device_type = data.device_type
 
     if device_type == "mcw":
-        imu_coordinator = data["imu_coordinator"]
-        buttons_coordinator = data["buttons_coordinator"]
-        spell_coordinator = data["spell_coordinator"]
-        connection_coordinator = data["connection_coordinator"]
+        assert data.imu_coordinator is not None
+        assert data.buttons_coordinator is not None
+        assert data.spell_coordinator is not None
+        imu_coordinator = data.imu_coordinator
+        buttons_coordinator = data.buttons_coordinator
+        spell_coordinator = data.spell_coordinator
+        connection_coordinator = data.connection_coordinator
         async_add_entities(
             [
                 McwSpellCamera(

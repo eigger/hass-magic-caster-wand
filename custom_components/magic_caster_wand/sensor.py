@@ -7,7 +7,6 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import PERCENTAGE
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceInfo
@@ -20,8 +19,9 @@ from homeassistant.helpers.update_coordinator import (
 )
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, MANUFACTURER, SIGNAL_SPELL_MODE_CHANGED
+from .const import MANUFACTURER, SIGNAL_SPELL_MODE_CHANGED
 from .mcw_ble import McbDevice, McwDevice
+from .runtime_data import MagicCasterWandConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,21 +59,23 @@ class BatteryState:
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: MagicCasterWandConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Magic Caster Wand BLE sensors."""
-    data = hass.data[DOMAIN][entry.entry_id]
-    battery_coordinator: DataUpdateCoordinator[float] = data["battery_coordinator"]
-    connection_coordinator: DataUpdateCoordinator[bool] = data["connection_coordinator"]
-    address = data["address"]
-    device = data["device"]
-    device_type = data["type"]
+    data = entry.runtime_data
+    battery_coordinator: DataUpdateCoordinator[float] = data.battery_coordinator
+    connection_coordinator: DataUpdateCoordinator[bool] = data.connection_coordinator
+    address = data.address
+    device = data.device
+    device_type = data.device_type
 
     entities = []
     if device_type == "mcw":
-        spell_coordinator: DataUpdateCoordinator[str] = data["spell_coordinator"]
-        calibration_coordinator: DataUpdateCoordinator[dict[str, str]] = data["calibration_coordinator"]
+        assert data.spell_coordinator is not None
+        assert data.calibration_coordinator is not None
+        spell_coordinator = data.spell_coordinator
+        calibration_coordinator = data.calibration_coordinator
         entities.extend(
             [
                 McwSpellSensor(address, device, spell_coordinator, connection_coordinator),
