@@ -156,10 +156,23 @@ def connect_device(device: McwDevice, monkeypatch, start_error: Exception | None
     """
     fake_client = FakeMcwClient(start_error)
 
-    async def fake_establish(cls, ble_device, address, disconnected_callback=None):
-        return FakeClient()
+    class FakeBleSession:
+        def __init__(self, ble_device, **kwargs):
+            self.client = FakeClient()
+            self.disconnected_callback = kwargs["disconnected_callback"]
 
-    monkeypatch.setattr(parser, "establish_connection", fake_establish)
+        async def __aenter__(self):
+            return self.client
+
+        async def __aexit__(self, *_exc_info):
+            if self.client.is_connected:
+                self.client.is_connected = False
+                self.disconnected_callback(self.client)
+
+    def fake_session(ble_device, **kwargs):
+        return FakeBleSession(ble_device, **kwargs)
+
+    monkeypatch.setattr(parser, "ble_session", fake_session)
     monkeypatch.setattr(parser, "McwClient", lambda client: fake_client)
     # The model probe talks to the wand; it is not what these tests are about.
     device.model = "WBMC22G1SHNW"

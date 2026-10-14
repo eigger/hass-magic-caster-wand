@@ -3,10 +3,11 @@
 import asyncio
 import dataclasses
 import logging
+from contextlib import AsyncExitStack
 
 from bleak import BleakClient
 from bleak.backends.device import BLEDevice
-from bleak_retry_connector import establish_connection
+from blesession import ble_session
 from bluetooth_sensor_state_data import BluetoothData
 from home_assistant_bluetooth import BluetoothServiceInfoBleak
 
@@ -134,6 +135,7 @@ class McwDevice:
         self.tflite_url = tflite_url
         self.model_name = model_name
         self.client: BleakClient | None = None
+        self._ble_session_stack: AsyncExitStack | None = None
         self.model: str | None = None
         self._mcw: McwClient | None = None
         self._data = BLEData()
@@ -354,10 +356,20 @@ class McwDevice:
         if self.is_connected():
             return True
 
+        if self._ble_session_stack is not None:
+            await self._close_ble_session()
+
         client: BleakClient | None = None
+        session_stack = AsyncExitStack()
         try:
-            client = await establish_connection(
-                BleakClient, ble_device, ble_device.address, disconnected_callback=self._on_disconnect
+            await session_stack.__aenter__()
+            self._ble_session_stack = session_stack
+            client = await session_stack.enter_async_context(
+                ble_session(
+                    ble_device,
+                    name=ble_device.address,
+                    disconnected_callback=self._on_disconnect,
+                )
             )
             self.client = client
 
@@ -399,28 +411,34 @@ class McwDevice:
 
     async def _cleanup_failed_connection(self, client: BleakClient | None) -> None:
         """Release a link whose notification or device initialization failed."""
-        if client is None:
-            return
-
         try:
-            if self._mcw is not None and self._mcw.client is client:
+            if client is not None and self._mcw is not None and self._mcw.client is client:
                 try:
                     await self._mcw.stop_notify()
                 except Exception as err:
                     _LOGGER.debug("Failed to stop notifications after connect failure: %s", err)
         finally:
             try:
-                if client.is_connected:
+                if self._ble_session_stack is not None:
+                    await self._close_ble_session()
+                elif client is not None and client.is_connected:
                     await client.disconnect()
             except Exception as err:
                 _LOGGER.debug("Failed to disconnect after connect failure: %s", err)
             finally:
-                if self.client is client:
+                if client is None or self.client is client:
                     self.client = None
                     self._mcw = None
                     self._reset_cast_state()
                     if self._coordinator_connection:
                         self._coordinator_connection.async_set_updated_data(False)
+
+    async def _close_ble_session(self) -> None:
+        """Close the context that owns the active BLE connection."""
+        stack = self._ble_session_stack
+        self._ble_session_stack = None
+        if stack is not None:
+            await stack.aclose()
 
     async def _refresh_model(self) -> None:
         """Ask the wand for its model, if it is still unknown.
@@ -482,21 +500,24 @@ class McwDevice:
         # if the link is already gone, and _on_disconnect does not always fire.
         self._reset_cast_state()
 
-        if self.client:
+        try:
+            if self.client and self.client.is_connected and self._mcw:
+                try:
+                    await self._mcw.imu_streaming_stop()
+                except Exception as imu_err:
+                    _LOGGER.debug("Failed to stop IMU streaming during disconnect: %s", imu_err)
+                await self._mcw.stop_notify()
+        except Exception as err:
+            _LOGGER.warning("Error during disconnect: %s", err)
+        finally:
             try:
-                if self.client.is_connected:
-                    if self._mcw:
-                        # Stop IMU streaming before disconnecting
-                        try:
-                            await self._mcw.imu_streaming_stop()
-                        except Exception as imu_err:
-                            _LOGGER.debug("Failed to stop IMU streaming during disconnect: %s", imu_err)
-                        await self._mcw.stop_notify()
+                if self._ble_session_stack is not None:
+                    await self._close_ble_session()
+                elif self.client and self.client.is_connected:
                     await self.client.disconnect()
             except Exception as err:
-                _LOGGER.warning("Error during disconnect: %s", err)
+                _LOGGER.warning("Error closing BLE session: %s", err)
             finally:
-                # Reset all states on disconnect
                 if self._coordinator_buttons:
                     self._coordinator_buttons.async_set_updated_data(
                         {
@@ -682,6 +703,7 @@ class McbDevice:
         """Initialize the device."""
         self.address = address
         self.client: BleakClient | None = None
+        self._ble_session_stack: AsyncExitStack | None = None
         self.model: str | None = None
         self._mcb: McbClient | None = None
         self._data = BLEData()
@@ -761,10 +783,20 @@ class McbDevice:
         if self.is_connected():
             return True
 
+        if self._ble_session_stack is not None:
+            await self._close_ble_session()
+
         client: BleakClient | None = None
+        session_stack = AsyncExitStack()
         try:
-            client = await establish_connection(
-                BleakClient, ble_device, ble_device.address, disconnected_callback=self._on_disconnect
+            await session_stack.__aenter__()
+            self._ble_session_stack = session_stack
+            client = await session_stack.enter_async_context(
+                ble_session(
+                    ble_device,
+                    name=ble_device.address,
+                    disconnected_callback=self._on_disconnect,
+                )
             )
             self.client = client
 
@@ -804,27 +836,33 @@ class McbDevice:
 
     async def _cleanup_failed_connection(self, client: BleakClient | None) -> None:
         """Release a link whose notification or device initialization failed."""
-        if client is None:
-            return
-
         try:
-            if self._mcb is not None and self._mcb.client is client:
+            if client is not None and self._mcb is not None and self._mcb.client is client:
                 try:
                     await self._mcb.stop_notify()
                 except Exception as err:
                     _LOGGER.debug("Failed to stop notifications after connect failure: %s", err)
         finally:
             try:
-                if client.is_connected:
+                if self._ble_session_stack is not None:
+                    await self._close_ble_session()
+                elif client is not None and client.is_connected:
                     await client.disconnect()
             except Exception as err:
                 _LOGGER.debug("Failed to disconnect after connect failure: %s", err)
             finally:
-                if self.client is client:
+                if client is None or self.client is client:
                     self.client = None
                     self._mcb = None
                     if self._coordinator_connection:
                         self._coordinator_connection.async_set_updated_data(False)
+
+    async def _close_ble_session(self) -> None:
+        """Close the context that owns the active BLE connection."""
+        stack = self._ble_session_stack
+        self._ble_session_stack = None
+        if stack is not None:
+            await stack.aclose()
 
     async def _refresh_model(self) -> None:
         """Ask the box for its model, if it is still unknown.
@@ -838,12 +876,19 @@ class McbDevice:
 
     async def disconnect(self) -> None:
         """Disconnect from the BLE device."""
-        if self.client:
+        try:
+            if self.client and self.client.is_connected and self._mcb:
+                await self._mcb.stop_notify()
+        except Exception as err:
+            _LOGGER.warning("Error during disconnect: %s", err)
+        finally:
             try:
-                if self.client.is_connected:
+                if self._ble_session_stack is not None:
+                    await self._close_ble_session()
+                elif self.client and self.client.is_connected:
                     await self.client.disconnect()
             except Exception as err:
-                _LOGGER.warning("Error during disconnect: %s", err)
+                _LOGGER.warning("Error closing BLE session: %s", err)
             finally:
                 if self._coordinator_connection:
                     self._coordinator_connection.async_set_updated_data(False)

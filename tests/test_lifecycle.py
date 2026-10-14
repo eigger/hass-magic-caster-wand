@@ -3,6 +3,7 @@
 import ast
 import asyncio
 import pathlib
+from contextlib import asynccontextmanager
 
 import pytest
 
@@ -147,10 +148,14 @@ def test_connect_failure_releases_partially_initialized_link(device_cls, client_
         async def stop_notify(self):
             calls.append("stop_notify")
 
-    async def establish(*args, **kwargs):
-        return client
+    @asynccontextmanager
+    async def session(*args, **kwargs):
+        yield client
+        if client.is_connected:
+            await client.disconnect()
+            kwargs["disconnected_callback"](client)
 
-    monkeypatch.setattr(parser, "establish_connection", establish)
+    monkeypatch.setattr(parser, "ble_session", session)
     monkeypatch.setattr(parser, client_name, ProtocolClient)
 
     assert (
@@ -239,10 +244,14 @@ def test_cancel_during_failed_connect_cleanup_still_disconnects(device_cls, clie
         async def stop_notify(self):
             raise asyncio.CancelledError
 
-    async def establish(*args, **kwargs):
-        return client
+    @asynccontextmanager
+    async def session(*args, **kwargs):
+        yield client
+        if client.is_connected:
+            await client.disconnect()
+            kwargs["disconnected_callback"](client)
 
-    monkeypatch.setattr(parser, "establish_connection", establish)
+    monkeypatch.setattr(parser, "ble_session", session)
     monkeypatch.setattr(parser, client_name, ProtocolClient)
 
     ble_device = type("BleDevice", (), {"address": "AA:BB:CC:DD:EE:FF", "name": "test"})()
@@ -252,6 +261,120 @@ def test_cancel_during_failed_connect_cleanup_still_disconnects(device_cls, clie
     assert calls == ["disconnect"]
     assert device.client is None
     assert getattr(device, "_mcw", getattr(device, "_mcb", None)) is None
+
+
+@pytest.mark.parametrize(("device_cls", "client_name"), [(McwDevice, "McwClient"), (McbDevice, "McbClient")])
+def test_successful_connection_is_owned_until_device_disconnect(device_cls, client_name, monkeypatch):
+    device = device_cls("AA:BB:CC:DD:EE:FF")
+    device.model = "known-model"
+    events = []
+
+    class Client:
+        is_connected = True
+
+    client = Client()
+
+    @asynccontextmanager
+    async def session(*args, **kwargs):
+        events.append("enter")
+        try:
+            yield client
+        finally:
+            client.is_connected = False
+            kwargs["disconnected_callback"](client)
+            events.append("exit")
+
+    class ProtocolClient:
+        def __init__(self, ble_client):
+            self.client = ble_client
+
+        def register_callback(self, *callbacks):
+            pass
+
+        async def start_notify(self):
+            events.append("start_notify")
+
+        async def stop_notify(self):
+            events.append("stop_notify")
+
+        async def imu_streaming_stop(self):
+            events.append("stop_stream")
+
+    monkeypatch.setattr(parser, "ble_session", session)
+    monkeypatch.setattr(parser, client_name, ProtocolClient)
+    ble_device = type("BleDevice", (), {"address": "AA:BB:CC:DD:EE:FF", "name": "test"})()
+
+    async def connection_lifecycle():
+        assert await device.connect(ble_device) is True
+        assert events == ["enter", "start_notify"]
+        assert device._ble_session_stack is not None
+        await device.disconnect()
+
+    asyncio.run(connection_lifecycle())
+    expected_events = ["enter", "start_notify"]
+    if device_cls is McwDevice:
+        expected_events.append("stop_stream")
+    expected_events.extend(["stop_notify", "exit"])
+    assert events == expected_events
+    assert device._ble_session_stack is None
+    assert device.client is None
+
+
+@pytest.mark.parametrize("device_cls", [McwDevice, McbDevice])
+@pytest.mark.parametrize("stop_error", [RuntimeError("notify stop failed"), asyncio.CancelledError])
+def test_disconnect_closes_ble_session_when_stopping_notifications_fails(device_cls, stop_error, monkeypatch):
+    device = device_cls("AA:BB:CC:DD:EE:FF")
+    device.model = "known-model"
+    events = []
+
+    class Client:
+        is_connected = True
+
+    client = Client()
+
+    @asynccontextmanager
+    async def session(*args, **kwargs):
+        events.append("enter")
+        try:
+            yield client
+        finally:
+            client.is_connected = False
+            kwargs["disconnected_callback"](client)
+            events.append("exit")
+
+    class ProtocolClient:
+        def __init__(self, ble_client):
+            self.client = ble_client
+
+        def register_callback(self, *callbacks):
+            pass
+
+        async def start_notify(self):
+            pass
+
+        async def stop_notify(self):
+            raise stop_error
+
+        async def imu_streaming_stop(self):
+            pass
+
+    monkeypatch.setattr(parser, "ble_session", session)
+    monkeypatch.setattr(parser, "McwClient" if device_cls is McwDevice else "McbClient", ProtocolClient)
+    ble_device = type("BleDevice", (), {"address": "AA:BB:CC:DD:EE:FF", "name": "test"})()
+
+    async def connection_lifecycle():
+        assert await device.connect(ble_device) is True
+        if stop_error is asyncio.CancelledError:
+            with pytest.raises(asyncio.CancelledError):
+                await device.disconnect()
+        else:
+            await device.disconnect()
+
+    asyncio.run(connection_lifecycle())
+
+    assert events == ["enter", "exit"]
+    assert device._ble_session_stack is None
+    assert device.client is None
 
 
 # ── Background tasks are tracked and cancelled ───────────────────────────────
