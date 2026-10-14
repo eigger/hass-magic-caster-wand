@@ -19,11 +19,17 @@ Device: TypeAlias = McwDevice | McbDevice
 DeviceFactory: TypeAlias = Callable[[str, str, int], Device]
 
 
-def create_device(device_type: str, address: str, tflite_url: str, spell_timeout: int) -> Device:
+def create_device(
+    device_type: str,
+    address: str,
+    tflite_url: str,
+    spell_timeout: int,
+    hass: HomeAssistant,
+) -> Device:
     """Create the selected device implementation from config-entry options."""
     factories: dict[str, DeviceFactory] = {
-        "mcw": lambda addr, url, timeout: McwDevice(addr, tflite_url=url, spell_timeout=timeout),
-        "mcb": lambda addr, _url, _timeout: McbDevice(addr),
+        "mcw": lambda addr, url, timeout: McwDevice(addr, tflite_url=url, spell_timeout=timeout, hass=hass),
+        "mcb": lambda addr, _url, _timeout: McbDevice(addr, hass=hass),
     }
     return factories[device_type](address, tflite_url, spell_timeout)
 
@@ -101,6 +107,7 @@ def _create_mcw_runtime_data(
         coordinator=coordinator,
         battery_coordinator=battery_coordinator,
         connection_coordinator=connection_coordinator,
+        diagnostics=device.diagnostics,
         spell_coordinator=spell_coordinator,
         buttons_coordinator=buttons_coordinator,
         calibration_coordinator=calibration_coordinator,
@@ -148,6 +155,7 @@ def _create_mcb_runtime_data(
         coordinator=coordinator,
         battery_coordinator=battery_coordinator,
         connection_coordinator=connection_coordinator,
+        diagnostics=device.diagnostics,
         lid_coordinator=lid_coordinator,
         usb_plugged_coordinator=usb_plugged_coordinator,
         wand_coordinator=wand_coordinator,

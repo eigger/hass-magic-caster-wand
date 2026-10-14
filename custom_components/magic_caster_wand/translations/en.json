@@ -38,5 +38,13 @@
                 "description": "Configure the TFLite server URL for spell detection and spell timeout."
             }
         }
+    },
+    "entity": {
+        "sensor": {
+            "ble_connection_duration": {"name": "BLE Connection Duration"},
+            "ble_last_operation": {"name": "BLE Last Operation"},
+            "ble_failure_count": {"name": "BLE Failure Count"},
+            "ble_last_failure": {"name": "BLE Last Failure"}
+        }
     }
 }

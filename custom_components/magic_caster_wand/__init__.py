@@ -61,7 +61,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MagicCasterWandConfigEnt
     # Create device instance
     tflite_url = entry.options.get(CONF_TFLITE_URL, entry.data.get(CONF_TFLITE_URL, DEFAULT_TFLITE_URL))
     spell_timeout = entry.options.get(CONF_SPELL_TIMEOUT, entry.data.get(CONF_SPELL_TIMEOUT, DEFAULT_SPELL_TIMEOUT))
-    device = create_device(device_type, address, tflite_url, spell_timeout)
+    device = create_device(device_type, address, tflite_url, spell_timeout, hass)
 
     identifier = address.replace(":", "")[-8:]
 

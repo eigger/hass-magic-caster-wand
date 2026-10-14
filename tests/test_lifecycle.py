@@ -342,6 +342,45 @@ def test_successful_connection_is_owned_until_device_disconnect(device_cls, clie
     assert device.client is None
 
 
+@pytest.mark.parametrize(("device_cls", "client_name"), [(McwDevice, "McwClient"), (McbDevice, "McbClient")])
+def test_disconnect_during_notification_setup_is_reported_once(device_cls, client_name, monkeypatch):
+    device = device_cls("AA:BB:CC:DD:EE:FF")
+    device.model = "known-model"
+
+    class Client:
+        is_connected = True
+
+    client = Client()
+
+    @asynccontextmanager
+    async def session(*args, **kwargs):
+        try:
+            yield client
+        finally:
+            kwargs["disconnected_callback"](client)
+
+    class ProtocolClient:
+        def __init__(self, ble_client):
+            self.client = ble_client
+
+        def register_callback(self, *callbacks):
+            pass
+
+        async def start_notify(self):
+            client.is_connected = False
+            device._on_disconnect(client)
+
+    module = mcw_device if device_cls is McwDevice else mcb_device
+    monkeypatch.setattr(module, "ble_session", session)
+    monkeypatch.setattr(module, client_name, ProtocolClient)
+    ble_device = type("BleDevice", (), {"address": "AA:BB:CC:DD:EE:FF", "name": "test"})()
+
+    assert asyncio.run(device.connect(ble_device)) is False
+    assert device.diagnostics.reports.failures == 1
+    assert device.diagnostics.reports.last_failure["operation"] == "connect"
+    assert device.client is None
+
+
 @pytest.mark.parametrize("device_cls", [McwDevice, McbDevice])
 @pytest.mark.parametrize("stop_error", [RuntimeError("notify stop failed"), asyncio.CancelledError])
 def test_disconnect_closes_ble_session_when_stopping_notifications_fails(device_cls, stop_error, monkeypatch):

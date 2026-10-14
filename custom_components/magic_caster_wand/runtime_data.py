@@ -6,6 +6,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .common_ble import BLEData
+from .common_ble.session_diagnostics import BLESessionDiagnostics
 from .mcb_ble import McbDevice
 from .mcw_ble import McwDevice
 
@@ -19,6 +20,7 @@ class MagicCasterWandRuntimeData:
     coordinator: DataUpdateCoordinator[BLEData]
     battery_coordinator: DataUpdateCoordinator[float]
     connection_coordinator: DataUpdateCoordinator[bool]
+    diagnostics: BLESessionDiagnostics
 
 
 @dataclass

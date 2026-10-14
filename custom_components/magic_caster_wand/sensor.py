@@ -7,7 +7,7 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
-from homeassistant.const import PERCENTAGE
+from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfTime
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -95,6 +95,10 @@ async def async_setup_entry(
         [
             McwBatterySensor(address, device, battery_coordinator, connection_coordinator),
             McwBatteryStateSensor(address, device, battery_coordinator, connection_coordinator),
+            BLEConnectionDurationSensor(address, device, data.diagnostics),
+            BLELastOperationSensor(address, device, data.diagnostics),
+            BLEFailureCountSensor(address, device, data.diagnostics),
+            BLELastFailureSensor(address, device, data.diagnostics),
         ]
     )
     async_add_entities(entities)
@@ -122,6 +126,102 @@ class McwBaseSensor(SensorEntity):
             manufacturer=MANUFACTURER,
             model=self._mcw.model if self._mcw else None,
         )
+
+
+class BLEDiagnosticSensor(McwBaseSensor):
+    """Base class for diagnostic entities that remain available offline."""
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, address: str, device: McwDevice | McbDevice, diagnostics) -> None:
+        super().__init__(address, device)
+        self._diagnostics = diagnostics
+
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to report changes independently of coordinators."""
+        await super().async_added_to_hass()
+        self.async_on_remove(self._diagnostics.reports.add_listener(self._handle_report))
+
+    @callback
+    def _handle_report(self) -> None:
+        self.async_write_ha_state()
+
+
+class BLELastOperationSensor(BLEDiagnosticSensor):
+    """Expose the most recent BLE operation and its report attributes."""
+
+    _attr_translation_key = "ble_last_operation"
+
+    def __init__(self, address: str, device: McwDevice | McbDevice, diagnostics) -> None:
+        super().__init__(address, device, diagnostics)
+        self._attr_unique_id = f"mcw_{self._identifier}_ble_last_operation"
+
+    @property
+    def native_value(self) -> StateType:
+        report = self._diagnostics.reports.last
+        if report is None:
+            return None
+        outcome = "success" if report.get("success") else "failed"
+        return f"{report.get('operation', 'unknown')}: {outcome}"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object] | None:
+        return self._diagnostics.reports.last
+
+
+class BLEConnectionDurationSensor(BLEDiagnosticSensor):
+    """Expose the most recently measured BLE connection duration."""
+
+    _attr_translation_key = "ble_connection_duration"
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, address: str, device: McwDevice | McbDevice, diagnostics) -> None:
+        super().__init__(address, device, diagnostics)
+        self._attr_unique_id = f"mcw_{self._identifier}_ble_connection_duration"
+
+    @property
+    def native_value(self) -> StateType:
+        report = self._diagnostics.reports.of("connect")
+        return report.get("connect_s") if report else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object] | None:
+        return self._diagnostics.reports.of("connect")
+
+
+class BLEFailureCountSensor(BLEDiagnosticSensor):
+    """Expose the number of recorded BLE failures."""
+
+    _attr_translation_key = "ble_failure_count"
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+
+    def __init__(self, address: str, device: McwDevice | McbDevice, diagnostics) -> None:
+        super().__init__(address, device, diagnostics)
+        self._attr_unique_id = f"mcw_{self._identifier}_ble_failure_count"
+
+    @property
+    def native_value(self) -> StateType:
+        return self._diagnostics.reports.failures
+
+
+class BLELastFailureSensor(BLEDiagnosticSensor):
+    """Expose the retained timestamp and details of the latest BLE failure."""
+
+    _attr_translation_key = "ble_last_failure"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    def __init__(self, address: str, device: McwDevice | McbDevice, diagnostics) -> None:
+        super().__init__(address, device, diagnostics)
+        self._attr_unique_id = f"mcw_{self._identifier}_ble_last_failure"
+
+    @property
+    def native_value(self) -> StateType:
+        return self._diagnostics.reports.last_failure_at
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object] | None:
+        return self._diagnostics.reports.last_failure
 
 
 class McwSpellSensor(

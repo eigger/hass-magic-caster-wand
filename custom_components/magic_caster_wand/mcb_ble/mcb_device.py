@@ -6,10 +6,12 @@ from contextlib import AsyncExitStack
 
 from bleak import BleakClient
 from bleak.backends.device import BLEDevice
-from blesession import ble_session
+from blesession import SessionDropped, ble_session
+from homeassistant.core import HomeAssistant
 
 from ..common_ble.common import BLEData, build_macro, build_set_led_macro
 from ..common_ble.macros import LedGroup, Macro
+from ..common_ble.session_diagnostics import BLESessionDiagnostics
 from .mcb import CHARGENOTIFY, LIDNOTIFY, WANDNOTIFY, McbClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -20,11 +22,16 @@ class McbDevice:
 
     device_label = "Box"
 
-    def __init__(self, address: str) -> None:
+    def __init__(self, address: str, hass: HomeAssistant | None = None) -> None:
         """Initialize the device."""
         self.address = address
+        self.diagnostics = BLESessionDiagnostics(address, "box")
+        if hass is not None:
+            self.diagnostics.bind_hass(hass)
         self.client: BleakClient | None = None
         self._ble_session_stack: AsyncExitStack | None = None
+        self._disconnecting = False
+        self._connecting = False
         self.model: str | None = None
         self._mcb: McbClient | None = None
         self._data = BLEData()
@@ -85,6 +92,10 @@ class McbDevice:
             return
 
         _LOGGER.debug("Disconnected from Magic Caster Box")
+        if not self._disconnecting and not self._connecting:
+            self.diagnostics.record_failure(
+                "connection", "session", SessionDropped("The box disconnected unexpectedly")
+            )
         self.client = None
         self._mcb = None
         if self._coordinator_connection:
@@ -107,14 +118,17 @@ class McbDevice:
         if self._ble_session_stack is not None:
             await self._close_ble_session()
 
+        trace = self.diagnostics.new_trace()
         client: BleakClient | None = None
         session_stack = AsyncExitStack()
+        self._connecting = True
         try:
             await session_stack.__aenter__()
             self._ble_session_stack = session_stack
             client = await session_stack.enter_async_context(
                 ble_session(
                     ble_device,
+                    trace=trace,
                     name=ble_device.address,
                     disconnected_callback=self._on_disconnect,
                 )
@@ -122,6 +136,8 @@ class McbDevice:
             self.client = client
 
             if not client.is_connected:
+                trace.fail("session")
+                self.diagnostics.record("connect", trace, SessionDropped("Disconnected during connection setup"))
                 await self._cleanup_failed_connection(client)
                 return False
 
@@ -133,30 +149,46 @@ class McbDevice:
             if not self._data.identifier:
                 self._data.identifier = ble_device.address.replace(":", "")[-8:]
             self._mcb = McbClient(client)
+            if hasattr(self._mcb, "register_error_callback"):
+                self._mcb.register_error_callback(
+                    lambda err: self.diagnostics.record_failure("notification", "notification", err)
+                )
             self._mcb.register_callback(
                 self._callback_battery,
                 self._callback_lid,
                 self._callback_wand,
                 self._callback_charge,
             )
-            await self._mcb.start_notify()
-            await self._refresh_model()
+            with trace.timed("subscribe"):
+                await self._mcb.start_notify()
+            with trace.timed("initialize"):
+                await self._refresh_model()
+            if self.client is not client or not client.is_connected:
+                trace.fail("session")
+                self.diagnostics.record("connect", trace, SessionDropped("Disconnected during connection setup"))
+                await self._cleanup_failed_connection(client)
+                return False
 
             _LOGGER.debug("Connected to Magic Caster Box: %s, %s", ble_device.address, self.model)
             if self._coordinator_connection:
                 self._coordinator_connection.async_set_updated_data(True)
+            self.diagnostics.record("connect", trace)
             return True
 
         except asyncio.CancelledError:
             await self._cleanup_failed_connection(client)
             raise
         except Exception as err:
+            self.diagnostics.record("connect", trace, err)
             await self._cleanup_failed_connection(client)
             _LOGGER.warning("Failed to connect to %s: %s", ble_device.address, err)
             return False
+        finally:
+            self._connecting = False
 
     async def _cleanup_failed_connection(self, client: BleakClient | None) -> None:
         """Release a link whose notification or device initialization failed."""
+        self._disconnecting = True
         try:
             if client is not None and self._mcb is not None and self._mcb.client is client:
                 try:
@@ -177,6 +209,7 @@ class McbDevice:
                     self._mcb = None
                     if self._coordinator_connection:
                         self._coordinator_connection.async_set_updated_data(False)
+                self._disconnecting = False
 
     async def _close_ble_session(self) -> None:
         """Close the context that owns the active BLE connection."""
@@ -197,6 +230,7 @@ class McbDevice:
 
     async def disconnect(self) -> None:
         """Disconnect from the BLE device."""
+        self._disconnecting = True
         try:
             if self.client and self.client.is_connected and self._mcb:
                 await self._mcb.stop_notify()
@@ -213,6 +247,7 @@ class McbDevice:
             finally:
                 if self._coordinator_connection:
                     self._coordinator_connection.async_set_updated_data(False)
+                self._disconnecting = False
 
     async def update_device(self, ble_device: BLEDevice) -> BLEData:
         """Update device data. Sends keep-alive if connected."""
@@ -238,23 +273,25 @@ class McbDevice:
 
     async def send_macro(self, macro: Macro) -> None:
         """Send a macro sequence to the wand."""
-        if self.is_connected() and self._mcb:
-            await self._mcb.send_macro(macro)
+        await self.diagnostics.run_operation(
+            "send_macro",
+            lambda: self._mcb.send_macro(macro),
+            connected=self.is_connected() and self._mcb is not None,
+        )
 
     async def send_macro_parse(self, commands: list) -> None:
         """Convert service commands into a Macro and send it."""
-        if self.is_connected() and self._mcb:
-            await self._mcb.send_macro(build_macro(commands))
+        await self.send_macro(build_macro(commands))
 
     async def set_led(self, group: LedGroup, r: int, g: int, b: int, duration: int = 0) -> None:
         """Set LED color."""
-        if self.is_connected() and self._mcb:
-            await self._mcb.send_macro(build_set_led_macro(group, r, g, b, duration))
+        await self.send_macro(build_set_led_macro(group, r, g, b, duration))
 
     async def clear_leds(self) -> None:
         """Clear all LEDs."""
-        if self.is_connected() and self._mcb:
-            await self._mcb.led_off()
+        await self.diagnostics.run_operation(
+            "clear_leds", lambda: self._mcb.led_off(), connected=self.is_connected() and self._mcb is not None
+        )
 
     async def buzz(self, duration: int) -> None:
         """Ignore vibration requests: the box has no vibration motor.
