@@ -18,6 +18,8 @@ _LOGGER = logging.getLogger(__name__)
 class McbDevice:
     """Data handler for Magic Caster Box BLE device."""
 
+    device_label = "Box"
+
     def __init__(self, address: str) -> None:
         """Initialize the device."""
         self.address = address

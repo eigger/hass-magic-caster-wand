@@ -12,7 +12,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpda
 
 from .const import MANUFACTURER, SIGNAL_SPELL_MODE_CHANGED
 from .mcw_ble import McbDevice, McwDevice
-from .runtime_data import MagicCasterWandConfigEntry
+from .runtime_data import MagicCasterWandConfigEntry, McwRuntimeData
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,14 +25,12 @@ async def async_setup_entry(
     """Set up the Magic Caster Wand BLE switch."""
     data = entry.runtime_data
     address = data.address
-    device = data.device
-    device_type = data.device_type
     connection_coordinator = data.connection_coordinator
 
     entities = []
-    entities.append(McwConnectionSwitch(hass, address, device, connection_coordinator))
-    if device_type == "mcw":
-        entities.append(McwSpellTrackingSwitch(hass, address, device, connection_coordinator))
+    entities.append(McwConnectionSwitch(hass, address, data.device, connection_coordinator))
+    if isinstance(data, McwRuntimeData):
+        entities.append(McwSpellTrackingSwitch(hass, address, data.device, connection_coordinator))
     async_add_entities(entities)
 
 
@@ -66,10 +64,9 @@ class McwConnectionSwitch(CoordinatorEntity, SwitchEntity):
     @property
     def device_info(self) -> DeviceInfo:
         """Return device info."""
-        device_label = "Wand" if isinstance(self._device, McwDevice) else "Box"
         return DeviceInfo(
             connections={(CONNECTION_BLUETOOTH, self._address)},
-            name=f"Magic Caster {device_label} {self._identifier}",
+            name=f"Magic Caster {self._device.device_label} {self._identifier}",
             manufacturer=MANUFACTURER,
         )
 
@@ -126,7 +123,7 @@ class McwSpellTrackingSwitch(CoordinatorEntity, SwitchEntity):
         """Return device info."""
         return DeviceInfo(
             connections={(CONNECTION_BLUETOOTH, self._address)},
-            name=f"Magic Caster Wand {self._identifier}",
+            name=f"Magic Caster {self._mcw.device_label} {self._identifier}",
             manufacturer=MANUFACTURER,
         )
 

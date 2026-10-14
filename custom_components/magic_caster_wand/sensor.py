@@ -21,7 +21,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import MANUFACTURER, SIGNAL_SPELL_MODE_CHANGED
 from .mcw_ble import McbDevice, McwDevice
-from .runtime_data import MagicCasterWandConfigEntry
+from .runtime_data import MagicCasterWandConfigEntry, McwRuntimeData
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -68,18 +68,13 @@ async def async_setup_entry(
     connection_coordinator: DataUpdateCoordinator[bool] = data.connection_coordinator
     address = data.address
     device = data.device
-    device_type = data.device_type
 
     entities = []
-    if device_type == "mcw":
-        assert data.spell_coordinator is not None
-        assert data.calibration_coordinator is not None
-        spell_coordinator = data.spell_coordinator
-        calibration_coordinator = data.calibration_coordinator
+    if isinstance(data, McwRuntimeData):
         entities.extend(
             [
-                McwSpellSensor(address, device, spell_coordinator, connection_coordinator),
-                McwSpellModeSensor(address, device, connection_coordinator),
+                McwSpellSensor(address, data.device, data.spell_coordinator, connection_coordinator),
+                McwSpellModeSensor(address, data.device, connection_coordinator),
             ]
         )
         # Add calibration sensors
@@ -87,8 +82,8 @@ async def async_setup_entry(
             entities.append(
                 McwCalibrationSensor(
                     address=address,
-                    mcw=device,
-                    coordinator=calibration_coordinator,
+                    mcw=data.device,
+                    coordinator=data.calibration_coordinator,
                     connection_coordinator=connection_coordinator,
                     sensor_key=sensor["key"],
                     sensor_name=sensor["name"],
@@ -120,10 +115,9 @@ class McwBaseSensor(SensorEntity):
         """Return device info."""
         # The battery sensors are shared with the box, and sensor is the first
         # platform to load, so this name is the one the device registry keeps.
-        device_label = "Wand" if isinstance(self._mcw, McwDevice) else "Box"
         return DeviceInfo(
             connections={(CONNECTION_BLUETOOTH, self._address)},
-            name=f"Magic Caster {device_label} {self._identifier}",
+            name=f"Magic Caster {self._mcw.device_label} {self._identifier}",
             manufacturer=MANUFACTURER,
             model=self._mcw.model if self._mcw else None,
         )

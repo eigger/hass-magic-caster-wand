@@ -95,16 +95,12 @@ def test_entities_shared_with_the_box_do_not_hardcode_wand(filename):
     )
 
 
-def test_wand_only_entities_may_hardcode_wand():
-    """Guard against the check above being vacuous: wand-only classes still exist."""
-    hardcoding = [
-        (f, cls)
-        for f in PLATFORMS
-        for cls, name in device_name_by_class(f).items()
-        if name and "Magic Caster Wand" in name
-    ]
+def test_device_names_use_the_device_label():
+    """Keep names consistent with the device wrapper across all platforms."""
+    names = [name for filename in PLATFORMS for name in device_name_by_class(filename).values() if name is not None]
 
-    assert hardcoding, "no class hardcodes the wand name any more -- this test is now vacuous"
+    assert names
+    assert all("device_label" in name for name in names)
 
 
 def test_every_device_name_uses_the_shared_prefix():
