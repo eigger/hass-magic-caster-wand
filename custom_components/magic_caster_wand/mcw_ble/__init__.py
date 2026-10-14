@@ -1,4 +1,4 @@
-"""Parser for Mcw BLE advertisements."""
+"""Bluetooth support for Magic Caster Wand and Box devices."""
 
 
 def _running_imuvisualizer_via_m() -> bool:
@@ -21,17 +21,13 @@ def _running_imuvisualizer_via_m() -> bool:
 if _running_imuvisualizer_via_m():
     __all__ = []
 else:
+    from .common import BLEData, resolve_led_group
+    from .discovery import McbBluetoothDeviceData, McwBluetoothDeviceData
     from .macros import Macro, get_spell_macro
     from .mcb import LIDSTATE
+    from .mcb_device import McbDevice
     from .mcw import LedGroup
-    from .parser import (
-        BLEData,
-        McbBluetoothDeviceData,
-        McbDevice,
-        McwBluetoothDeviceData,
-        McwDevice,
-        resolve_led_group,
-    )
+    from .mcw_device import McwDevice
 
     __all__ = [
         "McwDevice",

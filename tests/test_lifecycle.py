@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 
 import pytest
 
-from custom_components.magic_caster_wand.mcw_ble import mcb, parser
+from custom_components.magic_caster_wand.mcw_ble import mcb, mcb_device, mcw_device
 from custom_components.magic_caster_wand.mcw_ble.parser import McbDevice, McwDevice
 
 COMPONENT = pathlib.Path(__file__).resolve().parents[1] / "custom_components" / "magic_caster_wand"
@@ -155,8 +155,9 @@ def test_connect_failure_releases_partially_initialized_link(device_cls, client_
             await client.disconnect()
             kwargs["disconnected_callback"](client)
 
-    monkeypatch.setattr(parser, "ble_session", session)
-    monkeypatch.setattr(parser, client_name, ProtocolClient)
+    module = mcw_device if device_cls is McwDevice else mcb_device
+    monkeypatch.setattr(module, "ble_session", session)
+    monkeypatch.setattr(module, client_name, ProtocolClient)
 
     assert (
         asyncio.run(device.connect(type("BleDevice", (), {"address": "AA:BB:CC:DD:EE:FF", "name": "test"})())) is False
@@ -269,8 +270,9 @@ def test_cancel_during_failed_connect_cleanup_still_disconnects(device_cls, clie
             await client.disconnect()
             kwargs["disconnected_callback"](client)
 
-    monkeypatch.setattr(parser, "ble_session", session)
-    monkeypatch.setattr(parser, client_name, ProtocolClient)
+    module = mcw_device if device_cls is McwDevice else mcb_device
+    monkeypatch.setattr(module, "ble_session", session)
+    monkeypatch.setattr(module, client_name, ProtocolClient)
 
     ble_device = type("BleDevice", (), {"address": "AA:BB:CC:DD:EE:FF", "name": "test"})()
     with pytest.raises(asyncio.CancelledError):
@@ -318,8 +320,9 @@ def test_successful_connection_is_owned_until_device_disconnect(device_cls, clie
         async def imu_streaming_stop(self):
             events.append("stop_stream")
 
-    monkeypatch.setattr(parser, "ble_session", session)
-    monkeypatch.setattr(parser, client_name, ProtocolClient)
+    module = mcw_device if device_cls is McwDevice else mcb_device
+    monkeypatch.setattr(module, "ble_session", session)
+    monkeypatch.setattr(module, client_name, ProtocolClient)
     ble_device = type("BleDevice", (), {"address": "AA:BB:CC:DD:EE:FF", "name": "test"})()
 
     async def connection_lifecycle():
@@ -376,8 +379,9 @@ def test_disconnect_closes_ble_session_when_stopping_notifications_fails(device_
         async def imu_streaming_stop(self):
             pass
 
-    monkeypatch.setattr(parser, "ble_session", session)
-    monkeypatch.setattr(parser, "McwClient" if device_cls is McwDevice else "McbClient", ProtocolClient)
+    module = mcw_device if device_cls is McwDevice else mcb_device
+    monkeypatch.setattr(module, "ble_session", session)
+    monkeypatch.setattr(module, "McwClient" if device_cls is McwDevice else "McbClient", ProtocolClient)
     ble_device = type("BleDevice", (), {"address": "AA:BB:CC:DD:EE:FF", "name": "test"})()
 
     async def connection_lifecycle():
@@ -470,7 +474,7 @@ def test_replacing_spell_reset_timer_keeps_new_task_reference():
 
 def test_spawn_is_used_instead_of_bare_create_task():
     """Guard against a new fire-and-forget task being added without tracking."""
-    tree = ast.parse((COMPONENT / "mcw_ble" / "parser.py").read_text())
+    tree = ast.parse((COMPONENT / "mcw_ble" / "mcw_device.py").read_text())
     bare = [
         node.lineno
         for node in ast.walk(tree)
