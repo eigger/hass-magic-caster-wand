@@ -23,6 +23,8 @@ _LOGGER = logging.getLogger(__name__)
 CANVAS_WIDTH = 800
 CANVAS_HEIGHT = 600
 TRAIL_LENGTH = 1000
+MAX_RENDER_FPS = 10
+MIN_FRAME_INTERVAL = 1 / MAX_RENDER_FPS
 
 
 async def async_setup_entry(
@@ -84,6 +86,11 @@ class McwSpellCamera(CoordinatorEntity, Camera):
         self._last_image = None
         self._prev_button_all = False
         self._frame_cond = asyncio.Condition()
+        self._render_timer = None
+        self._render_task = None
+        self._render_dirty = False
+        self._last_render_time = None
+        self._is_removed = False
 
     async def async_added_to_hass(self) -> None:
         """Handle entity which will be added."""
@@ -93,6 +100,25 @@ class McwSpellCamera(CoordinatorEntity, Camera):
         self._last_image = self._image_to_bytes(img)
         # Register connection coordinator listener
         self.async_on_remove(self._connection_coordinator.async_add_listener(self._handle_connection_update))
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Cancel pending camera rendering before the entity is removed."""
+        self._is_removed = True
+        if self._render_timer is not None:
+            self._render_timer.cancel()
+            self._render_timer = None
+        self._render_dirty = False
+
+        render_task = self._render_task
+        self._render_task = None
+        if render_task is not None:
+            render_task.cancel()
+            try:
+                await render_task
+            except asyncio.CancelledError:
+                pass
+
+        await super().async_will_remove_from_hass()
 
     @callback
     def _handle_connection_update(self) -> None:
@@ -170,112 +196,123 @@ class McwSpellCamera(CoordinatorEntity, Camera):
                 if button_all:
                     self._trail.append((x, y))
 
-        # Render the trail
+        self._schedule_render()
+
+    @callback
+    def _schedule_render(self) -> None:
+        """Schedule one render, coalescing IMU updates to the maximum frame rate."""
+        if self._is_removed:
+            return
+        self._render_dirty = True
+        if self._render_timer is not None or self._render_task is not None:
+            return
+
+        loop = asyncio.get_running_loop()
+        if self._last_render_time is not None:
+            delay = MIN_FRAME_INTERVAL - (loop.time() - self._last_render_time)
+            if delay > 0:
+                self._render_timer = loop.call_later(delay, self._start_render)
+                return
+
+        self._start_render()
+
+    @callback
+    def _start_render(self) -> None:
+        """Capture event-loop-owned state and start a single background render."""
+        self._render_timer = None
+        if self._is_removed or not self._render_dirty or self._render_task is not None:
+            return
+
+        self._render_dirty = False
+        spell_name = self._spell_coordinator.data or "awaiting"
+        spell_name = "" if spell_name == "awaiting" else spell_name.replace("_", " ").upper()
+        has_tracker = getattr(self._mcw, "_spell_tracker", None) is not None
+        server_reachable = getattr(self._mcw, "server_reachable", False)
+        snapshot = (
+            tuple(self._trail),
+            self._last_point,
+            self._prev_button_all,
+            spell_name,
+            server_reachable,
+            has_tracker,
+        )
+        self._render_task = self._hass.async_create_task(self._async_render(snapshot))
+
+    async def _async_render(self, snapshot: tuple) -> None:
+        """Render a captured frame away from the Home Assistant event loop."""
+        try:
+            image_bytes = await self._hass.async_add_executor_job(self._render_frame, snapshot)
+        except Exception:
+            _LOGGER.exception("Failed to render spell camera frame")
+        else:
+            if not self._is_removed:
+                self._last_image = image_bytes
+                self.async_write_ha_state()
+                async with self._frame_cond:
+                    self._frame_cond.notify_all()
+        finally:
+            self._last_render_time = asyncio.get_running_loop().time()
+            self._render_task = None
+            if self._render_dirty and not self._is_removed:
+                self._schedule_render()
+
+    @staticmethod
+    def _render_frame(snapshot: tuple) -> bytes:
+        """Render an immutable camera state snapshot to JPEG bytes."""
+        points, last_point, button_all, spell_name, server_reachable, has_tracker = snapshot
         img = Image.new("RGB", (CANVAS_WIDTH, CANVAS_HEIGHT), "black")
         draw = ImageDraw.Draw(img)
 
-        # Get detected spell name
-        spell_name = self._spell_coordinator.data or "awaiting"
-        if spell_name == "awaiting":
-            spell_name = ""
-        else:
-            spell_name = spell_name.replace("_", " ").upper()
-
-        # Server Status (Top Left)
-        server_reachable = getattr(self._mcw, "server_reachable", False)
-        has_tracker = getattr(self._mcw, "_spell_tracker", None) is not None
-
         if not has_tracker:
-            server_text = "MODEL MISSING"
-            server_color = "orange"
+            server_text, server_color = "MODEL MISSING", "orange"
         elif server_reachable:
-            server_text = "SERVER OK"
-            server_color = "lime"
+            server_text, server_color = "SERVER OK", "lime"
         else:
-            server_text = "SERVER ERROR"
-            server_color = "red"
+            server_text, server_color = "SERVER ERROR", "red"
 
-        # Draw Server Status
         srv_tw = (len(server_text) * 6) + 4
         srv_img = Image.new("RGBA", (srv_tw, 15), (0, 0, 0, 0))
-        srv_draw = ImageDraw.Draw(srv_img)
-        srv_draw.text((2, 0), server_text, fill=server_color)
-
+        ImageDraw.Draw(srv_img).text((2, 0), server_text, fill=server_color)
         srv_scale = 2
         scaled_srv = srv_img.resize((srv_tw * srv_scale, 15 * srv_scale), resample=Image.NEAREST)
         img.paste(scaled_srv, (10, 10), scaled_srv)
 
-        # Add status text (Perfectly Centered)
         status_text = "TRACKING" if button_all else "READY"
-        # Since we might not have a font, we draw small and upscale
         text_color = "red" if button_all else "white"
-
-        # Estimate the text width to centre it. The default font is roughly
-        # 6x10 per character, and the result is upscaled anyway, so measuring
-        # the real bbox is not worth the extra draw.
-        tw = (len(status_text) * 6) + 4  # Added padding
-
-        # Create a small image for text that fits the text
+        tw = (len(status_text) * 6) + 4
         txt_img = Image.new("RGBA", (tw, 15), (0, 0, 0, 0))
-        txt_draw = ImageDraw.Draw(txt_img)
-        txt_draw.text((2, 0), status_text, fill=text_color)  # Offset x to avoid left cutoff
-
-        # Scale up (e.g., 4x for big effect)
+        ImageDraw.Draw(txt_img).text((2, 0), status_text, fill=text_color)
         scale_factor = 4
         scaled_txt = txt_img.resize((tw * scale_factor, 15 * scale_factor), resample=Image.NEAREST)
-
-        # Calculate center position
         txt_x = (CANVAS_WIDTH - (tw * scale_factor)) // 2
         img.paste(scaled_txt, (txt_x, 20), scaled_txt)
 
-        # Add Spell Name if detected and NOT currently tracking
         if spell_name and not button_all:
-            # Draw spell name in the center
-            spell_tw = (len(spell_name) * 8) + 20  # Safer width and more padding
+            spell_tw = (len(spell_name) * 8) + 20
             spell_img = Image.new("RGBA", (spell_tw, 15), (0, 0, 0, 0))
-            spell_draw = ImageDraw.Draw(spell_img)
-            spell_draw.text((10, 0), spell_name, fill="gold")  # More horizontal offset
-
-            # Scale up big
+            ImageDraw.Draw(spell_img).text((10, 0), spell_name, fill="gold")
             spell_scale = 5
             scaled_spell = spell_img.resize((spell_tw * spell_scale, 15 * spell_scale), resample=Image.NEAREST)
-
             spell_x = (CANVAS_WIDTH - (spell_tw * spell_scale)) // 2
-            spell_y = 90  # Just below the status text (which is at y=20 and scaled up)
-            img.paste(scaled_spell, (spell_x, spell_y), scaled_spell)
+            img.paste(scaled_spell, (spell_x, 90), scaled_spell)
 
-        # Add bottom description (Centered)
         desc_text = "PRESS ALL BUTTONS TO DRAW"
         desc_tw = len(desc_text) * 6
         desc_img = Image.new("RGBA", (desc_tw, 15), (0, 0, 0, 0))
-        desc_draw = ImageDraw.Draw(desc_img)
-        desc_draw.text((0, 0), desc_text, fill=(150, 150, 150, 255))  # Subtle gray
-
-        # Scale up less than the status (e.g., 2x)
+        ImageDraw.Draw(desc_img).text((0, 0), desc_text, fill=(150, 150, 150, 255))
         desc_scale = 2
         scaled_desc = desc_img.resize((desc_tw * desc_scale, 15 * desc_scale), resample=Image.NEAREST)
-
         desc_x = (CANVAS_WIDTH - (desc_tw * desc_scale)) // 2
         img.paste(scaled_desc, (desc_x, CANVAS_HEIGHT - 40), scaled_desc)
 
-        # Draw trail
-        if len(self._trail) > 1:
-            points = list(self._trail)
+        if len(points) > 1:
             draw.line(points, fill="cyan", width=2)
+        if last_point:
+            draw.ellipse([last_point[0] - 5, last_point[1] - 5, last_point[0] + 5, last_point[1] + 5], fill="yellow")
 
-        # Draw cursor at last known point
-        if self._last_point:
-            lp = self._last_point
-            draw.ellipse([lp[0] - 5, lp[1] - 5, lp[0] + 5, lp[1] + 5], fill="yellow")
-
-        self._last_image = self._image_to_bytes(img)
-        self.async_write_ha_state()
-
-        async def _notify():
-            async with self._frame_cond:
-                self._frame_cond.notify_all()
-
-        self._hass.async_create_task(_notify())
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG")
+        return buf.getvalue()
 
     async def handle_async_mjpeg_stream(self, request):
         """Generate an HTTP MJPEG stream from the camera."""
