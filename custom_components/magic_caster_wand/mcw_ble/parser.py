@@ -1,9 +1,9 @@
 """Compatibility exports for BLE device models and discovery parsers."""
 
-from .common import HOLD_DURATION_MS, BLEData, build_macro, build_set_led_macro, resolve_led_group
-from .discovery import McbBluetoothDeviceData, McwBluetoothDeviceData
-from .macros import LedGroup, Macro
-from .mcb_device import McbDevice
+from ..ble_common.common import HOLD_DURATION_MS, BLEData, build_macro, build_set_led_macro, resolve_led_group
+from ..ble_common.macros import LedGroup, Macro
+from ..mcb_ble import McbBluetoothDeviceData, McbDevice
+from .discovery import McwBluetoothDeviceData
 from .mcw_device import McwDevice
 
 __all__ = [

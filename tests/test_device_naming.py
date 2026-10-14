@@ -14,7 +14,9 @@ import pytest
 
 COMPONENT = pathlib.Path(__file__).resolve().parents[1] / "custom_components" / "magic_caster_wand"
 PLATFORMS = sorted(
-    p.name for p in COMPONENT.glob("*.py") if p.name not in {"__init__.py", "const.py", "config_flow.py"}
+    p.name
+    for p in COMPONENT.glob("*.py")
+    if p.name not in {"__init__.py", "const.py", "config_flow.py", "device_setup.py", "runtime_data.py", "services.py"}
 )
 
 

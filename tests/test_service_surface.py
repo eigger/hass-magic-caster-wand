@@ -11,7 +11,7 @@ import pathlib
 
 import pytest
 
-from custom_components.magic_caster_wand.mcw_ble.macros import LedGroup
+from custom_components.magic_caster_wand.ble_common.macros import LedGroup
 from custom_components.magic_caster_wand.mcw_ble.parser import McbDevice, McwDevice, resolve_led_group
 
 COMPONENT = pathlib.Path(__file__).resolve().parents[1] / "custom_components" / "magic_caster_wand"
