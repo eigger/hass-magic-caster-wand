@@ -41,6 +41,9 @@ class FakeSession:
 
     closed = False
 
+    async def close(self) -> None:
+        self.closed = True
+
 
 class FakeMcwClient:
     """Records the streaming commands the device sends to the wand."""
@@ -451,6 +454,98 @@ def test_stopping_streaming_while_disconnected_still_clears_the_flag():
     asyncio.run(device.imu_streaming_stop())
 
     assert device.spell_tracking_active is False
+
+
+def test_stopping_streaming_discards_an_in_flight_cast():
+    device = make_device(tracking_wanted=True)
+    asyncio.run(device._resume_imu_streaming())
+    press_all_buttons(device)
+    feed_imu(device, 5)
+
+    asyncio.run(device.imu_streaming_stop())
+
+    assert device._button_all_pressed is False
+    assert device._spell_tracker._state.tracking_active == 0
+    assert device._spell_tracker._state.position_count == 0
+
+
+def test_detector_initialization_failure_closes_the_owned_session():
+    device = McwDevice("AA:BB:CC:DD:EE:FF")
+
+    class FailingDetector:
+        _base_url = "http://detector"
+
+        def __init__(self):
+            self._session = FakeSession()
+            self.close_calls = 0
+
+        @property
+        def is_active(self):
+            return self._session is not None
+
+        async def check_connectivity(self):
+            return True
+
+        async def async_init(self):
+            raise RuntimeError("model initialization failed")
+
+        async def close(self):
+            self.close_calls += 1
+            self._session = None
+
+    detector = FailingDetector()
+    device._spell_tracker._detector = detector
+
+    assert asyncio.run(device.async_spell_tracker_init()) is False
+    assert detector.close_calls == 1
+    assert device.spell_tracking_wanted is False
+
+
+def test_detector_initialization_cancellation_closes_session_and_propagates():
+    device = McwDevice("AA:BB:CC:DD:EE:FF")
+
+    class CancelledDetector:
+        _base_url = "http://detector"
+
+        def __init__(self):
+            self._session = FakeSession()
+            self.close_calls = 0
+
+        @property
+        def is_active(self):
+            return self._session is not None
+
+        async def check_connectivity(self):
+            return True
+
+        async def async_init(self):
+            raise asyncio.CancelledError
+
+        async def close(self):
+            self.close_calls += 1
+            self._session = None
+
+    detector = CancelledDetector()
+    device._spell_tracker._detector = detector
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(device.async_spell_tracker_init())
+
+    assert detector.close_calls == 1
+    assert device.spell_tracking_wanted is False
+
+
+def test_tracker_close_discards_a_cast_and_closes_detector_session():
+    device = make_device(tracking_wanted=True)
+    press_all_buttons(device)
+    feed_imu(device, 5)
+
+    asyncio.run(device.async_spell_tracker_close())
+
+    assert device._button_all_pressed is False
+    assert device._spell_tracker._state.tracking_active == 0
+    assert device._spell_tracker._state.position_count == 0
+    assert device._spell_tracker._detector.is_active is False
 
 
 @pytest.mark.parametrize("wanted", [True, False])

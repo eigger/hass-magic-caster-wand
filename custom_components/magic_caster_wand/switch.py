@@ -150,12 +150,12 @@ class McwSpellTrackingSwitch(CoordinatorEntity, SwitchEntity):
     async def async_turn_on(self, **kwargs) -> None:
         """Start IMU streaming."""
         if self._mcw and self.coordinator.data is True:
-            await self._mcw.async_spell_tracker_init()
-            try:
-                await self._mcw.imu_streaming_start()
-            except Exception as err:
-                # is_on reads the device, so it already reports off; say why.
-                _LOGGER.error("Failed to start spell tracking: %s", err)
+            if await self._mcw.async_spell_tracker_init():
+                try:
+                    await self._mcw.imu_streaming_start()
+                except Exception as err:
+                    # is_on reads the device, so it already reports off; say why.
+                    _LOGGER.error("Failed to start spell tracking: %s", err)
             async_dispatcher_send(self._hass, SIGNAL_SPELL_MODE_CHANGED)
             self.async_write_ha_state()
         elif self.coordinator.data is not True:
@@ -164,11 +164,14 @@ class McwSpellTrackingSwitch(CoordinatorEntity, SwitchEntity):
     async def async_turn_off(self, **kwargs) -> None:
         """Stop IMU streaming."""
         if self._mcw:
-            if self.coordinator.data is True:
-                await self._mcw.imu_streaming_stop()
-            # Closing the tracker session is what clears the tracking state, so it
-            # must happen even while disconnected -- otherwise the switch would stay
-            # on and the next connect would re-arm streaming the user just stopped.
-            await self._mcw.async_spell_tracker_close()
+            try:
+                if self.coordinator.data is True:
+                    await self._mcw.imu_streaming_stop()
+            except Exception as err:
+                _LOGGER.warning("Failed to stop spell tracking stream: %s", err)
+            finally:
+                # Close the detector even when the wand is disconnected or the
+                # firmware rejects the stop command; the switch represents intent.
+                await self._mcw.async_spell_tracker_close()
             async_dispatcher_send(self._hass, SIGNAL_SPELL_MODE_CHANGED)
             self.async_write_ha_state()
