@@ -4,7 +4,7 @@ import struct
 
 import pytest
 
-from custom_components.magic_caster_wand.ble_common.macros import (
+from custom_components.magic_caster_wand.common_ble.macros import (
     MACROIDS,
     LedGroup,
     Macro,

@@ -8,8 +8,8 @@ from bleak import BleakClient
 from bleak.backends.device import BLEDevice
 from blesession import ble_session
 
-from ..ble_common.common import BLEData, build_macro, build_set_led_macro
-from ..ble_common.macros import LedGroup, Macro
+from ..common_ble.common import BLEData, build_macro, build_set_led_macro
+from ..common_ble.macros import LedGroup, Macro
 from .mcw import McwClient
 from .remote_tensor_spell_detector import RemoteTensorSpellDetector
 from .spell_tracker import SpellTracker

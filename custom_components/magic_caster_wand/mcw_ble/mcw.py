@@ -11,8 +11,8 @@ from typing import Any, Callable, TypeVar
 
 from bleak import BleakClient, BleakError
 
-from ..ble_common.macros import LedGroup, Macro
-from ..ble_common.notification_dispatcher import NotificationDispatcher
+from ..common_ble.macros import LedGroup, Macro
+from ..common_ble.notification_dispatcher import NotificationDispatcher
 
 SERVICE_UUID = "57420001-587e-48a0-974c-544d6163c577"
 COMMAND_UUID = "57420002-587e-48a0-974c-544d6163c577"

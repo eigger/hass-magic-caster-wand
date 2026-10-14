@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import device_registry as dr
 
-from .ble_common import resolve_led_group
+from .common_ble import resolve_led_group
 from .const import DOMAIN
 from .mcb_ble import McbDevice
 from .mcw_ble import McwDevice, get_spell_macro

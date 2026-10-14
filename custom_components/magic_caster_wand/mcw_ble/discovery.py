@@ -2,7 +2,7 @@
 
 from home_assistant_bluetooth import BluetoothServiceInfoBleak
 
-from ..ble_common.discovery import BLEDeviceData
+from ..common_ble.discovery import BLEDeviceData
 
 
 class McwBluetoothDeviceData(BLEDeviceData):

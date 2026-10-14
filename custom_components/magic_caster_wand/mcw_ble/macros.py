@@ -1,6 +1,6 @@
 """Wand spell macros and shared macro compatibility exports."""
 
-from ..ble_common.macros import (
+from ..common_ble.macros import (
     MACROIDS,
     BuzzCommand,
     ChangeLedCommand,
