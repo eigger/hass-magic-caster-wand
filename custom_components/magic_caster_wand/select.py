@@ -3,28 +3,28 @@
 import logging
 
 from homeassistant.components.select import SelectEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import CASTING_LED_COLORS, DEFAULT_CASTING_LED_COLOR, DOMAIN, MANUFACTURER
+from .const import CASTING_LED_COLORS, DEFAULT_CASTING_LED_COLOR, MANUFACTURER
 from .mcw_ble import McwDevice
+from .runtime_data import MagicCasterWandConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: MagicCasterWandConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Magic Caster Wand BLE select entity."""
-    data = hass.data[DOMAIN][entry.entry_id]
-    address = data["address"]
-    device = data["device"]
-    device_type = data["type"]
+    data = entry.runtime_data
+    address = data.address
+    device = data.device
+    device_type = data.device_type
 
     if device_type == "mcw":
         async_add_entities([McwCastingLedColorSelect(address, device)])

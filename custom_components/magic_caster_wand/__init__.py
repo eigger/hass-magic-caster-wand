@@ -24,6 +24,7 @@ from .const import (
     DOMAIN,
 )
 from .mcw_ble import BLEData, McbDevice, McwDevice, resolve_led_group
+from .runtime_data import MagicCasterWandConfigEntry, MagicCasterWandRuntimeData
 
 PLATFORMS: list[Platform] = [
     Platform.SENSOR,
@@ -41,12 +42,13 @@ _LOGGER = logging.getLogger(__name__)
 SERVICES = ("vibrate", "set_led", "clear_leds", "play_spell", "send_macro")
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: MagicCasterWandConfigEntry) -> bool:
     """Set up Magic Caster Wand BLE device from a config entry."""
-    hass.data.setdefault(DOMAIN, {})
-
     address = entry.unique_id
     device_type = entry.data.get("device_type", "mcw")
+    if device_type not in ("mcw", "mcb"):
+        _LOGGER.warning("Unknown device type %r; treating it as a wand", device_type)
+        device_type = "mcw"
     assert address is not None
 
     await close_stale_connections_by_address(address)
@@ -155,31 +157,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
 
     # Store data for platforms
-    if device_type == "mcw":
-        hass.data[DOMAIN][entry.entry_id] = {
-            "address": address,
-            "device": device,
-            "type": device_type,
-            "coordinator": coordinator,
-            "spell_coordinator": spell_coordinator,
-            "battery_coordinator": battery_coordinator,
-            "buttons_coordinator": buttons_coordinator,
-            "calibration_coordinator": calibration_coordinator,
-            "imu_coordinator": imu_coordinator,
-            "connection_coordinator": connection_coordinator,
-        }
-    elif device_type == "mcb":
-        hass.data[DOMAIN][entry.entry_id] = {
-            "address": address,
-            "device": device,
-            "type": device_type,
-            "coordinator": coordinator,
-            "battery_coordinator": battery_coordinator,
-            "lid_coordinator": lid_coordinator,
-            "usb_plugged_coordinator": usb_plugged_coordinator,
-            "wand_coordinator": wand_coordinator,
-            "connection_coordinator": connection_coordinator,
-        }
+    entry.runtime_data = MagicCasterWandRuntimeData(
+        address=address,
+        device_type=device_type,
+        device=device,
+        coordinator=coordinator,
+        battery_coordinator=battery_coordinator,
+        connection_coordinator=connection_coordinator,
+        spell_coordinator=spell_coordinator if device_type == "mcw" else None,
+        buttons_coordinator=buttons_coordinator if device_type == "mcw" else None,
+        calibration_coordinator=calibration_coordinator if device_type == "mcw" else None,
+        imu_coordinator=imu_coordinator if device_type == "mcw" else None,
+        lid_coordinator=lid_coordinator if device_type == "mcb" else None,
+        usb_plugged_coordinator=usb_plugged_coordinator if device_type == "mcb" else None,
+        wand_coordinator=wand_coordinator if device_type == "mcb" else None,
+    )
 
     # Perform first refresh (best-effort). If it fails, entities will remain unavailable
     # until a later successful update.
@@ -205,8 +197,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             device_ids = [device_ids]
         for device_id in device_ids:
             entry_id = await get_entry_id_from_device(hass, device_id)
-            if entry_id and entry_id in hass.data[DOMAIN]:
-                device: McwDevice | McbDevice = hass.data[DOMAIN][entry_id]["device"]
+            if device := _get_device_by_entry_id(hass, entry_id):
                 await device.buzz(duration)
 
     async def handle_set_led(call: ServiceCall) -> None:
@@ -221,8 +212,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             device_ids = [device_ids]
         for device_id in device_ids:
             entry_id = await get_entry_id_from_device(hass, device_id)
-            if entry_id and entry_id in hass.data[DOMAIN]:
-                device: McwDevice | McbDevice = hass.data[DOMAIN][entry_id]["device"]
+            if device := _get_device_by_entry_id(hass, entry_id):
                 await device.set_led(group, rgb[0], rgb[1], rgb[2], duration)
 
     async def handle_send_macro(call: ServiceCall) -> None:
@@ -233,8 +223,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             device_ids = [device_ids]
         for device_id in device_ids:
             entry_id = await get_entry_id_from_device(hass, device_id)
-            if entry_id and entry_id in hass.data[DOMAIN]:
-                device: McwDevice | McbDevice = hass.data[DOMAIN][entry_id]["device"]
+            if device := _get_device_by_entry_id(hass, entry_id):
                 await device.send_macro_parse(commands)
 
     async def handle_clear_leds(call: ServiceCall) -> None:
@@ -244,8 +233,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             device_ids = [device_ids]
         for device_id in device_ids:
             entry_id = await get_entry_id_from_device(hass, device_id)
-            if entry_id and entry_id in hass.data[DOMAIN]:
-                device: McwDevice | McbDevice = hass.data[DOMAIN][entry_id]["device"]
+            if device := _get_device_by_entry_id(hass, entry_id):
                 await device.clear_leds()
 
     async def handle_play_spell(call: ServiceCall) -> None:
@@ -256,8 +244,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             device_ids = [device_ids]
         for device_id in device_ids:
             entry_id = await get_entry_id_from_device(hass, device_id)
-            if entry_id and entry_id in hass.data[DOMAIN]:
-                device: McwDevice | McbDevice = hass.data[DOMAIN][entry_id]["device"]
+            if device := _get_device_by_entry_id(hass, entry_id):
                 # Use helper for more robust spell matching
                 from .mcw_ble import get_spell_macro
 
@@ -279,7 +266,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-async def _async_update_method(hass: HomeAssistant, entry: ConfigEntry, mcw: McwDevice) -> BLEData:
+async def _async_update_method(hass: HomeAssistant, entry: MagicCasterWandConfigEntry, mcw: McwDevice) -> BLEData:
     """Get data from Magic Caster Wand BLE device."""
     address = entry.unique_id
     ble_device = bluetooth.async_ble_device_from_address(hass, address)
@@ -294,23 +281,34 @@ async def _async_update_method(hass: HomeAssistant, entry: ConfigEntry, mcw: Mcw
     return data
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: MagicCasterWandConfigEntry) -> bool:
     """Unload a config entry."""
-    mcw: McwDevice | McbDevice = hass.data[DOMAIN][entry.entry_id]["device"]
+    mcw = entry.runtime_data.device
     await mcw.disconnect()
 
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         if isinstance(mcw, McwDevice):
             await mcw.async_spell_tracker_close()
-        hass.data[DOMAIN].pop(entry.entry_id)
-
         # The services are registered once for the whole integration, so they
         # are only removed once the last device is gone.
-        if not hass.data[DOMAIN]:
+        other_loaded_entries = [
+            config_entry
+            for config_entry in hass.config_entries.async_entries(DOMAIN)
+            if config_entry.entry_id != entry.entry_id and config_entry.runtime_data is not None
+        ]
+        if not other_loaded_entries:
             for name in SERVICES:
                 hass.services.async_remove(DOMAIN, name)
 
     return unload_ok
+
+
+def _get_device_by_entry_id(hass: HomeAssistant, entry_id: str | None) -> McwDevice | McbDevice | None:
+    """Get a loaded device from a config entry ID."""
+    if entry_id is None:
+        return None
+    config_entry = hass.config_entries.async_get_entry(entry_id)
+    return config_entry.runtime_data.device if config_entry and config_entry.runtime_data else None
 
 
 async def get_entry_id_from_device(hass, device_id: str) -> str:

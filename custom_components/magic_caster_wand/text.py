@@ -3,26 +3,26 @@
 import logging
 
 from homeassistant.components.text import RestoreText
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, MANUFACTURER
+from .const import MANUFACTURER
 from .mcw_ble import McbDevice, McwDevice
+from .runtime_data import MagicCasterWandConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: MagicCasterWandConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Magic Caster Wand BLE text entity."""
-    data = hass.data[DOMAIN][entry.entry_id]
-    address = data["address"]
-    device = data["device"]
+    data = entry.runtime_data
+    address = data.address
+    device = data.device
 
     async_add_entities([McwAliasTextEntity(address, device)])
 

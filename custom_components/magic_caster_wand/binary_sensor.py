@@ -6,7 +6,6 @@ from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -15,8 +14,9 @@ from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
 )
 
-from .const import DOMAIN, MANUFACTURER
+from .const import MANUFACTURER
 from .mcw_ble import McbDevice, McwDevice
+from .runtime_data import MagicCasterWandConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,19 +31,20 @@ BUTTONS = [
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: MagicCasterWandConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Magic Caster Wand BLE button binary sensors."""
-    data = hass.data[DOMAIN][entry.entry_id]
-    address = data["address"]
-    device = data["device"]
-    device_type = data["type"]
-    connection_coordinator: DataUpdateCoordinator[bool] = data["connection_coordinator"]
+    data = entry.runtime_data
+    address = data.address
+    device = data.device
+    device_type = data.device_type
+    connection_coordinator: DataUpdateCoordinator[bool] = data.connection_coordinator
 
     entities = []
     if device_type == "mcw":
-        buttons_coordinator: DataUpdateCoordinator[dict[str, bool]] = data["buttons_coordinator"]
+        assert data.buttons_coordinator is not None
+        buttons_coordinator = data.buttons_coordinator
         entities.extend(
             [
                 McwButtonBinarySensor(
@@ -59,11 +60,14 @@ async def async_setup_entry(
         )
 
     elif device_type == "mcb":
+        assert data.lid_coordinator is not None
+        assert data.usb_plugged_coordinator is not None
+        assert data.wand_coordinator is not None
         entities.extend(
             [
-                McbLidBinarySensor(address, device, data["lid_coordinator"], connection_coordinator),
-                McbUSBPluggedBinarySensor(address, device, data["usb_plugged_coordinator"], connection_coordinator),
-                McbWandPresentBinarySensor(address, device, data["wand_coordinator"], connection_coordinator),
+                McbLidBinarySensor(address, device, data.lid_coordinator, connection_coordinator),
+                McbUSBPluggedBinarySensor(address, device, data.usb_plugged_coordinator, connection_coordinator),
+                McbWandPresentBinarySensor(address, device, data.wand_coordinator, connection_coordinator),
             ]
         )
 

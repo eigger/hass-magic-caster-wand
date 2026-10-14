@@ -4,30 +4,30 @@ import logging
 
 from homeassistant.components import bluetooth
 from homeassistant.components.switch import SwitchEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
 
-from .const import DOMAIN, MANUFACTURER, SIGNAL_SPELL_MODE_CHANGED
+from .const import MANUFACTURER, SIGNAL_SPELL_MODE_CHANGED
 from .mcw_ble import McbDevice, McwDevice
+from .runtime_data import MagicCasterWandConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: MagicCasterWandConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Magic Caster Wand BLE switch."""
-    data = hass.data[DOMAIN][entry.entry_id]
-    address = data["address"]
-    device = data["device"]
-    device_type = data["type"]
-    connection_coordinator = data["connection_coordinator"]
+    data = entry.runtime_data
+    address = data.address
+    device = data.device
+    device_type = data.device_type
+    connection_coordinator = data.connection_coordinator
 
     entities = []
     entities.append(McwConnectionSwitch(hass, address, device, connection_coordinator))
