@@ -27,8 +27,8 @@ SERVICE_METHODS = {
 
 
 def registered_services():
-    """The SERVICES tuple in __init__.py, which drives register and remove."""
-    tree = ast.parse((COMPONENT / "__init__.py").read_text())
+    """The SERVICES tuple in services.py, which drives register and remove."""
+    tree = ast.parse((COMPONENT / "services.py").read_text())
     node = next(
         n.value
         for n in tree.body
@@ -44,8 +44,8 @@ def test_every_registered_service_is_covered_by_this_test():
 
 
 def test_services_constant_matches_the_handler_table():
-    """Setup does `handlers[name]` for each name in SERVICES; a mismatch is a KeyError."""
-    tree = ast.parse((COMPONENT / "__init__.py").read_text())
+    """Registration does `handlers[name]`; a mismatch with SERVICES is a KeyError."""
+    tree = ast.parse((COMPONENT / "services.py").read_text())
     handlers = next(
         {k.value for k in n.value.keys}
         for n in ast.walk(tree)

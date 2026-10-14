@@ -486,7 +486,7 @@ def test_spawn_is_used_instead_of_bare_create_task():
 
 
 def test_unload_removes_every_registered_service():
-    source = (COMPONENT / "__init__.py").read_text()
+    source = (COMPONENT / "services.py").read_text()
     tree = ast.parse(source)
 
     registered = {
