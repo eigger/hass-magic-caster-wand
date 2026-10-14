@@ -16,7 +16,7 @@ from homeassistant.helpers.update_coordinator import (
 
 from .const import MANUFACTURER
 from .mcw_ble import McbDevice, McwDevice
-from .runtime_data import MagicCasterWandConfigEntry
+from .runtime_data import MagicCasterWandConfigEntry, McbRuntimeData, McwRuntimeData
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,19 +38,16 @@ async def async_setup_entry(
     data = entry.runtime_data
     address = data.address
     device = data.device
-    device_type = data.device_type
     connection_coordinator: DataUpdateCoordinator[bool] = data.connection_coordinator
 
     entities = []
-    if device_type == "mcw":
-        assert data.buttons_coordinator is not None
-        buttons_coordinator = data.buttons_coordinator
+    if isinstance(data, McwRuntimeData):
         entities.extend(
             [
                 McwButtonBinarySensor(
                     address=address,
-                    mcw=device,
-                    coordinator=buttons_coordinator,
+                    mcw=data.device,
+                    coordinator=data.buttons_coordinator,
                     connection_coordinator=connection_coordinator,
                     button_key=button["key"],
                     button_name=button["name"],
@@ -59,15 +56,12 @@ async def async_setup_entry(
             ]
         )
 
-    elif device_type == "mcb":
-        assert data.lid_coordinator is not None
-        assert data.usb_plugged_coordinator is not None
-        assert data.wand_coordinator is not None
+    elif isinstance(data, McbRuntimeData):
         entities.extend(
             [
-                McbLidBinarySensor(address, device, data.lid_coordinator, connection_coordinator),
-                McbUSBPluggedBinarySensor(address, device, data.usb_plugged_coordinator, connection_coordinator),
-                McbWandPresentBinarySensor(address, device, data.wand_coordinator, connection_coordinator),
+                McbLidBinarySensor(address, data.device, data.lid_coordinator, connection_coordinator),
+                McbUSBPluggedBinarySensor(address, data.device, data.usb_plugged_coordinator, connection_coordinator),
+                McbWandPresentBinarySensor(address, data.device, data.wand_coordinator, connection_coordinator),
             ]
         )
 
@@ -123,7 +117,7 @@ class McwButtonBinarySensor(
         """Return device info."""
         return DeviceInfo(
             connections={(CONNECTION_BLUETOOTH, self._address)},
-            name=f"Magic Caster Wand {self._identifier}",
+            name=f"Magic Caster {self._mcw.device_label} {self._identifier}",
             manufacturer=MANUFACTURER,
             model=self._mcw.model if self._mcw else None,
         )
@@ -181,10 +175,9 @@ class McwConnectionBinarySensor(
     @property
     def device_info(self) -> DeviceInfo:
         """Return device info."""
-        device_label = "Wand" if isinstance(self._device, McwDevice) else "Box"
         return DeviceInfo(
             connections={(CONNECTION_BLUETOOTH, self._address)},
-            name=f"Magic Caster {device_label} {self._identifier}",
+            name=f"Magic Caster {self._device.device_label} {self._identifier}",
             manufacturer=MANUFACTURER,
             model=self._device.model if self._device else None,
         )
@@ -232,7 +225,7 @@ class McbBaseBinarySensor(CoordinatorEntity[DataUpdateCoordinator[bool]], Binary
         """Return device info."""
         return DeviceInfo(
             connections={(CONNECTION_BLUETOOTH, self._address)},
-            name=f"Magic Caster Box {self._identifier}",
+            name=f"Magic Caster {self._device.device_label} {self._identifier}",
             manufacturer=MANUFACTURER,
             model=self._device.model if self._device else None,
         )

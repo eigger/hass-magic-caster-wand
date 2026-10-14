@@ -10,7 +10,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpda
 
 from .const import MANUFACTURER
 from .mcw_ble import BLEData
-from .runtime_data import MagicCasterWandConfigEntry
+from .runtime_data import MagicCasterWandConfigEntry, McwRuntimeData
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,18 +23,17 @@ async def async_setup_entry(
     """Set up the Magic Caster Wand BLE buttons."""
     data = entry.runtime_data
     address = data.address
-    device = data.device
-    device_type = data.device_type
     coordinator = data.coordinator
 
-    if device_type == "mcw":
-        assert data.calibration_coordinator is not None
-        calibration_coordinator = data.calibration_coordinator
-        connection_coordinator = data.connection_coordinator
+    if isinstance(data, McwRuntimeData):
         async_add_entities(
             [
-                McwButtonCalibration(address, device, coordinator, calibration_coordinator, connection_coordinator),
-                McwImuCalibration(address, device, coordinator, calibration_coordinator, connection_coordinator),
+                McwButtonCalibration(
+                    address, data.device, coordinator, data.calibration_coordinator, data.connection_coordinator
+                ),
+                McwImuCalibration(
+                    address, data.device, coordinator, data.calibration_coordinator, data.connection_coordinator
+                ),
             ]
         )
 
@@ -80,7 +79,7 @@ class McwBaseCalibrationButton(CoordinatorEntity[DataUpdateCoordinator[BLEData]]
         """Return device info."""
         return DeviceInfo(
             connections={(CONNECTION_BLUETOOTH, self._address)},
-            name=f"Magic Caster Wand {self._identifier}",
+            name=f"Magic Caster {self._mcw.device_label} {self._identifier}",
             manufacturer=MANUFACTURER,
             model=self._mcw.model if self._mcw else None,
         )

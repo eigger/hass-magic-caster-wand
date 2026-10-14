@@ -47,10 +47,9 @@ class McwAliasTextEntity(RestoreText):
     @property
     def device_info(self) -> DeviceInfo:
         """Return device info."""
-        device_label = "Wand" if isinstance(self._device, McwDevice) else "Box"
         return DeviceInfo(
             connections={(CONNECTION_BLUETOOTH, self._address)},
-            name=f"Magic Caster {device_label} {self._identifier}",
+            name=f"Magic Caster {self._device.device_label} {self._identifier}",
             manufacturer=MANUFACTURER,
         )
 

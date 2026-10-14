@@ -19,8 +19,11 @@ from .const import (
     DEFAULT_TFLITE_URL,
     DOMAIN,
 )
-from .mcw_ble import BLEData, McbDevice, McwDevice
-from .runtime_data import MagicCasterWandConfigEntry, MagicCasterWandRuntimeData
+from .device_setup import create_device, create_runtime_data
+from .mcw_ble import BLEData, McwDevice
+from .mcw_ble import McbDevice as McbDevice
+from .runtime_data import MagicCasterWandConfigEntry
+from .runtime_data import MagicCasterWandRuntimeData as MagicCasterWandRuntimeData
 from .services import async_setup_services, async_unload_services
 
 PLATFORMS: list[Platform] = [
@@ -57,10 +60,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MagicCasterWandConfigEnt
     # Create device instance
     tflite_url = entry.options.get(CONF_TFLITE_URL, entry.data.get(CONF_TFLITE_URL, DEFAULT_TFLITE_URL))
     spell_timeout = entry.options.get(CONF_SPELL_TIMEOUT, entry.data.get(CONF_SPELL_TIMEOUT, DEFAULT_SPELL_TIMEOUT))
-    if device_type == "mcb":
-        device = McbDevice(address)
-    else:
-        device = McwDevice(address, tflite_url=tflite_url, spell_timeout=spell_timeout)
+    device = create_device(device_type, address, tflite_url, spell_timeout)
 
     identifier = address.replace(":", "")[-8:]
 
@@ -72,50 +72,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: MagicCasterWandConfigEnt
         update_method=partial(_async_update_method, hass, entry, device),
         update_interval=timedelta(seconds=float(entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))),
     )
-
-    if device_type == "mcw":
-        spell_coordinator: DataUpdateCoordinator[str] = DataUpdateCoordinator(
-            hass,
-            _LOGGER,
-            name=f"{DOMAIN}_spell_{identifier}",
-        )
-
-        buttons_coordinator: DataUpdateCoordinator[dict[str, bool]] = DataUpdateCoordinator(
-            hass,
-            _LOGGER,
-            name=f"{DOMAIN}_buttons_{identifier}",
-        )
-
-        calibration_coordinator: DataUpdateCoordinator[dict[str, bool]] = DataUpdateCoordinator(
-            hass,
-            _LOGGER,
-            name=f"{DOMAIN}_calibration_{identifier}",
-        )
-
-        imu_coordinator: DataUpdateCoordinator[list[dict[str, float]]] = DataUpdateCoordinator(
-            hass,
-            _LOGGER,
-            name=f"{DOMAIN}_imu_{identifier}",
-        )
-
-    elif device_type == "mcb":
-        lid_coordinator: DataUpdateCoordinator[bool] = DataUpdateCoordinator(
-            hass,
-            _LOGGER,
-            name=f"{DOMAIN}_lid_{identifier}",
-        )
-
-        usb_plugged_coordinator: DataUpdateCoordinator[bool] = DataUpdateCoordinator(
-            hass,
-            _LOGGER,
-            name=f"{DOMAIN}_usb_plugged_{identifier}",
-        )
-
-        wand_coordinator: DataUpdateCoordinator[bool] = DataUpdateCoordinator(
-            hass,
-            _LOGGER,
-            name=f"{DOMAIN}_wand_present_{identifier}",
-        )
 
     battery_coordinator: DataUpdateCoordinator[float] = DataUpdateCoordinator(
         hass,
@@ -131,40 +87,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: MagicCasterWandConfigEnt
     # Initialize with disconnected state
     connection_coordinator.async_set_updated_data(False)
 
-    # Register coordinators with device for BLE callbacks
-    if device_type == "mcw":
-        device.register_coordinator(
-            spell_coordinator,
-            battery_coordinator,
-            buttons_coordinator,
-            calibration_coordinator,
-            imu_coordinator,
-            connection_coordinator,
-        )
-    elif device_type == "mcb":
-        device.register_coordinator(
-            cn_battery=battery_coordinator,
-            cn_lid=lid_coordinator,
-            cn_charge=usb_plugged_coordinator,
-            cn_wand=wand_coordinator,
-            cn_connection=connection_coordinator,
-        )
-
     # Store data for platforms
-    entry.runtime_data = MagicCasterWandRuntimeData(
+    entry.runtime_data = create_runtime_data(
+        hass,
+        _LOGGER,
         address=address,
-        device_type=device_type,
+        identifier=identifier,
         device=device,
         coordinator=coordinator,
         battery_coordinator=battery_coordinator,
         connection_coordinator=connection_coordinator,
-        spell_coordinator=spell_coordinator if device_type == "mcw" else None,
-        buttons_coordinator=buttons_coordinator if device_type == "mcw" else None,
-        calibration_coordinator=calibration_coordinator if device_type == "mcw" else None,
-        imu_coordinator=imu_coordinator if device_type == "mcw" else None,
-        lid_coordinator=lid_coordinator if device_type == "mcb" else None,
-        usb_plugged_coordinator=usb_plugged_coordinator if device_type == "mcb" else None,
-        wand_coordinator=wand_coordinator if device_type == "mcb" else None,
     )
 
     # Perform first refresh (best-effort). If it fails, entities will remain unavailable

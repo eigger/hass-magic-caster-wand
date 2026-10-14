@@ -10,7 +10,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import CASTING_LED_COLORS, DEFAULT_CASTING_LED_COLOR, MANUFACTURER
 from .mcw_ble import McwDevice
-from .runtime_data import MagicCasterWandConfigEntry
+from .runtime_data import MagicCasterWandConfigEntry, McwRuntimeData
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,11 +23,8 @@ async def async_setup_entry(
     """Set up the Magic Caster Wand BLE select entity."""
     data = entry.runtime_data
     address = data.address
-    device = data.device
-    device_type = data.device_type
-
-    if device_type == "mcw":
-        async_add_entities([McwCastingLedColorSelect(address, device)])
+    if isinstance(data, McwRuntimeData):
+        async_add_entities([McwCastingLedColorSelect(address, data.device)])
 
 
 class McwCastingLedColorSelect(SelectEntity, RestoreEntity):
@@ -51,7 +48,7 @@ class McwCastingLedColorSelect(SelectEntity, RestoreEntity):
         """Return device info."""
         return DeviceInfo(
             connections={(CONNECTION_BLUETOOTH, self._address)},
-            name=f"Magic Caster Wand {self._identifier}",
+            name=f"Magic Caster {self._mcw.device_label} {self._identifier}",
             manufacturer=MANUFACTURER,
         )
 

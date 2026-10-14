@@ -16,7 +16,7 @@ from PIL import Image, ImageDraw
 
 from .const import MANUFACTURER
 from .mcw_ble.spell_tracker import SpellTracker
-from .runtime_data import MagicCasterWandConfigEntry
+from .runtime_data import MagicCasterWandConfigEntry, McwRuntimeData
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,28 +32,17 @@ async def async_setup_entry(
 ) -> None:
     """Set up the Magic Caster Wand BLE camera."""
     data = entry.runtime_data
-    address = data.address
-    device = data.device
-    device_type = data.device_type
-
-    if device_type == "mcw":
-        assert data.imu_coordinator is not None
-        assert data.buttons_coordinator is not None
-        assert data.spell_coordinator is not None
-        imu_coordinator = data.imu_coordinator
-        buttons_coordinator = data.buttons_coordinator
-        spell_coordinator = data.spell_coordinator
-        connection_coordinator = data.connection_coordinator
+    if isinstance(data, McwRuntimeData):
         async_add_entities(
             [
                 McwSpellCamera(
                     hass,
-                    address,
-                    device,
-                    imu_coordinator,
-                    buttons_coordinator,
-                    spell_coordinator,
-                    connection_coordinator,
+                    data.address,
+                    data.device,
+                    data.imu_coordinator,
+                    data.buttons_coordinator,
+                    data.spell_coordinator,
+                    data.connection_coordinator,
                 )
             ]
         )
@@ -128,7 +117,7 @@ class McwSpellCamera(CoordinatorEntity, Camera):
         """Return device info."""
         return DeviceInfo(
             connections={(CONNECTION_BLUETOOTH, self._address)},
-            name=f"Magic Caster Wand {self._identifier}",
+            name=f"Magic Caster {self._mcw.device_label} {self._identifier}",
             manufacturer=MANUFACTURER,
         )
 

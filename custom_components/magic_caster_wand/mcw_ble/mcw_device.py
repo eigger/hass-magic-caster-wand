@@ -20,6 +20,8 @@ _LOGGER = logging.getLogger(__name__)
 class McwDevice:
     """Data handler for Magic Caster Wand BLE device."""
 
+    device_label = "Wand"
+
     def __init__(
         self,
         address: str,
