@@ -151,6 +151,7 @@ class BLELastOperationSensor(BLEDiagnosticSensor):
     """Expose the most recent BLE operation and its report attributes."""
 
     _attr_translation_key = "ble_last_operation"
+    _attr_icon = "mdi:history"
 
     def __init__(self, address: str, device: McwDevice | McbDevice, diagnostics) -> None:
         super().__init__(address, device, diagnostics)
@@ -173,6 +174,8 @@ class BLEConnectionDurationSensor(BLEDiagnosticSensor):
     """Expose the most recently measured BLE connection duration."""
 
     _attr_translation_key = "ble_connection_duration"
+    _attr_icon = "mdi:timer-outline"
+    _attr_device_class = SensorDeviceClass.DURATION
     _attr_native_unit_of_measurement = UnitOfTime.SECONDS
     _attr_state_class = SensorStateClass.MEASUREMENT
 
@@ -194,6 +197,7 @@ class BLEFailureCountSensor(BLEDiagnosticSensor):
     """Expose the number of recorded BLE failures."""
 
     _attr_translation_key = "ble_failure_count"
+    _attr_icon = "mdi:alert-circle-outline"
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
 
     def __init__(self, address: str, device: McwDevice | McbDevice, diagnostics) -> None:
@@ -209,6 +213,7 @@ class BLELastFailureSensor(BLEDiagnosticSensor):
     """Expose the retained timestamp and details of the latest BLE failure."""
 
     _attr_translation_key = "ble_last_failure"
+    _attr_icon = "mdi:clock-alert-outline"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
 
     def __init__(self, address: str, device: McwDevice | McbDevice, diagnostics) -> None:

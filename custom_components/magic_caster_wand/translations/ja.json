@@ -58,16 +58,16 @@
         "name": "IMU の調整"
       },
       "ble_connection_duration": {
-        "name": "BLE 接続時間"
+        "name": "接続時間"
       },
       "ble_last_operation": {
-        "name": "最後の BLE 操作"
+        "name": "最後の操作"
       },
       "ble_failure_count": {
-        "name": "BLE 失敗回数"
+        "name": "失敗回数"
       },
       "ble_last_failure": {
-        "name": "最後の BLE 失敗"
+        "name": "最後の失敗"
       }
     },
     "binary_sensor": {
