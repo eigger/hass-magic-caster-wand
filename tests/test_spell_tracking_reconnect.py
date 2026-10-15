@@ -583,12 +583,17 @@ def test_cast_path_is_recorded_for_the_canvas_while_pressed():
     assert len(device.cast_trail) == 3
     assert device.cast_point == device.cast_trail[-1]
 
-    press_all_buttons(device, pressed=False)
-    assert len(device.cast_trail) == 3, "the finished path stays visible until the next cast"
     finished_point = device.cast_point
 
-    feed_imu(device, 2)  # samples queued behind the release
-    assert len(device.cast_trail) == 3, "the canvas must not draw after release"
+    async def release_with_queued_samples():
+        device._callback_buttons({"button_all": False})
+        # Delivered before the stop task runs, so the recording is still open.
+        assert device._spell_tracker._state.tracking_active == 1
+        feed_imu(device, 2)
+        await asyncio.sleep(0)
+
+    asyncio.run(release_with_queued_samples())
+    assert len(device.cast_trail) == 3, "the finished path stays visible and is not extended after release"
     assert device.cast_point == finished_point
 
     press_all_buttons(device)
