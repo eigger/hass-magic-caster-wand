@@ -11,6 +11,7 @@ after a new connection is already up, and must not tear it down.
 """
 
 import asyncio
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -567,3 +568,36 @@ def test_detection_mode_reports_server_only_when_intended(wanted):
     device = make_device(tracking_wanted=wanted)
 
     assert device.spell_detection_mode == ("Server" if wanted else "Wand")
+
+
+def test_cast_path_is_recorded_for_the_canvas_while_pressed():
+    """The device's tracker is the only one: its path feeds the spell canvas."""
+    device = make_device(tracking_wanted=True)
+    device._imu_streaming = True
+    press_all_buttons(device)
+    assert device.cast_point == (0.0, 0.0)
+    assert device.cast_trail == ()
+
+    feed_imu(device, 3)
+
+    assert len(device.cast_trail) == 3
+    assert device.cast_point == device.cast_trail[-1]
+
+    press_all_buttons(device, pressed=False)
+    assert len(device.cast_trail) == 3, "the finished path stays visible until the next cast"
+
+    press_all_buttons(device)
+    assert device.cast_trail == ()
+
+
+def test_imu_batch_is_tracked_before_listeners_are_notified():
+    """The canvas listens to the IMU coordinator, so the path must already include the batch."""
+    device = make_device(tracking_wanted=True)
+    device._imu_streaming = True
+    press_all_buttons(device)
+    seen = []
+    device._coordinator_imu = SimpleNamespace(async_set_updated_data=lambda data: seen.append(len(device.cast_trail)))
+
+    feed_imu(device, 2)
+
+    assert seen == [2]

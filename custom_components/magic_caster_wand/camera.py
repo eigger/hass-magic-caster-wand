@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
-from collections import deque
 from functools import lru_cache
 
 from homeassistant.components.camera import Camera
@@ -16,14 +15,12 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpda
 from PIL import Image, ImageDraw
 
 from .const import MANUFACTURER
-from .mcw_ble.spell_tracker import SpellTracker
 from .runtime_data import MagicCasterWandConfigEntry, McwRuntimeData
 
 _LOGGER = logging.getLogger(__name__)
 
 CANVAS_WIDTH = 800
 CANVAS_HEIGHT = 600
-TRAIL_LENGTH = 1000
 MAX_RENDER_FPS = 10
 MIN_FRAME_INTERVAL = 1 / MAX_RENDER_FPS
 
@@ -34,6 +31,14 @@ def _text_overlay(text: str, fill: str | tuple[int, int, int, int], width: int, 
     overlay = Image.new("RGBA", (width, 15), (0, 0, 0, 0))
     ImageDraw.Draw(overlay).text((text_x, 0), text, fill=fill)
     return overlay.resize((width * scale, 15 * scale), resample=Image.NEAREST)
+
+
+def _to_canvas(point: tuple[float, float]) -> tuple[float, float]:
+    """Center a tracker coordinate on the canvas and clamp it to the frame."""
+    return (
+        max(0, min(CANVAS_WIDTH, point[0] + CANVAS_WIDTH / 2)),
+        max(0, min(CANVAS_HEIGHT, point[1] + CANVAS_HEIGHT / 2)),
+    )
 
 
 async def async_setup_entry(
@@ -87,13 +92,7 @@ class McwSpellCamera(CoordinatorEntity, Camera):
         self._attr_translation_key = "spell_canvas"
         self._attr_unique_id = f"mcw_{self._identifier}_camera"
 
-        # Spell tracking components
-        self._tracker = SpellTracker(detector=None)
-        self._tracker.start()  # Start tracker for initial cursor positioning
-        self._trail = deque(maxlen=TRAIL_LENGTH)
-        self._last_point = None
         self._last_image = None
-        self._prev_button_all = False
         self._frame_cond = asyncio.Condition()
         self._render_timer = None
         self._render_task = None
@@ -118,7 +117,6 @@ class McwSpellCamera(CoordinatorEntity, Camera):
         self.async_on_remove(self._connection_coordinator.async_add_listener(self._handle_connection_update))
         self.async_on_remove(self._buttons_coordinator.async_add_listener(self._handle_buttons_update))
         self.async_on_remove(self._spell_coordinator.async_add_listener(self._handle_spell_update))
-        self._update_button_state()
 
     async def async_will_remove_from_hass(self) -> None:
         """Cancel pending camera rendering before the entity is removed."""
@@ -149,8 +147,7 @@ class McwSpellCamera(CoordinatorEntity, Camera):
 
     @callback
     def _handle_buttons_update(self) -> None:
-        """Update drawing state when button state changes, even without IMU data."""
-        self._update_button_state()
+        """Redraw when button state changes, even without IMU data."""
         self._state_version += 1
         self._schedule_render()
 
@@ -160,24 +157,11 @@ class McwSpellCamera(CoordinatorEntity, Camera):
         self._state_version += 1
         self._schedule_render()
 
-    @callback
-    def _update_button_state(self) -> bool:
-        """Apply button transitions and return whether drawing is currently active."""
+    @property
+    def _button_all(self) -> bool:
+        """Whether all buttons are held, i.e. a cast is being drawn."""
         buttons = self._buttons_coordinator.data
-        button_all = bool(buttons and buttons.get("button_all", False))
-        if button_all and not self._prev_button_all:
-            _LOGGER.debug("Buttons pressed - starting new trail")
-            self._trail.clear()
-            self._tracker.start()
-        self._prev_button_all = button_all
-        return button_all
-
-    def _clear_canvas(self):
-        """Clear the drawing canvas."""
-        self._trail.clear()
-        self._tracker.start()
-        img = Image.new("RGB", (CANVAS_WIDTH, CANVAS_HEIGHT), "black")
-        self._last_image = self._image_to_bytes(img)
+        return bool(buttons and buttons.get("button_all", False))
 
     def _image_to_bytes(self, img: Image.Image) -> bytes:
         """Convert PIL image to bytes."""
@@ -201,39 +185,9 @@ class McwSpellCamera(CoordinatorEntity, Camera):
 
     @callback
     def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator."""
-        imu_data = self.coordinator.data
-        if not imu_data:
+        """Redraw from the path the device's tracker has already computed for this batch."""
+        if not self.coordinator.data:
             return
-
-        button_all = self._update_button_state()
-
-        last_sample_index = len(imu_data) - 1
-        for sample_index, sample in enumerate(imu_data):
-            # imuvisualizer.py logic for coordinate transformation
-            point = self._tracker.update(
-                ax=sample["accel_y"],
-                ay=-sample["accel_x"],
-                az=sample["accel_z"],
-                gx=sample["gyro_y"],
-                gy=-sample["gyro_x"],
-                gz=sample["gyro_z"],
-                calculate_position=button_all or sample_index == last_sample_index,
-            )
-
-            if point:
-                # Center + scale (roughly)
-                x = point[0] + (CANVAS_WIDTH / 2)
-                y = point[1] + (CANVAS_HEIGHT / 2)
-
-                # Clamp
-                x = max(0, min(CANVAS_WIDTH, x))
-                y = max(0, min(CANVAS_HEIGHT, y))
-
-                self._last_point = (x, y)
-                if button_all:
-                    self._trail.append((x, y))
-
         self._state_version += 1
         self._schedule_render()
 
@@ -265,12 +219,12 @@ class McwSpellCamera(CoordinatorEntity, Camera):
         self._render_dirty = False
         spell_name = self._spell_coordinator.data or "awaiting"
         spell_name = "" if spell_name == "awaiting" else spell_name.replace("_", " ").upper()
-        has_tracker = getattr(self._mcw, "_spell_tracker", None) is not None
+        has_tracker = getattr(self._mcw, "has_spell_tracker", False)
         server_reachable = getattr(self._mcw, "server_reachable", False)
         snapshot = (
-            tuple(self._trail),
-            self._last_point,
-            self._prev_button_all,
+            tuple(_to_canvas(point) for point in self._mcw.cast_trail),
+            _to_canvas(self._mcw.cast_point) if self._mcw.cast_point is not None else None,
+            self._button_all,
             spell_name,
             server_reachable,
             has_tracker,

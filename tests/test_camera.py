@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import io
 import sys
-from collections import deque
 from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock
 
@@ -51,9 +50,9 @@ from custom_components.magic_caster_wand.camera import (  # noqa: E402
     CANVAS_HEIGHT,
     CANVAS_WIDTH,
     McwSpellCamera,
-    SpellTracker,
     _text_overlay,
 )
+from custom_components.magic_caster_wand.mcw_ble.spell_tracker import SpellTracker  # noqa: E402
 
 
 def _camera_for_render_tests() -> McwSpellCamera:
@@ -62,7 +61,6 @@ def _camera_for_render_tests() -> McwSpellCamera:
     camera._render_task = None
     camera._render_dirty = False
     camera._last_render_time = None
-    camera._prev_button_all = False
     camera._is_removed = False
     camera._viewer_count = 0
     camera._snapshot_waiters = 0
@@ -92,70 +90,50 @@ def test_text_overlay_reuses_cached_scaled_layer():
     assert first.size == (136, 60)
 
 
-def test_coordinator_update_processes_every_sample_before_scheduling_render():
-    """Frame coalescing must not skip any IMU samples used by the tracker."""
+def test_coordinator_update_only_schedules_a_render():
+    """The camera redraws from the device's tracker instead of tracking IMU samples itself."""
     camera = _camera_for_render_tests()
-    samples = [
-        {
-            "accel_x": 1.0,
-            "accel_y": 2.0,
-            "accel_z": 3.0,
-            "gyro_x": 4.0,
-            "gyro_y": 5.0,
-            "gyro_z": 6.0,
-        }
-        for _ in range(3)
-    ]
-    camera.coordinator = SimpleNamespace(data=samples)
+    camera.coordinator = SimpleNamespace(data=[{"accel_x": 1.0}])
+    camera._schedule_render = Mock()
+
+    camera._handle_coordinator_update()
+
+    assert camera._state_version == 2
+    camera._schedule_render.assert_called_once_with()
+
+
+def test_coordinator_update_ignores_empty_batches():
+    camera = _camera_for_render_tests()
+    camera.coordinator = SimpleNamespace(data=[])
+    camera._schedule_render = Mock()
+
+    camera._handle_coordinator_update()
+
+    assert camera._state_version == 1
+    camera._schedule_render.assert_not_called()
+
+
+def test_render_snapshot_centers_and_clamps_the_device_trail():
+    """Tracker coordinates are mapped onto the canvas when the frame is captured."""
+    camera = _camera_for_render_tests()
+    camera._hass = SimpleNamespace(async_create_task=Mock(side_effect=lambda coro: coro.close()))
+    camera._spell_coordinator = SimpleNamespace(data="awaiting")
     camera._buttons_coordinator = SimpleNamespace(data={"button_all": True})
-    camera._tracker = Mock()
-    camera._tracker.update.side_effect = [(10.0, 20.0), (11.0, 21.0), (12.0, 22.0)]
-    camera._trail = deque(maxlen=1000)
-    camera._last_point = None
-    camera._prev_button_all = False
-    camera._schedule_render = Mock()
+    camera._mcw = SimpleNamespace(
+        has_spell_tracker=True,
+        server_reachable=True,
+        cast_trail=((10.0, 20.0), (10000.0, -10000.0)),
+        cast_point=(10000.0, -10000.0),
+    )
+    camera._render_dirty = True
+    camera._async_render = Mock(return_value=asyncio.sleep(0))
 
-    camera._handle_coordinator_update()
+    camera._start_render()
 
-    assert camera._tracker.update.call_count == len(samples)
-    assert all(call.kwargs["calculate_position"] for call in camera._tracker.update.call_args_list)
-    assert list(camera._trail) == [
-        (CANVAS_WIDTH / 2 + 10.0, CANVAS_HEIGHT / 2 + 20.0),
-        (CANVAS_WIDTH / 2 + 11.0, CANVAS_HEIGHT / 2 + 21.0),
-        (CANVAS_WIDTH / 2 + 12.0, CANVAS_HEIGHT / 2 + 22.0),
-    ]
-    camera._schedule_render.assert_called_once_with()
-
-
-def test_coordinator_update_projects_only_last_sample_when_not_drawing():
-    """Idle camera batches integrate all samples but project only the final cursor point."""
-    camera = _camera_for_render_tests()
-    samples = [
-        {
-            "accel_x": 1.0,
-            "accel_y": 2.0,
-            "accel_z": 3.0,
-            "gyro_x": 4.0,
-            "gyro_y": 5.0,
-            "gyro_z": 6.0,
-        }
-        for _ in range(3)
-    ]
-    camera.coordinator = SimpleNamespace(data=samples)
-    camera._buttons_coordinator = SimpleNamespace(data={"button_all": False})
-    camera._tracker = Mock()
-    camera._tracker.update.side_effect = [None, None, (12.0, 22.0)]
-    camera._trail = deque([(100.0, 100.0)], maxlen=1000)
-    camera._last_point = None
-    camera._schedule_render = Mock()
-
-    camera._handle_coordinator_update()
-
-    assert camera._tracker.update.call_count == len(samples)
-    assert [call.kwargs["calculate_position"] for call in camera._tracker.update.call_args_list] == [False, False, True]
-    assert list(camera._trail) == [(100.0, 100.0)]
-    assert camera._last_point == (CANVAS_WIDTH / 2 + 12.0, CANVAS_HEIGHT / 2 + 22.0)
-    camera._schedule_render.assert_called_once_with()
+    snapshot = camera._async_render.call_args.args[0]
+    assert snapshot[0] == ((CANVAS_WIDTH / 2 + 10.0, CANVAS_HEIGHT / 2 + 20.0), (CANVAS_WIDTH, 0))
+    assert snapshot[1] == (CANVAS_WIDTH, 0)
+    assert snapshot[2] is True
 
 
 def test_tracker_skips_intermediate_position_projection_without_changing_final_point():
@@ -242,19 +220,13 @@ def test_imu_updates_without_viewers_do_not_schedule_render():
     assert not camera._render_dirty
 
 
-def test_button_transition_updates_canvas_without_imu_data():
-    """Button events reset the trail and advance the render state independently."""
+def test_button_update_advances_render_state_without_imu_data():
+    """Button events redraw the canvas independently of IMU batches."""
     camera = _camera_for_render_tests()
-    camera._buttons_coordinator = SimpleNamespace(data={"button_all": True})
-    camera._tracker = Mock()
-    camera._trail = deque([(100.0, 100.0)], maxlen=1000)
     camera._schedule_render = Mock()
 
     camera._handle_buttons_update()
 
-    camera._tracker.start.assert_called_once_with()
-    assert not camera._trail
-    assert camera._prev_button_all
     assert camera._state_version == 2
     camera._schedule_render.assert_called_once_with()
 
@@ -265,11 +237,9 @@ def test_async_camera_image_renders_on_demand():
     async def run_test():
         camera = _camera_for_render_tests()
         camera._frame_cond = asyncio.Condition()
-        camera._trail = deque(maxlen=1000)
-        camera._last_point = None
-        camera._prev_button_all = False
         camera._spell_coordinator = SimpleNamespace(data="awaiting")
-        camera._mcw = SimpleNamespace(_spell_tracker=None, server_reachable=False)
+        camera._buttons_coordinator = SimpleNamespace(data={"button_all": False})
+        camera._mcw = SimpleNamespace(has_spell_tracker=False, server_reachable=False, cast_trail=(), cast_point=None)
         camera.async_write_ha_state = Mock()
 
         async def run_executor(func, snapshot):
@@ -295,10 +265,9 @@ def test_newer_snapshot_waits_for_followup_when_an_older_render_is_active():
 
     async def run_test():
         camera = _camera_for_render_tests()
-        camera._trail = deque(maxlen=1000)
-        camera._last_point = None
         camera._spell_coordinator = SimpleNamespace(data="awaiting")
-        camera._mcw = SimpleNamespace(_spell_tracker=None, server_reachable=False)
+        camera._buttons_coordinator = SimpleNamespace(data={"button_all": False})
+        camera._mcw = SimpleNamespace(has_spell_tracker=False, server_reachable=False, cast_trail=(), cast_point=None)
         camera.async_write_ha_state = Mock()
         started = asyncio.Event()
         release = asyncio.Event()
@@ -341,11 +310,10 @@ def test_failed_snapshot_render_is_retried_by_the_next_request():
 
     async def run_test():
         camera = _camera_for_render_tests()
-        camera._trail = deque(maxlen=1000)
-        camera._last_point = None
         camera._last_image = b"old jpeg"
         camera._spell_coordinator = SimpleNamespace(data="awaiting")
-        camera._mcw = SimpleNamespace(_spell_tracker=None, server_reachable=False)
+        camera._buttons_coordinator = SimpleNamespace(data={"button_all": False})
+        camera._mcw = SimpleNamespace(has_spell_tracker=False, server_reachable=False, cast_trail=(), cast_point=None)
         camera.async_write_ha_state = Mock()
         attempts = 0
 
@@ -394,10 +362,9 @@ def test_last_mjpeg_viewer_does_not_cancel_a_waiting_snapshot_timer():
         camera._state_version = 2
         camera._rendered_state_version = 1
         camera._last_render_time = asyncio.get_running_loop().time()
-        camera._trail = deque(maxlen=1000)
-        camera._last_point = None
         camera._spell_coordinator = SimpleNamespace(data="awaiting")
-        camera._mcw = SimpleNamespace(_spell_tracker=None, server_reachable=False)
+        camera._buttons_coordinator = SimpleNamespace(data={"button_all": False})
+        camera._mcw = SimpleNamespace(has_spell_tracker=False, server_reachable=False, cast_trail=(), cast_point=None)
         camera._render_frame = Mock(return_value=b"new jpeg")
         camera.async_write_ha_state = Mock()
 
