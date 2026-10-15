@@ -242,7 +242,7 @@ class McbDevice:
         if not self._mcb:
             return
         try:
-            address = await asyncio.wait_for(self._mcb.get_wand_address(), 3.0)
+            address = await asyncio.wait_for(self._mcb.get_wand_address(timeout=1.0), 5.0)
         except Exception as err:
             _LOGGER.debug("Could not read the paired wand address: %s", err)
             return

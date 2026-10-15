@@ -17,12 +17,21 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
+_ACTIVE_STATES = (ConfigEntryState.LOADED, ConfigEntryState.SETUP_IN_PROGRESS)
+
+
+_UNPAIRED = "00:00:00:00:00:00"
+
 
 def normalize_address(address: str | None) -> str | None:
-    """Return a comparable form of a BLE address, or None if there is none."""
+    """Return a comparable form of a BLE address, or None if there is none.
+
+    An all-zero address means the box has no wand paired, so it is no address.
+    """
     if not address:
         return None
-    return address.strip().upper()
+    address = address.strip().upper()
+    return None if address == _UNPAIRED else address
 
 
 def plan_links(
@@ -65,14 +74,19 @@ async def async_reconcile_links(hass: HomeAssistant) -> None:
     boxes: dict[str, str | None] = {}
     wand_ids: dict[str, str] = {}
     for entry in hass.config_entries.async_entries(DOMAIN):
-        if entry.state is not ConfigEntryState.LOADED or not entry.unique_id:
+        # Home Assistant only marks an entry loaded after its setup returns, and
+        # reconcile runs from inside setup, so an entry still setting up counts.
+        if entry.state not in _ACTIVE_STATES or not entry.unique_id:
+            continue
+        runtime_data = getattr(entry, "runtime_data", None)
+        if runtime_data is None:
             continue
         address = normalize_address(entry.unique_id)
         dev_id = device_id(entry.unique_id)
         if address is None or dev_id is None:
             continue
         if entry.data.get("device_type", "mcw") == "mcb":
-            boxes[dev_id] = normalize_address(getattr(entry.runtime_data.device, "wand_address", None))
+            boxes[dev_id] = normalize_address(getattr(runtime_data.device, "wand_address", None))
         else:
             wand_ids[address] = dev_id
 

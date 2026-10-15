@@ -64,6 +64,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: MagicCasterWandConfigEnt
     spell_timeout = entry.options.get(CONF_SPELL_TIMEOUT, entry.data.get(CONF_SPELL_TIMEOUT, DEFAULT_SPELL_TIMEOUT))
     device = create_device(device_type, address, tflite_url, spell_timeout, hass)
 
+    if isinstance(device, McbDevice):
+        # Set before the first refresh: the box can connect and report its wand there.
+        device.on_wand_address_changed = lambda: entry.async_create_background_task(
+            hass, async_reconcile_links(hass), f"{DOMAIN}_link_{address}"
+        )
+
     identifier = address.replace(":", "")[-8:]
 
     # Create coordinators with unique names for debugging
@@ -110,9 +116,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: MagicCasterWandConfigEnt
             address,
             coordinator.last_exception,
         )
-
-    if isinstance(device, McbDevice):
-        device.on_wand_address_changed = lambda: hass.async_create_task(async_reconcile_links(hass))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await async_reconcile_links(hass)

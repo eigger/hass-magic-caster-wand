@@ -55,18 +55,20 @@ class FakeRegistry:
         self.async_get(device_id).via_device_id = via_device_id
 
 
-def _entry(address, device_type, wand_address=None):
-    return SimpleNamespace(
-        state=link.ConfigEntryState.LOADED,
+def _entry(address, device_type, wand_address=None, state=None, with_runtime_data=True):
+    entry = SimpleNamespace(
+        state=state or link.ConfigEntryState.LOADED,
         unique_id=address,
         data={"device_type": device_type},
-        runtime_data=SimpleNamespace(device=SimpleNamespace(wand_address=wand_address)),
     )
+    if with_runtime_data:
+        entry.runtime_data = SimpleNamespace(device=SimpleNamespace(wand_address=wand_address))
+    return entry
 
 
 def _setup(monkeypatch, entries, registry):
-    link.dr.async_get = MagicMock(return_value=registry)
-    link.dr.CONNECTION_BLUETOOTH = "bluetooth"
+    monkeypatch.setattr(link.dr, "async_get", MagicMock(return_value=registry))
+    monkeypatch.setattr(link.dr, "CONNECTION_BLUETOOTH", "bluetooth")
     hass = SimpleNamespace(config_entries=SimpleNamespace(async_entries=lambda domain: entries))
     return hass
 
@@ -82,6 +84,56 @@ def test_reconcile_links_wand_to_box(monkeypatch):
     assert registry.updates == [("wand", "box")]
 
 
+def _registry():
+    return FakeRegistry(
+        {BOX: SimpleNamespace(id="box", via_device_id=None), WAND: SimpleNamespace(id="wand", via_device_id=None)}
+    )
+
+
+def test_reconcile_counts_entries_still_setting_up(monkeypatch):
+    """Reconcile runs inside setup, when HA still reports the entry as in progress."""
+    registry = _registry()
+    in_progress = link.ConfigEntryState.SETUP_IN_PROGRESS
+    hass = _setup(
+        monkeypatch,
+        [_entry(BOX, "mcb", WAND, state=in_progress), _entry(WAND, "mcw", state=in_progress)],
+        registry,
+    )
+    asyncio.run(link.async_reconcile_links(hass))
+    assert registry.updates == [("wand", "box")]
+
+
+def test_reconcile_skips_entry_without_runtime_data(monkeypatch):
+    registry = _registry()
+    in_progress = link.ConfigEntryState.SETUP_IN_PROGRESS
+    hass = _setup(
+        monkeypatch,
+        [_entry(BOX, "mcb", WAND, state=in_progress, with_runtime_data=False), _entry(WAND, "mcw")],
+        registry,
+    )
+    asyncio.run(link.async_reconcile_links(hass))
+    assert registry.updates == []
+
+
+def test_reconcile_ignores_unloaded_entries(monkeypatch):
+    registry = _registry()
+    hass = _setup(
+        monkeypatch,
+        [_entry(BOX, "mcb", WAND, state=link.ConfigEntryState.NOT_LOADED), _entry(WAND, "mcw")],
+        registry,
+    )
+    asyncio.run(link.async_reconcile_links(hass))
+    assert registry.updates == []
+
+
+def test_unpaired_box_does_not_unlink(monkeypatch):
+    registry = _registry()
+    registry.devices[WAND].via_device_id = "box"
+    hass = _setup(monkeypatch, [_entry(BOX, "mcb", "00:00:00:00:00:00"), _entry(WAND, "mcw")], registry)
+    asyncio.run(link.async_reconcile_links(hass))
+    assert registry.updates == []
+
+
 def test_reconcile_without_wand_entry_does_nothing(monkeypatch):
     registry = FakeRegistry({BOX: SimpleNamespace(id="box", via_device_id=None)})
     hass = _setup(monkeypatch, [_entry(BOX, "mcb", WAND)], registry)
@@ -93,7 +145,7 @@ class _Mcb:
     def __init__(self, result):
         self.result = result
 
-    async def get_wand_address(self):
+    async def get_wand_address(self, timeout=5.0):
         if isinstance(self.result, Exception):
             raise self.result
         return self.result
