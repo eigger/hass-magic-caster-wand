@@ -6,7 +6,6 @@ two cannot be merged; instead the wand device is made a child of the box device
 (``via_device_id``), which shows as "Connected via Magic Caster Box".
 """
 
-import inspect
 import logging
 
 from homeassistant.config_entries import ConfigEntryState
@@ -63,13 +62,14 @@ def plan_links(
 async def async_reconcile_links(hass: HomeAssistant) -> None:
     """Make each wand a child of the box that reports it as its paired wand."""
     dev_reg = dr.async_get(hass)
-    if "via_device_id" not in inspect.signature(dev_reg.async_update_device).parameters:
-        _LOGGER.debug("This Home Assistant cannot link devices by id; skipping box and wand link")
-        return
 
-    def device_id(address: str) -> str | None:
-        device = dev_reg.async_get_device(connections={(dr.CONNECTION_BLUETOOTH, address)})
-        return device.id if device else None
+    def device_id(entry, address: str) -> str | None:
+        # Look inside the entry's own devices: another integration may register
+        # the same Bluetooth connection.
+        for device in dr.async_entries_for_config_entry(dev_reg, entry.entry_id):
+            if (dr.CONNECTION_BLUETOOTH, address) in device.connections:
+                return device.id
+        return None
 
     boxes: dict[str, str | None] = {}
     wand_ids: dict[str, str] = {}
@@ -82,7 +82,7 @@ async def async_reconcile_links(hass: HomeAssistant) -> None:
         if runtime_data is None:
             continue
         address = normalize_address(entry.unique_id)
-        dev_id = device_id(entry.unique_id)
+        dev_id = device_id(entry, entry.unique_id)
         if address is None or dev_id is None:
             continue
         if entry.data.get("device_type", "mcw") == "mcb":

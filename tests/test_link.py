@@ -43,14 +43,13 @@ class FakeRegistry:
         self.devices = devices  # address -> SimpleNamespace(id, via_device_id)
         self.updates = []
 
-    def async_get_device(self, connections):
-        ((_, address),) = connections
-        return self.devices.get(address)
+    def entries_for(self, entry_id):
+        return [d for d in self.devices.values() if d.entry_id == entry_id]
 
     def async_get(self, device_id):
         return next(d for d in self.devices.values() if d.id == device_id)
 
-    def async_update_device(self, device_id, via_device_id=None):
+    def async_update_device(self, device_id, via_device_id):
         self.updates.append((device_id, via_device_id))
         self.async_get(device_id).via_device_id = via_device_id
 
@@ -59,6 +58,7 @@ def _entry(address, device_type, wand_address=None, state=None, with_runtime_dat
     entry = SimpleNamespace(
         state=state or link.ConfigEntryState.LOADED,
         unique_id=address,
+        entry_id=address,
         data={"device_type": device_type},
     )
     if with_runtime_data:
@@ -69,13 +69,17 @@ def _entry(address, device_type, wand_address=None, state=None, with_runtime_dat
 def _setup(monkeypatch, entries, registry):
     monkeypatch.setattr(link.dr, "async_get", MagicMock(return_value=registry))
     monkeypatch.setattr(link.dr, "CONNECTION_BLUETOOTH", "bluetooth")
+    monkeypatch.setattr(link.dr, "async_entries_for_config_entry", lambda reg, entry_id: reg.entries_for(entry_id))
     hass = SimpleNamespace(config_entries=SimpleNamespace(async_entries=lambda domain: entries))
     return hass
 
 
 def test_reconcile_links_wand_to_box(monkeypatch):
     registry = FakeRegistry(
-        {BOX: SimpleNamespace(id="box", via_device_id=None), WAND: SimpleNamespace(id="wand", via_device_id=None)}
+        {
+            BOX: SimpleNamespace(id="box", entry_id=BOX, connections={("bluetooth", BOX)}, via_device_id=None),
+            WAND: SimpleNamespace(id="wand", entry_id=WAND, connections={("bluetooth", WAND)}, via_device_id=None),
+        }
     )
     hass = _setup(monkeypatch, [_entry(BOX, "mcb", WAND), _entry(WAND, "mcw")], registry)
     asyncio.run(link.async_reconcile_links(hass))
@@ -86,7 +90,10 @@ def test_reconcile_links_wand_to_box(monkeypatch):
 
 def _registry():
     return FakeRegistry(
-        {BOX: SimpleNamespace(id="box", via_device_id=None), WAND: SimpleNamespace(id="wand", via_device_id=None)}
+        {
+            BOX: SimpleNamespace(id="box", entry_id=BOX, connections={("bluetooth", BOX)}, via_device_id=None),
+            WAND: SimpleNamespace(id="wand", entry_id=WAND, connections={("bluetooth", WAND)}, via_device_id=None),
+        }
     )
 
 
@@ -135,7 +142,9 @@ def test_unpaired_box_does_not_unlink(monkeypatch):
 
 
 def test_reconcile_without_wand_entry_does_nothing(monkeypatch):
-    registry = FakeRegistry({BOX: SimpleNamespace(id="box", via_device_id=None)})
+    registry = FakeRegistry(
+        {BOX: SimpleNamespace(id="box", entry_id=BOX, connections={("bluetooth", BOX)}, via_device_id=None)}
+    )
     hass = _setup(monkeypatch, [_entry(BOX, "mcb", WAND)], registry)
     asyncio.run(link.async_reconcile_links(hass))
     assert registry.updates == []
