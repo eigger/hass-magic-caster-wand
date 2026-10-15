@@ -265,8 +265,8 @@ class McwSpellSensor(
 
     @property
     def available(self) -> bool:
-        """Return True if entity is available."""
-        return self._connection_coordinator.data is True
+        """Keep the last known state when the wand disconnects."""
+        return True
 
     @property
     def native_value(self) -> StateType:
@@ -321,8 +321,8 @@ class McwBatterySensor(
 
     @property
     def available(self) -> bool:
-        """Return True if entity is available."""
-        return self._connection_coordinator.data is True
+        """Keep the last known state when the wand disconnects."""
+        return True
 
     @property
     def native_value(self) -> StateType:
@@ -380,14 +380,12 @@ class McwBatteryStateSensor(
 
     @property
     def available(self) -> bool:
-        """Return True if entity is available."""
-        return self._connection_coordinator.data is True
+        """Keep the last known state when the wand disconnects."""
+        return True
 
     @property
     def icon(self) -> str:
         """Return the icon based on battery state."""
-        if self._connection_coordinator.data is not True:
-            return "mdi:battery-unknown"
         match self._state:
             case BatteryState.CRITICAL:
                 return "mdi:battery-alert"
@@ -430,8 +428,8 @@ class McwSpellModeSensor(McwBaseSensor):
 
     @property
     def available(self) -> bool:
-        """Return True if entity is available."""
-        return self._connection_coordinator.data is True
+        """Keep the last known state when the wand disconnects."""
+        return True
 
     @property
     def native_value(self) -> StateType:
@@ -495,8 +493,8 @@ class McwCalibrationSensor(
 
     @property
     def available(self) -> bool:
-        """Return True if entity is available."""
-        return self._connection_coordinator.data is True
+        """Keep the last known state when the wand disconnects."""
+        return True
 
     @property
     def icon(self) -> str:
