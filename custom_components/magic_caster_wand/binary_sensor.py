@@ -237,9 +237,11 @@ class McbBaseBinarySensor(CoordinatorEntity[DataUpdateCoordinator[bool]], Binary
         return True
 
     @property
-    def is_on(self) -> bool:
-        """Return True if entity is true."""
+    def is_on(self) -> bool | None:
+        """Return True if entity is true, None until the box reports."""
         try:
+            if self.coordinator.data is None:
+                return None
             return bool(self.coordinator.data)
         except Exception as err:
             _LOGGER.error("Error reading state: %s", err)

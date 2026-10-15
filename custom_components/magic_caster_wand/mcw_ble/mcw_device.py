@@ -250,6 +250,12 @@ class McwDevice:
         self.client = None
         self._mcw = None
         self._reset_cast_state()
+        # The wand reports buttons as released while disconnected; keep the
+        # retained button sensors from showing a press that can no longer end.
+        if self._coordinator_buttons:
+            self._coordinator_buttons.async_set_updated_data(
+                {key: False for key in ("button_1", "button_2", "button_3", "button_4", "button_all")}
+            )
         if self._coordinator_connection:
             self._coordinator_connection.async_set_updated_data(False)
 

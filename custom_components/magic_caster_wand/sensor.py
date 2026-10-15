@@ -386,8 +386,6 @@ class McwBatteryStateSensor(
     @property
     def icon(self) -> str:
         """Return the icon based on battery state."""
-        if self._connection_coordinator.data is not True:
-            return "mdi:battery-unknown"
         match self._state:
             case BatteryState.CRITICAL:
                 return "mdi:battery-alert"
