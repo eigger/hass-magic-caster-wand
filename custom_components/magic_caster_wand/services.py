@@ -6,7 +6,8 @@ import logging
 from typing import TYPE_CHECKING
 
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
 from .common_ble import resolve_led_group
 from .const import DOMAIN
