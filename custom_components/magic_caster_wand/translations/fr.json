@@ -60,9 +60,6 @@
       "ble_connection_duration": {
         "name": "Durée de connexion"
       },
-      "ble_last_operation": {
-        "name": "Dernière opération"
-      },
       "ble_failure_count": {
         "name": "Nombre d'échecs"
       },

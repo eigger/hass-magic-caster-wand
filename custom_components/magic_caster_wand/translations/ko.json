@@ -60,9 +60,6 @@
       "ble_connection_duration": {
         "name": "연결 소요 시간"
       },
-      "ble_last_operation": {
-        "name": "마지막 작업"
-      },
       "ble_failure_count": {
         "name": "실패 횟수"
       },

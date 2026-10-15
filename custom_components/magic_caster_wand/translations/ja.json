@@ -60,9 +60,6 @@
       "ble_connection_duration": {
         "name": "接続時間"
       },
-      "ble_last_operation": {
-        "name": "最後の操作"
-      },
       "ble_failure_count": {
         "name": "失敗回数"
       },
