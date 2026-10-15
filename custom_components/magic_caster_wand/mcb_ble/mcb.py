@@ -395,10 +395,10 @@ class McbClient:
     async def request_charge_notifications(self):
         await self.write_command(struct.pack("B", MESSAGEIDS.CHARGE_NOTIFY_REQUEST))
 
-    async def get_wand_address(self) -> str:
+    async def get_wand_address(self, timeout: float = 5.0) -> str:
         """Get the BLE address of the wand paired with this box."""
         if self._wand_address is None:
-            await self.write_command(struct.pack("B", MESSAGEIDS.WAND_ADDRESS_READ))
+            await self.write_command(struct.pack("B", MESSAGEIDS.WAND_ADDRESS_READ), timeout=timeout)
         return self._wand_address or ""
 
     async def get_box_device_id(self) -> str:

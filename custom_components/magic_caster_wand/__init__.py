@@ -21,6 +21,7 @@ from .const import (
     DOMAIN,
 )
 from .device_setup import create_device, create_runtime_data
+from .link import async_reconcile_links
 from .mcb_ble import McbDevice as McbDevice
 from .mcw_ble import McwDevice
 from .runtime_data import MagicCasterWandConfigEntry
@@ -62,6 +63,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: MagicCasterWandConfigEnt
     tflite_url = entry.options.get(CONF_TFLITE_URL, entry.data.get(CONF_TFLITE_URL, DEFAULT_TFLITE_URL))
     spell_timeout = entry.options.get(CONF_SPELL_TIMEOUT, entry.data.get(CONF_SPELL_TIMEOUT, DEFAULT_SPELL_TIMEOUT))
     device = create_device(device_type, address, tflite_url, spell_timeout, hass)
+
+    if isinstance(device, McbDevice):
+        # Set before the first refresh: the box can connect and report its wand there.
+        device.on_wand_address_changed = lambda: entry.async_create_background_task(
+            hass, async_reconcile_links(hass), f"{DOMAIN}_link_{address}"
+        )
 
     identifier = address.replace(":", "")[-8:]
 
@@ -111,6 +118,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MagicCasterWandConfigEnt
         )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    await async_reconcile_links(hass)
 
     # Register update listener to handle options changes
     entry.async_on_unload(entry.add_update_listener(async_update_options))
