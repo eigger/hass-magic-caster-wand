@@ -12,7 +12,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 from .const import MANUFACTURER
 from .runtime_data import MagicCasterWandConfigEntry, McwRuntimeData
@@ -25,12 +25,30 @@ MAX_RENDER_FPS = 10
 MIN_FRAME_INTERVAL = 1 / MAX_RENDER_FPS
 
 
+TEXT_PADDING = 4
+
+
+@lru_cache(maxsize=8)
+def _font(size: int) -> ImageFont.ImageFont | ImageFont.FreeTypeFont:
+    """Return the default font at the requested pixel size."""
+    try:
+        return ImageFont.load_default(size=size)
+    except TypeError:  # Pillow < 10.1 only ships the fixed-size bitmap font
+        return ImageFont.load_default()
+
+
 @lru_cache(maxsize=64)
-def _text_overlay(text: str, fill: str | tuple[int, int, int, int], width: int, text_x: int, scale: int) -> Image.Image:
-    """Return a cached, scaled transparent text layer for camera frames."""
-    overlay = Image.new("RGBA", (width, 15), (0, 0, 0, 0))
-    ImageDraw.Draw(overlay).text((text_x, 0), text, fill=fill)
-    return overlay.resize((width * scale, 15 * scale), resample=Image.NEAREST)
+def _text_overlay(text: str, fill: str | tuple[int, int, int, int], size: int) -> Image.Image:
+    """Return a cached transparent text layer sized to the measured text, so nothing is clipped."""
+    font = _font(size)
+    left, top, right, bottom = ImageDraw.Draw(Image.new("RGBA", (1, 1))).textbbox((0, 0), text, font=font)
+    overlay = Image.new(
+        "RGBA",
+        (right - left + 2 * TEXT_PADDING, bottom - top + 2 * TEXT_PADDING),
+        (0, 0, 0, 0),
+    )
+    ImageDraw.Draw(overlay).text((TEXT_PADDING - left, TEXT_PADDING - top), text, fill=fill, font=font)
+    return overlay
 
 
 def _to_canvas(point: tuple[float, float]) -> tuple[float, float]:
@@ -272,31 +290,22 @@ class McwSpellCamera(CoordinatorEntity, Camera):
         else:
             server_text, server_color = "SERVER ERROR", "red"
 
-        srv_tw = (len(server_text) * 6) + 4
-        scaled_srv = _text_overlay(server_text, server_color, srv_tw, 2, 2)
-        img.paste(scaled_srv, (10, 10), scaled_srv)
+        server_layer = _text_overlay(server_text, server_color, 24)
+        img.paste(server_layer, (10, 10), server_layer)
 
         status_text = "TRACKING" if button_all else "READY"
-        text_color = "red" if button_all else "white"
-        tw = (len(status_text) * 6) + 4
-        scale_factor = 4
-        scaled_txt = _text_overlay(status_text, text_color, tw, 2, scale_factor)
-        txt_x = (CANVAS_WIDTH - (tw * scale_factor)) // 2
-        img.paste(scaled_txt, (txt_x, 20), scaled_txt)
+        status_layer = _text_overlay(status_text, "red" if button_all else "white", 56)
+        img.paste(status_layer, ((CANVAS_WIDTH - status_layer.width) // 2, 20), status_layer)
 
         if spell_name and not button_all:
-            spell_tw = (len(spell_name) * 8) + 20
-            spell_scale = 5
-            scaled_spell = _text_overlay(spell_name, "gold", spell_tw, 10, spell_scale)
-            spell_x = (CANVAS_WIDTH - (spell_tw * spell_scale)) // 2
-            img.paste(scaled_spell, (spell_x, 90), scaled_spell)
+            spell_size = 72
+            while spell_size > 16 and _font(spell_size).getlength(spell_name) + 2 * TEXT_PADDING > CANVAS_WIDTH - 20:
+                spell_size -= 4
+            spell_layer = _text_overlay(spell_name, "gold", spell_size)
+            img.paste(spell_layer, ((CANVAS_WIDTH - spell_layer.width) // 2, 100), spell_layer)
 
-        desc_text = "PRESS ALL BUTTONS TO DRAW"
-        desc_tw = len(desc_text) * 6
-        desc_scale = 2
-        scaled_desc = _text_overlay(desc_text, (150, 150, 150, 255), desc_tw, 0, desc_scale)
-        desc_x = (CANVAS_WIDTH - (desc_tw * desc_scale)) // 2
-        img.paste(scaled_desc, (desc_x, CANVAS_HEIGHT - 40), scaled_desc)
+        desc_layer = _text_overlay("PRESS ALL BUTTONS TO DRAW", (150, 150, 150, 255), 22)
+        img.paste(desc_layer, ((CANVAS_WIDTH - desc_layer.width) // 2, CANVAS_HEIGHT - 50), desc_layer)
 
         if len(points) > 1:
             draw.line(points, fill="cyan", width=2)

@@ -81,13 +81,23 @@ def test_render_frame_returns_canvas_sized_jpeg():
         assert image.size == (CANVAS_WIDTH, CANVAS_HEIGHT)
 
 
-def test_text_overlay_reuses_cached_scaled_layer():
+def test_text_overlay_reuses_cached_layer():
     """Repeated labels reuse their small transparent image layer."""
-    first = _text_overlay("READY", "white", 34, 2, 4)
-    second = _text_overlay("READY", "white", 34, 2, 4)
+    first = _text_overlay("READY", "white", 56)
+    second = _text_overlay("READY", "white", 56)
 
     assert first is second
-    assert first.size == (136, 60)
+
+
+def test_text_overlay_fits_measured_text():
+    """The layer is wider than the text so glyphs are never clipped, and longer spells get wider layers."""
+    short = _text_overlay("LUMOS", "gold", 72)
+    long = _text_overlay("WINGARDIUM LEVIOSA", "gold", 72)
+
+    assert long.width > short.width
+    assert short.getbbox() is not None
+    left, _, right, _ = short.getbbox()
+    assert left > 0 and right < short.width
 
 
 def test_coordinator_update_only_schedules_a_render():
