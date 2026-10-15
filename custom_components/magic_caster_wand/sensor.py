@@ -175,6 +175,7 @@ class BLEConnectionDurationSensor(BLEDiagnosticSensor):
 
     _attr_translation_key = "ble_connection_duration"
     _attr_icon = "mdi:timer-outline"
+    _attr_device_class = SensorDeviceClass.DURATION
     _attr_native_unit_of_measurement = UnitOfTime.SECONDS
     _attr_state_class = SensorStateClass.MEASUREMENT
 
@@ -264,8 +265,8 @@ class McwSpellSensor(
 
     @property
     def available(self) -> bool:
-        """Return True if entity is available."""
-        return self._connection_coordinator.data is True
+        """Keep the last known state when the wand disconnects."""
+        return True
 
     @property
     def native_value(self) -> StateType:
@@ -320,8 +321,8 @@ class McwBatterySensor(
 
     @property
     def available(self) -> bool:
-        """Return True if entity is available."""
-        return self._connection_coordinator.data is True
+        """Keep the last known state when the wand disconnects."""
+        return True
 
     @property
     def native_value(self) -> StateType:
@@ -379,8 +380,8 @@ class McwBatteryStateSensor(
 
     @property
     def available(self) -> bool:
-        """Return True if entity is available."""
-        return self._connection_coordinator.data is True
+        """Keep the last known state when the wand disconnects."""
+        return True
 
     @property
     def icon(self) -> str:
@@ -429,8 +430,8 @@ class McwSpellModeSensor(McwBaseSensor):
 
     @property
     def available(self) -> bool:
-        """Return True if entity is available."""
-        return self._connection_coordinator.data is True
+        """Keep the last known state when the wand disconnects."""
+        return True
 
     @property
     def native_value(self) -> StateType:
@@ -494,8 +495,8 @@ class McwCalibrationSensor(
 
     @property
     def available(self) -> bool:
-        """Return True if entity is available."""
-        return self._connection_coordinator.data is True
+        """Keep the last known state when the wand disconnects."""
+        return True
 
     @property
     def icon(self) -> str:

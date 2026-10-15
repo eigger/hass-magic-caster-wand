@@ -125,8 +125,8 @@ class McwButtonBinarySensor(
 
     @property
     def available(self) -> bool:
-        """Return True if entity is available."""
-        return self._connection_coordinator.data is True
+        """Keep the last known state when the wand disconnects."""
+        return True
 
     @property
     def is_on(self) -> bool:
@@ -233,8 +233,8 @@ class McbBaseBinarySensor(CoordinatorEntity[DataUpdateCoordinator[bool]], Binary
 
     @property
     def available(self) -> bool:
-        """Return True if entity is available."""
-        return self._connection_coordinator.data is True
+        """Keep the last known state when the wand disconnects."""
+        return True
 
     @property
     def is_on(self) -> bool:

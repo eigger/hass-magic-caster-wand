@@ -64,7 +64,7 @@
         "name": "Última operación"
       },
       "ble_failure_count": {
-        "name": "Fallos"
+        "name": "Número de fallos"
       },
       "ble_last_failure": {
         "name": "Último fallo"

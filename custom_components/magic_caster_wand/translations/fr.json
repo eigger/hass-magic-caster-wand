@@ -64,7 +64,7 @@
         "name": "Dernière opération"
       },
       "ble_failure_count": {
-        "name": "Échecs"
+        "name": "Nombre d'échecs"
       },
       "ble_last_failure": {
         "name": "Dernier échec"
