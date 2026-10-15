@@ -6,6 +6,7 @@ import asyncio
 import io
 import logging
 from collections import deque
+from functools import lru_cache
 
 from homeassistant.components.camera import Camera
 from homeassistant.core import HomeAssistant, callback
@@ -25,6 +26,14 @@ CANVAS_HEIGHT = 600
 TRAIL_LENGTH = 1000
 MAX_RENDER_FPS = 10
 MIN_FRAME_INTERVAL = 1 / MAX_RENDER_FPS
+
+
+@lru_cache(maxsize=64)
+def _text_overlay(text: str, fill: str | tuple[int, int, int, int], width: int, text_x: int, scale: int) -> Image.Image:
+    """Return a cached, scaled transparent text layer for camera frames."""
+    overlay = Image.new("RGBA", (width, 15), (0, 0, 0, 0))
+    ImageDraw.Draw(overlay).text((text_x, 0), text, fill=fill)
+    return overlay.resize((width * scale, 15 * scale), resample=Image.NEAREST)
 
 
 async def async_setup_entry(
@@ -284,7 +293,6 @@ class McwSpellCamera(CoordinatorEntity, Camera):
                 self._last_image = image_bytes
                 self._rendered_state_version = max(self._rendered_state_version, snapshot[6])
                 self._frame_id += 1
-                self.async_write_ha_state()
                 async with self._frame_cond:
                     self._frame_cond.notify_all()
         finally:
@@ -309,37 +317,28 @@ class McwSpellCamera(CoordinatorEntity, Camera):
             server_text, server_color = "SERVER ERROR", "red"
 
         srv_tw = (len(server_text) * 6) + 4
-        srv_img = Image.new("RGBA", (srv_tw, 15), (0, 0, 0, 0))
-        ImageDraw.Draw(srv_img).text((2, 0), server_text, fill=server_color)
-        srv_scale = 2
-        scaled_srv = srv_img.resize((srv_tw * srv_scale, 15 * srv_scale), resample=Image.NEAREST)
+        scaled_srv = _text_overlay(server_text, server_color, srv_tw, 2, 2)
         img.paste(scaled_srv, (10, 10), scaled_srv)
 
         status_text = "TRACKING" if button_all else "READY"
         text_color = "red" if button_all else "white"
         tw = (len(status_text) * 6) + 4
-        txt_img = Image.new("RGBA", (tw, 15), (0, 0, 0, 0))
-        ImageDraw.Draw(txt_img).text((2, 0), status_text, fill=text_color)
         scale_factor = 4
-        scaled_txt = txt_img.resize((tw * scale_factor, 15 * scale_factor), resample=Image.NEAREST)
+        scaled_txt = _text_overlay(status_text, text_color, tw, 2, scale_factor)
         txt_x = (CANVAS_WIDTH - (tw * scale_factor)) // 2
         img.paste(scaled_txt, (txt_x, 20), scaled_txt)
 
         if spell_name and not button_all:
             spell_tw = (len(spell_name) * 8) + 20
-            spell_img = Image.new("RGBA", (spell_tw, 15), (0, 0, 0, 0))
-            ImageDraw.Draw(spell_img).text((10, 0), spell_name, fill="gold")
             spell_scale = 5
-            scaled_spell = spell_img.resize((spell_tw * spell_scale, 15 * spell_scale), resample=Image.NEAREST)
+            scaled_spell = _text_overlay(spell_name, "gold", spell_tw, 10, spell_scale)
             spell_x = (CANVAS_WIDTH - (spell_tw * spell_scale)) // 2
             img.paste(scaled_spell, (spell_x, 90), scaled_spell)
 
         desc_text = "PRESS ALL BUTTONS TO DRAW"
         desc_tw = len(desc_text) * 6
-        desc_img = Image.new("RGBA", (desc_tw, 15), (0, 0, 0, 0))
-        ImageDraw.Draw(desc_img).text((0, 0), desc_text, fill=(150, 150, 150, 255))
         desc_scale = 2
-        scaled_desc = desc_img.resize((desc_tw * desc_scale, 15 * desc_scale), resample=Image.NEAREST)
+        scaled_desc = _text_overlay(desc_text, (150, 150, 150, 255), desc_tw, 0, desc_scale)
         desc_x = (CANVAS_WIDTH - (desc_tw * desc_scale)) // 2
         img.paste(scaled_desc, (desc_x, CANVAS_HEIGHT - 40), scaled_desc)
 
