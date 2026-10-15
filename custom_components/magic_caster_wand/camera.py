@@ -91,6 +91,13 @@ class McwSpellCamera(CoordinatorEntity, Camera):
         self._render_dirty = False
         self._last_render_time = None
         self._is_removed = False
+        self._viewer_count = 0
+        self._snapshot_waiters = 0
+        self._state_version = 1
+        self._rendered_state_version = 0
+        self._failed_state_version = 0
+        self._rendering_state_version = None
+        self._frame_id = 0
 
     async def async_added_to_hass(self) -> None:
         """Handle entity which will be added."""
@@ -100,6 +107,9 @@ class McwSpellCamera(CoordinatorEntity, Camera):
         self._last_image = self._image_to_bytes(img)
         # Register connection coordinator listener
         self.async_on_remove(self._connection_coordinator.async_add_listener(self._handle_connection_update))
+        self.async_on_remove(self._buttons_coordinator.async_add_listener(self._handle_buttons_update))
+        self.async_on_remove(self._spell_coordinator.async_add_listener(self._handle_spell_update))
+        self._update_button_state()
 
     async def async_will_remove_from_hass(self) -> None:
         """Cancel pending camera rendering before the entity is removed."""
@@ -118,12 +128,40 @@ class McwSpellCamera(CoordinatorEntity, Camera):
             except asyncio.CancelledError:
                 pass
 
+        async with self._frame_cond:
+            self._frame_cond.notify_all()
+
         await super().async_will_remove_from_hass()
 
     @callback
     def _handle_connection_update(self) -> None:
         """Handle connection state changes."""
         self.async_write_ha_state()
+
+    @callback
+    def _handle_buttons_update(self) -> None:
+        """Update drawing state when button state changes, even without IMU data."""
+        self._update_button_state()
+        self._state_version += 1
+        self._schedule_render()
+
+    @callback
+    def _handle_spell_update(self) -> None:
+        """Refresh the displayed spell when recognition completes."""
+        self._state_version += 1
+        self._schedule_render()
+
+    @callback
+    def _update_button_state(self) -> bool:
+        """Apply button transitions and return whether drawing is currently active."""
+        buttons = self._buttons_coordinator.data
+        button_all = bool(buttons and buttons.get("button_all", False))
+        if button_all and not self._prev_button_all:
+            _LOGGER.debug("Buttons pressed - starting new trail")
+            self._trail.clear()
+            self._tracker.start()
+        self._prev_button_all = button_all
+        return button_all
 
     def _clear_canvas(self):
         """Clear the drawing canvas."""
@@ -159,18 +197,7 @@ class McwSpellCamera(CoordinatorEntity, Camera):
         if not imu_data:
             return
 
-        # Get current button state
-        button_all = False
-        if self._buttons_coordinator.data:
-            button_all = self._buttons_coordinator.data.get("button_all", False)
-
-        # Handle button_all transition (imuvisualizer style)
-        if button_all and not self._prev_button_all:
-            _LOGGER.debug("Buttons pressed - starting new trail")
-            self._trail.clear()
-            self._tracker.start()
-
-        self._prev_button_all = button_all
+        button_all = self._update_button_state()
 
         for sample in imu_data:
             # imuvisualizer.py logic for coordinate transformation
@@ -196,12 +223,13 @@ class McwSpellCamera(CoordinatorEntity, Camera):
                 if button_all:
                     self._trail.append((x, y))
 
+        self._state_version += 1
         self._schedule_render()
 
     @callback
-    def _schedule_render(self) -> None:
+    def _schedule_render(self, *, force: bool = False) -> None:
         """Schedule one render, coalescing IMU updates to the maximum frame rate."""
-        if self._is_removed:
+        if self._is_removed or (self._viewer_count == 0 and not force):
             return
         self._render_dirty = True
         if self._render_timer is not None or self._render_task is not None:
@@ -235,7 +263,10 @@ class McwSpellCamera(CoordinatorEntity, Camera):
             spell_name,
             server_reachable,
             has_tracker,
+            self._state_version,
         )
+        self._failed_state_version = 0
+        self._rendering_state_version = self._state_version
         self._render_task = self._hass.async_create_task(self._async_render(snapshot))
 
     async def _async_render(self, snapshot: tuple) -> None:
@@ -244,22 +275,29 @@ class McwSpellCamera(CoordinatorEntity, Camera):
             image_bytes = await self._hass.async_add_executor_job(self._render_frame, snapshot)
         except Exception:
             _LOGGER.exception("Failed to render spell camera frame")
+            if not self._is_removed:
+                self._failed_state_version = max(self._failed_state_version, snapshot[6])
+                async with self._frame_cond:
+                    self._frame_cond.notify_all()
         else:
             if not self._is_removed:
                 self._last_image = image_bytes
+                self._rendered_state_version = max(self._rendered_state_version, snapshot[6])
+                self._frame_id += 1
                 self.async_write_ha_state()
                 async with self._frame_cond:
                     self._frame_cond.notify_all()
         finally:
             self._last_render_time = asyncio.get_running_loop().time()
             self._render_task = None
-            if self._render_dirty and not self._is_removed:
-                self._schedule_render()
+            self._rendering_state_version = None
+            if self._render_dirty and not self._is_removed and (self._viewer_count > 0 or self._snapshot_waiters > 0):
+                self._schedule_render(force=self._viewer_count == 0)
 
     @staticmethod
     def _render_frame(snapshot: tuple) -> bytes:
         """Render an immutable camera state snapshot to JPEG bytes."""
-        points, last_point, button_all, spell_name, server_reachable, has_tracker = snapshot
+        points, last_point, button_all, spell_name, server_reachable, has_tracker, _state_version = snapshot
         img = Image.new("RGB", (CANVAS_WIDTH, CANVAS_HEIGHT), "black")
         draw = ImageDraw.Draw(img)
 
@@ -320,27 +358,80 @@ class McwSpellCamera(CoordinatorEntity, Camera):
 
         response = web.StreamResponse()
         response.content_type = "multipart/x-mixed-replace;boundary=--frame"
-        await response.prepare(request)
-
+        self._viewer_count += 1
         try:
+            self._request_latest_render()
+            await response.prepare(request)
+            last_frame_id = -1
             while True:
                 async with self._frame_cond:
-                    await self._frame_cond.wait()
+                    await self._frame_cond.wait_for(
+                        lambda frame_id=last_frame_id: self._frame_id > frame_id or self._is_removed
+                    )
+                    if self._is_removed:
+                        break
                     img_bytes = self._last_image
+                    last_frame_id = self._frame_id
 
                 await response.write(
                     f"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: {len(img_bytes)}\r\n\r\n".encode()
                 )
                 await response.write(img_bytes)
                 await response.write(b"\r\n")
-        except (ConnectionResetError, asyncio.CancelledError):
+        except ConnectionResetError:
             return response
+        except asyncio.CancelledError:
+            raise
+        finally:
+            self._viewer_count -= 1
+            if self._viewer_count == 0 and self._snapshot_waiters == 0 and self._render_timer is not None:
+                self._render_timer.cancel()
+                self._render_timer = None
+                self._render_dirty = False
 
         return response
 
     async def async_camera_image(self, width: int | None = None, height: int | None = None) -> bytes | None:
         """Return a still image response from the camera."""
-        return self._last_image
+        self._snapshot_waiters += 1
+        try:
+            target_version = self._state_version
+            if self._rendered_state_version < target_version and (
+                self._render_task is None or self._rendering_state_version < target_version
+            ):
+                self._failed_state_version = 0
+                self._schedule_render(force=True)
+            async with self._frame_cond:
+                await self._frame_cond.wait_for(
+                    lambda: (
+                        self._rendered_state_version >= target_version
+                        or self._failed_state_version >= target_version
+                        or self._is_removed
+                    )
+                )
+            return self._last_image
+        finally:
+            self._snapshot_waiters -= 1
+            if self._viewer_count == 0 and self._snapshot_waiters == 0:
+                self._cancel_idle_render()
+
+    @callback
+    def _cancel_idle_render(self) -> None:
+        """Cancel a delayed render when no stream or snapshot needs another frame."""
+        if self._render_timer is not None:
+            self._render_timer.cancel()
+            self._render_timer = None
+        self._render_dirty = False
+
+    @callback
+    def _request_latest_render(self) -> None:
+        """Render current state if no equal-or-newer frame is already in progress."""
+        target_version = self._state_version
+        if self._rendered_state_version < target_version and (
+            self._render_task is None or self._rendering_state_version < target_version
+        ):
+            self._failed_state_version = 0
+            self._schedule_render(force=True)
 
     def camera_image(self, width: int | None = None, height: int | None = None) -> bytes | None:
         """Return a still image response from the camera."""
