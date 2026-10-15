@@ -13,6 +13,7 @@ from homeassistant.core import HomeAssistant
 from ..common_ble.common import BLEData, build_macro, build_set_led_macro
 from ..common_ble.macros import LedGroup, Macro
 from ..common_ble.session_diagnostics import BLESessionDiagnostics
+from ..const import UNPAIRED_WAND_ADDRESS
 from .mcb import CHARGENOTIFY, LIDNOTIFY, WANDNOTIFY, McbClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -246,7 +247,7 @@ class McbDevice:
         except Exception as err:
             _LOGGER.debug("Could not read the paired wand address: %s", err)
             return
-        if address and address != "00:00:00:00:00:00" and address != self.wand_address:
+        if address and address != UNPAIRED_WAND_ADDRESS and address != self.wand_address:
             self.wand_address = address
             if self.on_wand_address_changed:
                 self.on_wand_address_changed()

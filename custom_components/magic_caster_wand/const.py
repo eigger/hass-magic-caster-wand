@@ -24,3 +24,6 @@ DEFAULT_CASTING_LED_COLOR = "White"
 
 # Dispatcher signals
 SIGNAL_SPELL_MODE_CHANGED = f"{DOMAIN}_spell_mode_changed"
+
+# Address a box reports when no wand is paired with it
+UNPAIRED_WAND_ADDRESS = "00:00:00:00:00:00"

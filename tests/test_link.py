@@ -40,7 +40,7 @@ def test_wand_without_box_is_untouched():
 
 class FakeRegistry:
     def __init__(self, devices):
-        self.devices = devices  # address -> SimpleNamespace(id, via_device_id)
+        self.devices = devices  # address -> SimpleNamespace(id, entry_id, connections, via_device_id)
         self.updates = []
 
     def entries_for(self, entry_id):
@@ -75,12 +75,7 @@ def _setup(monkeypatch, entries, registry):
 
 
 def test_reconcile_links_wand_to_box(monkeypatch):
-    registry = FakeRegistry(
-        {
-            BOX: SimpleNamespace(id="box", entry_id=BOX, connections={("bluetooth", BOX)}, via_device_id=None),
-            WAND: SimpleNamespace(id="wand", entry_id=WAND, connections={("bluetooth", WAND)}, via_device_id=None),
-        }
-    )
+    registry = _registry()
     hass = _setup(monkeypatch, [_entry(BOX, "mcb", WAND), _entry(WAND, "mcw")], registry)
     asyncio.run(link.async_reconcile_links(hass))
     assert registry.updates == [("wand", "box")]
@@ -183,3 +178,11 @@ def test_unanswered_wand_address_keeps_known_value(result):
     asyncio.run(device._refresh_wand_address())
     assert device.wand_address == WAND
     device.on_wand_address_changed.assert_not_called()
+
+
+def test_reconcile_unlinks_wand_when_box_reports_another(monkeypatch):
+    registry = _registry()
+    registry.devices[WAND].via_device_id = "box"
+    hass = _setup(monkeypatch, [_entry(BOX, "mcb", "AA:AA:AA:AA:AA:AA"), _entry(WAND, "mcw")], registry)
+    asyncio.run(link.async_reconcile_links(hass))
+    assert registry.updates == [("wand", None)]

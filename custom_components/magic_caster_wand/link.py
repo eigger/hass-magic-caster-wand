@@ -12,14 +12,11 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 
-from .const import DOMAIN
+from .const import DOMAIN, UNPAIRED_WAND_ADDRESS
 
 _LOGGER = logging.getLogger(__name__)
 
 _ACTIVE_STATES = (ConfigEntryState.LOADED, ConfigEntryState.SETUP_IN_PROGRESS)
-
-
-_UNPAIRED = "00:00:00:00:00:00"
 
 
 def normalize_address(address: str | None) -> str | None:
@@ -30,7 +27,7 @@ def normalize_address(address: str | None) -> str | None:
     if not address:
         return None
     address = address.strip().upper()
-    return None if address == _UNPAIRED else address
+    return None if address == UNPAIRED_WAND_ADDRESS else address
 
 
 def plan_links(
