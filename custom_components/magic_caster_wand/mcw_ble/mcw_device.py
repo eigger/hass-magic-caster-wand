@@ -222,7 +222,8 @@ class McwDevice:
                     gy=-sample["gyro_x"],
                     gz=sample["gyro_z"],
                 )
-                if point is not None:
+                # Samples queued behind the release still feed recognition but are not drawn.
+                if point is not None and self._button_all_pressed:
                     self._cast_point = (float(point[0]), float(point[1]))
                     self._cast_trail.append(self._cast_point)
 

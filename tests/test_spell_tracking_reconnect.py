@@ -585,6 +585,11 @@ def test_cast_path_is_recorded_for_the_canvas_while_pressed():
 
     press_all_buttons(device, pressed=False)
     assert len(device.cast_trail) == 3, "the finished path stays visible until the next cast"
+    finished_point = device.cast_point
+
+    feed_imu(device, 2)  # samples queued behind the release
+    assert len(device.cast_trail) == 3, "the canvas must not draw after release"
+    assert device.cast_point == finished_point
 
     press_all_buttons(device)
     assert device.cast_trail == ()
@@ -601,3 +606,14 @@ def test_imu_batch_is_tracked_before_listeners_are_notified():
     feed_imu(device, 2)
 
     assert seen == [2]
+
+
+def test_canvas_path_is_empty_before_the_first_cast():
+    """Idle samples do not move the canvas cursor: it only follows an active cast."""
+    device = make_device(tracking_wanted=True)
+    device._imu_streaming = True
+
+    feed_imu(device, 3)
+
+    assert device.cast_trail == ()
+    assert device.cast_point is None
