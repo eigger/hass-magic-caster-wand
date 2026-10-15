@@ -47,7 +47,12 @@ coordinator_module.DataUpdateCoordinator = _Base
 
 sys.modules["homeassistant.core"].callback = lambda func: func
 
-from custom_components.magic_caster_wand.camera import CANVAS_HEIGHT, CANVAS_WIDTH, McwSpellCamera  # noqa: E402
+from custom_components.magic_caster_wand.camera import (  # noqa: E402
+    CANVAS_HEIGHT,
+    CANVAS_WIDTH,
+    McwSpellCamera,
+    _text_overlay,
+)
 
 
 def _camera_for_render_tests() -> McwSpellCamera:
@@ -75,6 +80,15 @@ def test_render_frame_returns_canvas_sized_jpeg():
     with Image.open(io.BytesIO(frame)) as image:
         assert image.format == "JPEG"
         assert image.size == (CANVAS_WIDTH, CANVAS_HEIGHT)
+
+
+def test_text_overlay_reuses_cached_scaled_layer():
+    """Repeated labels reuse their small transparent image layer."""
+    first = _text_overlay("READY", "white", 34, 2, 4)
+    second = _text_overlay("READY", "white", 34, 2, 4)
+
+    assert first is second
+    assert first.size == (136, 60)
 
 
 def test_coordinator_update_processes_every_sample_before_scheduling_render():
@@ -151,6 +165,7 @@ def test_render_requests_during_active_render_are_coalesced():
         await camera._async_render(((), None, False, "", True, True, 1))
 
         assert camera._last_image == b"jpeg"
+        camera.async_write_ha_state.assert_not_called()
         camera._schedule_render.assert_called_once_with(force=False)
 
     asyncio.run(run_test())
