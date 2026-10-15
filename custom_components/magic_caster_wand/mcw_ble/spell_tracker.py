@@ -192,7 +192,15 @@ class SpellTracker:
         return self._detector
 
     def update(
-        self, ax: np.float32, ay: np.float32, az: np.float32, gx: np.float32, gy: np.float32, gz: np.float32
+        self,
+        ax: np.float32,
+        ay: np.float32,
+        az: np.float32,
+        gx: np.float32,
+        gy: np.float32,
+        gz: np.float32,
+        *,
+        calculate_position: bool = True,
     ) -> tuple[np.float32, np.float32] | None:
 
         self._update_imu_only(
@@ -206,6 +214,9 @@ class SpellTracker:
         )
 
         if self._state.tracking_active != 1:
+            return None
+
+        if not calculate_position:
             return None
 
         roll, pitch, yaw = self._calc_eulers_from_attitude()
