@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
 from .common_ble import resolve_led_group
 from .const import DOMAIN
@@ -26,7 +27,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
     async def handle_vibrate(call: ServiceCall) -> None:
         duration = call.data.get("duration", 500)
-        for device_id in _device_ids(call):
+        for device_id in _device_ids(hass, call):
             entry_id = await get_entry_id_from_device(hass, device_id)
             if device := _get_device_by_entry_id(hass, entry_id):
                 await device.buzz(duration)
@@ -36,27 +37,27 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         group = resolve_led_group(call.data.get("group", "TIP"))
         rgb = call.data.get("rgb_color", (255, 255, 255))
         duration = call.data.get("duration", 0)
-        for device_id in _device_ids(call):
+        for device_id in _device_ids(hass, call):
             entry_id = await get_entry_id_from_device(hass, device_id)
             if device := _get_device_by_entry_id(hass, entry_id):
                 await device.set_led(group, rgb[0], rgb[1], rgb[2], duration)
 
     async def handle_send_macro(call: ServiceCall) -> None:
         commands = call.data.get("commands", [])
-        for device_id in _device_ids(call):
+        for device_id in _device_ids(hass, call):
             entry_id = await get_entry_id_from_device(hass, device_id)
             if device := _get_device_by_entry_id(hass, entry_id):
                 await device.send_macro_parse(commands)
 
     async def handle_clear_leds(call: ServiceCall) -> None:
-        for device_id in _device_ids(call):
+        for device_id in _device_ids(hass, call):
             entry_id = await get_entry_id_from_device(hass, device_id)
             if device := _get_device_by_entry_id(hass, entry_id):
                 await device.clear_leds()
 
     async def handle_play_spell(call: ServiceCall) -> None:
         spell_name = call.data.get("spell")
-        for device_id in _device_ids(call):
+        for device_id in _device_ids(hass, call):
             entry_id = await get_entry_id_from_device(hass, device_id)
             if device := _get_device_by_entry_id(hass, entry_id):
                 if macro := get_spell_macro(spell_name):
@@ -88,10 +89,21 @@ async def async_unload_services(hass: HomeAssistant, entry: MagicCasterWandConfi
             hass.services.async_remove(DOMAIN, name)
 
 
-def _device_ids(call: ServiceCall) -> list[str]:
-    """Normalize the device selector's single- and multi-select forms."""
+def _device_ids(hass: HomeAssistant, call: ServiceCall) -> list[str]:
+    """Resolve entity or device service targets to unique device registry IDs."""
     device_ids = call.data.get("device_id", [])
-    return [device_ids] if isinstance(device_ids, str) else device_ids
+    entity_ids = call.data.get("entity_id", [])
+    device_ids = [device_ids] if isinstance(device_ids, str) else list(device_ids)
+    entity_ids = [entity_ids] if isinstance(entity_ids, str) else list(entity_ids)
+
+    if entity_ids:
+        entity_reg = er.async_get(hass)
+        for entity_id in entity_ids:
+            if entity := entity_reg.async_get(entity_id):
+                if entity.device_id:
+                    device_ids.append(entity.device_id)
+
+    return list(dict.fromkeys(device_ids))
 
 
 def _get_device_by_entry_id(hass: HomeAssistant, entry_id: str | None) -> McwDevice | McbDevice | None:
