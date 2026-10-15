@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from collections.abc import Callable
 from contextlib import AsyncExitStack
 
 from bleak import BleakClient
@@ -33,6 +34,8 @@ class McbDevice:
         self._disconnecting = False
         self._connecting = False
         self.model: str | None = None
+        self.wand_address: str | None = None
+        self.on_wand_address_changed: Callable[[], None] | None = None
         self._mcb: McbClient | None = None
         self._data = BLEData()
         self._coordinator_battery = None
@@ -163,6 +166,7 @@ class McbDevice:
                 await self._mcb.start_notify()
             with trace.timed("initialize"):
                 await self._refresh_model()
+                await self._refresh_wand_address()
             if self.client is not client or not client.is_connected:
                 trace.fail("session")
                 self.diagnostics.record("connect", trace, SessionDropped("Disconnected during connection setup"))
@@ -227,6 +231,25 @@ class McbDevice:
         if self.model or not self._mcb:
             return
         self.model = await self._mcb.get_box_device_id()
+
+    async def _refresh_wand_address(self) -> None:
+        """Ask the box which wand it is paired with.
+
+        Best effort: a box that does not answer must not fail the connection.
+        The box keeps reporting the paired wand while it is removed, so an empty
+        answer never clears a known address.
+        """
+        if not self._mcb:
+            return
+        try:
+            address = await asyncio.wait_for(self._mcb.get_wand_address(), 3.0)
+        except Exception as err:
+            _LOGGER.debug("Could not read the paired wand address: %s", err)
+            return
+        if address and address != self.wand_address:
+            self.wand_address = address
+            if self.on_wand_address_changed:
+                self.on_wand_address_changed()
 
     async def disconnect(self) -> None:
         """Disconnect from the BLE device."""

@@ -21,6 +21,7 @@ from .const import (
     DOMAIN,
 )
 from .device_setup import create_device, create_runtime_data
+from .link import async_reconcile_links
 from .mcb_ble import McbDevice as McbDevice
 from .mcw_ble import McwDevice
 from .runtime_data import MagicCasterWandConfigEntry
@@ -110,7 +111,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: MagicCasterWandConfigEnt
             coordinator.last_exception,
         )
 
+    if isinstance(device, McbDevice):
+        device.on_wand_address_changed = lambda: hass.async_create_task(async_reconcile_links(hass))
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    await async_reconcile_links(hass)
 
     # Register update listener to handle options changes
     entry.async_on_unload(entry.add_update_listener(async_update_options))
