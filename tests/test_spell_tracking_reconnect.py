@@ -11,6 +11,7 @@ after a new connection is already up, and must not tear it down.
 """
 
 import asyncio
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -567,3 +568,57 @@ def test_detection_mode_reports_server_only_when_intended(wanted):
     device = make_device(tracking_wanted=wanted)
 
     assert device.spell_detection_mode == ("Server" if wanted else "Wand")
+
+
+def test_cast_path_is_recorded_for_the_canvas_while_pressed():
+    """The device's tracker is the only one: its path feeds the spell canvas."""
+    device = make_device(tracking_wanted=True)
+    device._imu_streaming = True
+    press_all_buttons(device)
+    assert device.cast_point == (0.0, 0.0)
+    assert device.cast_trail == ()
+
+    feed_imu(device, 3)
+
+    assert len(device.cast_trail) == 3
+    assert device.cast_point == device.cast_trail[-1]
+
+    finished_point = device.cast_point
+
+    async def release_with_queued_samples():
+        device._callback_buttons({"button_all": False})
+        # Delivered before the stop task runs, so the recording is still open.
+        assert device._spell_tracker._state.tracking_active == 1
+        feed_imu(device, 2)
+        await asyncio.sleep(0)
+
+    asyncio.run(release_with_queued_samples())
+    assert len(device.cast_trail) == 3, "the finished path stays visible and is not extended after release"
+    assert device.cast_point == finished_point
+
+    press_all_buttons(device)
+    assert device.cast_trail == ()
+
+
+def test_imu_batch_is_tracked_before_listeners_are_notified():
+    """The canvas listens to the IMU coordinator, so the path must already include the batch."""
+    device = make_device(tracking_wanted=True)
+    device._imu_streaming = True
+    press_all_buttons(device)
+    seen = []
+    device._coordinator_imu = SimpleNamespace(async_set_updated_data=lambda data: seen.append(len(device.cast_trail)))
+
+    feed_imu(device, 2)
+
+    assert seen == [2]
+
+
+def test_canvas_path_is_empty_before_the_first_cast():
+    """Idle samples do not move the canvas cursor: it only follows an active cast."""
+    device = make_device(tracking_wanted=True)
+    device._imu_streaming = True
+
+    feed_imu(device, 3)
+
+    assert device.cast_trail == ()
+    assert device.cast_point is None

@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from collections import deque
 from contextlib import AsyncExitStack
 
 from bleak import BleakClient
@@ -17,6 +18,8 @@ from .remote_tensor_spell_detector import RemoteTensorSpellDetector
 from .spell_tracker import SpellTracker
 
 _LOGGER = logging.getLogger(__name__)
+
+CAST_TRAIL_LENGTH = 1000
 
 
 class McwDevice:
@@ -60,6 +63,10 @@ class McwDevice:
         self._background_tasks: set[asyncio.Task] = set()
         self._casting_led_color: tuple[int, int, int] = (0, 0, 255)  # Default color: blue
         self._server_reachable: bool = False
+        # Pen path of the current/last cast in tracker coordinates, kept so the
+        # spell canvas can draw it without running a second tracker on the same IMU samples.
+        self._cast_trail: deque[tuple[float, float]] = deque(maxlen=CAST_TRAIL_LENGTH)
+        self._cast_point: tuple[float, float] | None = None
 
         self._init_spell_tracker()
 
@@ -140,12 +147,10 @@ class McwDevice:
 
     def _callback_buttons(self, data: dict[str, bool]) -> None:
         """Handle button state update callback."""
-        if self._coordinator_buttons:
-            self._coordinator_buttons.async_set_updated_data(data)
-
         # Handle spell tracking start/stop when using server-side detection.
         # Gated on streaming being armed too: without IMU samples a cast can only
         # ever fail recognition, so lighting the casting LED would promise nothing.
+        # Runs before the coordinator update so listeners (the spell canvas) see the new cast state.
         if self.spell_tracking_active:
             button_all = data.get("button_all", False)
 
@@ -154,6 +159,8 @@ class McwDevice:
                 _LOGGER.debug("All buttons pressed, starting spell tracking")
                 self._spawn(self._turn_on_casting_led())
                 self._spell_tracker.start()
+                self._cast_trail.clear()
+                self._cast_point = (0.0, 0.0)
 
             # Transition: pressed -> not pressed = stop tracking and detect spell
             elif not button_all and self._button_all_pressed:
@@ -162,6 +169,9 @@ class McwDevice:
                 self._spawn(self._async_stop_and_detect_spell())
 
             self._button_all_pressed = button_all
+
+        if self._coordinator_buttons:
+            self._coordinator_buttons.async_set_updated_data(data)
 
     async def _async_stop_and_detect_spell(self) -> None:
         """Stop spell tracking and detect spell asynchronously."""
@@ -201,12 +211,10 @@ class McwDevice:
 
     def _callback_imu(self, data: list[dict[str, float]]) -> None:
         """Handle IMU data update callback."""
-        if self._coordinator_imu:
-            self._coordinator_imu.async_set_updated_data(data)
-
+        # Track before publishing so listeners (the spell canvas) see this batch's path.
         if self.spell_tracking_active:
             for sample in data:
-                self._spell_tracker.update(
+                point = self._spell_tracker.update(
                     ax=sample["accel_y"],
                     ay=-sample["accel_x"],
                     az=sample["accel_z"],
@@ -214,6 +222,13 @@ class McwDevice:
                     gy=-sample["gyro_x"],
                     gz=sample["gyro_z"],
                 )
+                # Samples queued behind the release still feed recognition but are not drawn.
+                if point is not None and self._button_all_pressed:
+                    self._cast_point = (float(point[0]), float(point[1]))
+                    self._cast_trail.append(self._cast_point)
+
+        if self._coordinator_imu:
+            self._coordinator_imu.async_set_updated_data(data)
 
     def _reset_cast_state(self) -> None:
         """Drop any in-flight cast so it cannot bleed across a reconnect.
@@ -549,6 +564,21 @@ class McwDevice:
         this cannot claim tracking while no samples are arriving.
         """
         return self.spell_tracking_wanted and self._imu_streaming
+
+    @property
+    def has_spell_tracker(self) -> bool:
+        """Whether a spell tracker was created (False when the model is missing)."""
+        return self._spell_tracker is not None
+
+    @property
+    def cast_trail(self) -> tuple[tuple[float, float], ...]:
+        """Pen path of the current or last cast, in tracker coordinates."""
+        return tuple(self._cast_trail)
+
+    @property
+    def cast_point(self) -> tuple[float, float] | None:
+        """Latest pen position of the current or last cast, in tracker coordinates."""
+        return self._cast_point
 
     @property
     def server_reachable(self) -> bool:
