@@ -299,10 +299,9 @@ class McwSpellCamera(CoordinatorEntity, Camera):
 
         if spell_name and not button_all:
             spell_size = 72
-            spell_layer = _text_overlay(spell_name, "gold", spell_size)
-            while spell_layer.width > CANVAS_WIDTH - 20 and spell_size > 16:
+            while spell_size > 16 and _font(spell_size).getlength(spell_name) + 2 * TEXT_PADDING > CANVAS_WIDTH - 20:
                 spell_size -= 4
-                spell_layer = _text_overlay(spell_name, "gold", spell_size)
+            spell_layer = _text_overlay(spell_name, "gold", spell_size)
             img.paste(spell_layer, ((CANVAS_WIDTH - spell_layer.width) // 2, 100), spell_layer)
 
         desc_layer = _text_overlay("PRESS ALL BUTTONS TO DRAW", (150, 150, 150, 255), 22)

@@ -81,7 +81,7 @@ def test_render_frame_returns_canvas_sized_jpeg():
         assert image.size == (CANVAS_WIDTH, CANVAS_HEIGHT)
 
 
-def test_text_overlay_reuses_cached_scaled_layer():
+def test_text_overlay_reuses_cached_layer():
     """Repeated labels reuse their small transparent image layer."""
     first = _text_overlay("READY", "white", 56)
     second = _text_overlay("READY", "white", 56)
