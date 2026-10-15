@@ -208,7 +208,8 @@ class McwSpellCamera(CoordinatorEntity, Camera):
 
         button_all = self._update_button_state()
 
-        for sample in imu_data:
+        last_sample_index = len(imu_data) - 1
+        for sample_index, sample in enumerate(imu_data):
             # imuvisualizer.py logic for coordinate transformation
             point = self._tracker.update(
                 ax=sample["accel_y"],
@@ -217,6 +218,7 @@ class McwSpellCamera(CoordinatorEntity, Camera):
                 gx=sample["gyro_y"],
                 gy=-sample["gyro_x"],
                 gz=sample["gyro_z"],
+                calculate_position=button_all or sample_index == last_sample_index,
             )
 
             if point:

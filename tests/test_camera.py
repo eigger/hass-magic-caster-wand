@@ -51,6 +51,7 @@ from custom_components.magic_caster_wand.camera import (  # noqa: E402
     CANVAS_HEIGHT,
     CANVAS_WIDTH,
     McwSpellCamera,
+    SpellTracker,
     _text_overlay,
 )
 
@@ -117,12 +118,70 @@ def test_coordinator_update_processes_every_sample_before_scheduling_render():
     camera._handle_coordinator_update()
 
     assert camera._tracker.update.call_count == len(samples)
+    assert all(call.kwargs["calculate_position"] for call in camera._tracker.update.call_args_list)
     assert list(camera._trail) == [
         (CANVAS_WIDTH / 2 + 10.0, CANVAS_HEIGHT / 2 + 20.0),
         (CANVAS_WIDTH / 2 + 11.0, CANVAS_HEIGHT / 2 + 21.0),
         (CANVAS_WIDTH / 2 + 12.0, CANVAS_HEIGHT / 2 + 22.0),
     ]
     camera._schedule_render.assert_called_once_with()
+
+
+def test_coordinator_update_projects_only_last_sample_when_not_drawing():
+    """Idle camera batches integrate all samples but project only the final cursor point."""
+    camera = _camera_for_render_tests()
+    samples = [
+        {
+            "accel_x": 1.0,
+            "accel_y": 2.0,
+            "accel_z": 3.0,
+            "gyro_x": 4.0,
+            "gyro_y": 5.0,
+            "gyro_z": 6.0,
+        }
+        for _ in range(3)
+    ]
+    camera.coordinator = SimpleNamespace(data=samples)
+    camera._buttons_coordinator = SimpleNamespace(data={"button_all": False})
+    camera._tracker = Mock()
+    camera._tracker.update.side_effect = [None, None, (12.0, 22.0)]
+    camera._trail = deque([(100.0, 100.0)], maxlen=1000)
+    camera._last_point = None
+    camera._schedule_render = Mock()
+
+    camera._handle_coordinator_update()
+
+    assert camera._tracker.update.call_count == len(samples)
+    assert [call.kwargs["calculate_position"] for call in camera._tracker.update.call_args_list] == [False, False, True]
+    assert list(camera._trail) == [(100.0, 100.0)]
+    assert camera._last_point == (CANVAS_WIDTH / 2 + 12.0, CANVAS_HEIGHT / 2 + 22.0)
+    camera._schedule_render.assert_called_once_with()
+
+
+def test_tracker_skips_intermediate_position_projection_without_changing_final_point():
+    """Skipping display-only points keeps the integrated attitude and final cursor exact."""
+    full_tracker = SpellTracker(detector=None)
+    sparse_tracker = SpellTracker(detector=None)
+    full_tracker.start()
+    sparse_tracker.start()
+    samples = [(0.01 * index, 0.02 * index, 1.0, 0.1, 0.2, 0.3) for index in range(1, 9)]
+
+    for index, sample in enumerate(samples):
+        full_point = full_tracker.update(*sample)
+        sparse_point = sparse_tracker.update(*sample, calculate_position=index == len(samples) - 1)
+
+    assert sparse_point == full_point
+    assert (
+        sparse_tracker._state.ahrs_quat_q0,
+        sparse_tracker._state.ahrs_quat_q1,
+        sparse_tracker._state.ahrs_quat_q2,
+        sparse_tracker._state.ahrs_quat_q3,
+    ) == (
+        full_tracker._state.ahrs_quat_q0,
+        full_tracker._state.ahrs_quat_q1,
+        full_tracker._state.ahrs_quat_q2,
+        full_tracker._state.ahrs_quat_q3,
+    )
 
 
 def test_render_requests_during_interval_share_one_timer():
