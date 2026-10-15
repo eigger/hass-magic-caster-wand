@@ -65,6 +65,7 @@ repository into the `custom_components/magic_caster_wand` directory.
   
   bluetooth_proxy:
     active: true
+  ```
 
 ## Spells & Motions
 >[!IMPORTANT]
