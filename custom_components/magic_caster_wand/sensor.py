@@ -96,7 +96,6 @@ async def async_setup_entry(
             McwBatterySensor(address, device, battery_coordinator, connection_coordinator),
             McwBatteryStateSensor(address, device, battery_coordinator, connection_coordinator),
             BLEConnectionDurationSensor(address, device, data.diagnostics),
-            BLELastOperationSensor(address, device, data.diagnostics),
             BLEFailureCountSensor(address, device, data.diagnostics),
             BLELastFailureSensor(address, device, data.diagnostics),
         ]
@@ -145,29 +144,6 @@ class BLEDiagnosticSensor(McwBaseSensor):
     @callback
     def _handle_report(self) -> None:
         self.async_write_ha_state()
-
-
-class BLELastOperationSensor(BLEDiagnosticSensor):
-    """Expose the most recent BLE operation and its report attributes."""
-
-    _attr_translation_key = "ble_last_operation"
-    _attr_icon = "mdi:history"
-
-    def __init__(self, address: str, device: McwDevice | McbDevice, diagnostics) -> None:
-        super().__init__(address, device, diagnostics)
-        self._attr_unique_id = f"mcw_{self._identifier}_ble_last_operation"
-
-    @property
-    def native_value(self) -> StateType:
-        report = self._diagnostics.reports.last
-        if report is None:
-            return None
-        outcome = "success" if report.get("success") else "failed"
-        return f"{report.get('operation', 'unknown')}: {outcome}"
-
-    @property
-    def extra_state_attributes(self) -> dict[str, object] | None:
-        return self._diagnostics.reports.last
 
 
 class BLEConnectionDurationSensor(BLEDiagnosticSensor):
