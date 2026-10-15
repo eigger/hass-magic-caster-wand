@@ -58,16 +58,16 @@
         "name": "Calibración IMU"
       },
       "ble_connection_duration": {
-        "name": "Duración de conexión BLE"
+        "name": "Duración de conexión"
       },
       "ble_last_operation": {
-        "name": "Última operación BLE"
+        "name": "Última operación"
       },
       "ble_failure_count": {
-        "name": "Fallos BLE"
+        "name": "Fallos"
       },
       "ble_last_failure": {
-        "name": "Último fallo BLE"
+        "name": "Último fallo"
       }
     },
     "binary_sensor": {

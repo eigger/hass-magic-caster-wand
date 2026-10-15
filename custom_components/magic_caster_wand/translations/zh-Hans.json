@@ -58,16 +58,16 @@
         "name": "IMU 校准"
       },
       "ble_connection_duration": {
-        "name": "BLE 连接时长"
+        "name": "连接时长"
       },
       "ble_last_operation": {
-        "name": "最近的 BLE 操作"
+        "name": "最近的操作"
       },
       "ble_failure_count": {
-        "name": "BLE 失败次数"
+        "name": "失败次数"
       },
       "ble_last_failure": {
-        "name": "最近一次 BLE 失败"
+        "name": "最近一次失败"
       }
     },
     "binary_sensor": {

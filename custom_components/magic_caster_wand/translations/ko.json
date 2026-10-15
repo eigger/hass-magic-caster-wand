@@ -58,16 +58,16 @@
         "name": "IMU 보정"
       },
       "ble_connection_duration": {
-        "name": "BLE 연결 소요 시간"
+        "name": "연결 소요 시간"
       },
       "ble_last_operation": {
-        "name": "마지막 BLE 작업"
+        "name": "마지막 작업"
       },
       "ble_failure_count": {
-        "name": "BLE 실패 횟수"
+        "name": "실패 횟수"
       },
       "ble_last_failure": {
-        "name": "마지막 BLE 실패"
+        "name": "마지막 실패"
       }
     },
     "binary_sensor": {
