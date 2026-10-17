@@ -16,7 +16,7 @@ from ..common_ble.macros import LedGroup, Macro
 from ..common_ble.notification_dispatcher import NotificationDispatcher
 
 IMU_START_ATTEMPTS = 3
-IMU_START_WAIT = 2.0
+IMU_START_WAIT = 1.0
 
 SERVICE_UUID = "57420001-587e-48a0-974c-544d6163c577"
 COMMAND_UUID = "57420002-587e-48a0-974c-544d6163c577"
