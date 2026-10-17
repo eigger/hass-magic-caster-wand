@@ -41,7 +41,7 @@ Magic Caster Wand Home Assistant Integration
 
 ## 💬 Feedback & Support
 
-🐞 Found a bug? Let us know via an [Issue](https://github.com/eigger/hass-magic-caster-wand/issues).  
+🐞 Found a bug? Let us know via an [Issue](https://github.com/eigger/hass-magic-caster-wand/issues).\
 💡 Have a question or suggestion? Join the [Discussion](https://github.com/eigger/hass-magic-caster-wand/discussions)!
 
 ## Supported Models
@@ -56,22 +56,22 @@ repository into the `custom_components/magic_caster_wand` directory.
 2. Restart Home Assistant.
 
 ## ⚠️ Important Notice
-- It is **strongly recommended to use a Bluetooth proxy instead of a built-in Bluetooth adapter**.  
+- It is **strongly recommended to use a Bluetooth proxy instead of a built-in Bluetooth adapter**.\
   Bluetooth proxies generally offer more stable connections and better range, especially in environments with multiple BLE devices.
 
 > [!TIP]
 > For hardware recommendations, refer to [Great ESP32 Board for an ESPHome Bluetooth Proxy](https://community.home-assistant.io/t/great-esp32-board-for-an-esphome-bluetooth-proxy/916767/31).
-- When using a Bluetooth proxy, it is strongly recommended to **keep the scan interval at its default value**.  
+- When using a Bluetooth proxy, it is strongly recommended to **keep the scan interval at its default value**.\
   Changing these values may cause issues with Bluetooth data transmission.
 - **bluetooth_proxy:** must always have **active: true**.
-  
+
   Example (recommended configuration with default values):
 
   ```yaml
   esp32_ble_tracker:
     scan_parameters:
       active: true
-  
+
   bluetooth_proxy:
     active: true
   ```
@@ -246,7 +246,7 @@ Real-time visualization of wand movements.
 This integration provides custom actions (services) to control the wand and box:
 
 - **`magic_caster_wand.vibrate`**: Triggers wand vibration motor.
-  - `duration`: Vibration duration in milliseconds.  
+  - `duration`: Vibration duration in milliseconds.\
     > [!NOTE]
     > Due to wand firmware behavior, a single vibrate command produces a fixed ~800ms pulse regardless of the requested `duration` value. Sending repeated `buzz` macro commands less than 500ms apart can extend the continuous vibration pulse.
 - **`magic_caster_wand.set_led`**: Controls LED color and duration for a specific LED group (`TIP`, `MID_UPPER`, `MID_LOWER`, `POMMEL`).
