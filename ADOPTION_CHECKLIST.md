@@ -139,3 +139,12 @@
 | 최소 HA × current/minimum | 3.13.16 / 2025.4.0 / 0.13.232 | blesession0.9.0, bluetooth-sensor-state-data1.7.5, numpy2.2.2, bleak0.22.3, habluetooth3.37.0 | 양mode 각274passed, skip0/warning0, pip check clean |
 
 독립 로그: `/tmp/mcw-pr114-tests-e791d763.log`, `/tmp/mcw-pr114-validate-e791d763.log`. CI는 Linux에서 수행했으며 로컬 macOS inotify 경고는 원격에 없습니다. 최종 문서 갱신 head와 실제 squash merge SHA의 CI는 중앙 현황표에서 구분해 기록합니다.
+
+## README 사용 흐름 후속 검토 — 2026-10-18
+
+- 기준: squash `e4215ece196407794daad0c065ae84b41237404b` 이후 문서 수정. 기존 README 축약으로 핵심 시연·직관적 동작 설명을 메인에서 찾기 어려워진 점을 사용자 지적에 따라 보완했습니다.
+- README.md/README.ko.md에 제품 사진·시연 GIF·내장 제스처 그림·Canvas/서버 화면, 연결→시전→Spell 센서→자동화 흐름과 양방향 효과 제어를 복원했습니다. 내장 인식에는 서버가 필요 없고 현재 Spell Tracking/Canvas 경로는 서버·모델 초기화가 필요함을 코드와 대조했습니다.
+- 반복 시전 `last_updated`, Lumos/Nox 자동화·대소문자 처리, 효과 재생과 인식 이벤트의 차이, 버튼4개 누름/해제·Canvas 표시/대시보드 사용법을 설명합니다. docs/user-guide.md를 중복된 과거 README 사본에서 실제 상세 사용 안내로 정리하고 docs/setup.md와 전제조건을 맞췄습니다.
+- 원래 README(3f21b1b)의 이미지/GIF74개 원본 참조가 두 README와 상세 안내에 모두 보존됨(누락0), 전체 제스처65개와 기존 외부 첨부3개 유지. 관리 배지 변경 없음, 로컬 이미지·링크·앵커 검사 PASS.
+- 구현 `documentation`, 독립 검토 `independent_review`, 통합/상세 문서 `root`. 실제 HA2025.4.0/2026.10.2 스키마로 자동화 예제3개·액션 예제4개 검증 PASS, 대시보드 YAML 파싱 PASS. 로그 `/tmp/mcw-doc-schema-{current,min}.log`.
+- runtime/tests/manifest/requirements/workflow 변경 없음. 기존 테스트 결과를 새 변경의 실행 결과로 재사용하지 않으며 후속 PR과 해당 머지 SHA의 원격 CI 결과는 중앙 현황표에 기록합니다. 실물 동작의 새 검증을 주장하지 않습니다.
