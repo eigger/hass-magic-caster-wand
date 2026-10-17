@@ -465,11 +465,12 @@ class McwClient:
         stop_count = self._imu_stop_count
         for attempt in range(1, IMU_START_ATTEMPTS + 1):
             _LOGGER.debug("Starting IMU streaming (attempt %d/%d)", attempt, IMU_START_ATTEMPTS)
-            self._imu_seen.clear()
             await self.write_command(struct.pack("B", MESSAGEIDS.IMUFLAG_RESET), False)
             await sleep(0.1)
             if self._imu_stop_count != stop_count:
                 return  # stopped while starting; do not turn the stream back on
+            # Only now: packets of the stream the RESET just ended must not count as an answer to SET.
+            self._imu_seen.clear()
             await self.write_command(struct.pack("BBB", MESSAGEIDS.IMUFLAG_SET, 0x00, 0x80), False)
             try:
                 await wait_for(self._imu_seen.wait(), IMU_START_WAIT)

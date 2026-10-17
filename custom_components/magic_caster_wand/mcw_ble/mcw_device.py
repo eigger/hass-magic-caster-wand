@@ -59,6 +59,7 @@ class McwDevice:
         self._spell_tracker: SpellTracker | None = None
         self._button_all_pressed: bool = False
         self._imu_streaming: bool = False
+        self._imu_stop_count = 0
         self._spell_reset_timeout_task: asyncio.Task[None] | None = None
         self._background_tasks: set[asyncio.Task] = set()
         self._casting_led_color: tuple[int, int, int] = (0, 0, 255)  # Default color: blue
@@ -239,6 +240,7 @@ class McwDevice:
         samples from the interrupted cast would be prepended to the following one.
         """
         self._imu_streaming = False
+        self._imu_stop_count += 1
         self._button_all_pressed = False
         if self._spell_tracker is not None:
             self._spell_tracker.abort()
@@ -422,9 +424,11 @@ class McwDevice:
         """
         if not self.spell_tracking_wanted or not self._mcw:
             return
+        stop_count = self._imu_stop_count
         try:
             await self._mcw.imu_streaming_start()
-            self._imu_streaming = True
+            # A disconnect or stop during the start leaves nothing streaming to claim.
+            self._imu_streaming = self._imu_stop_count == stop_count
             _LOGGER.debug("Resumed IMU streaming after connect")
         except Exception as err:
             self._imu_streaming = False
@@ -616,12 +620,14 @@ class McwDevice:
     async def imu_streaming_start(self) -> None:
         """Start IMU streaming."""
         if self.is_connected() and self._mcw:
+            stop_count = self._imu_stop_count
             await self.diagnostics.run_operation(
                 "imu_streaming_start",
                 lambda: self._mcw.imu_streaming_start(),
                 connected=True,
             )
-            self._imu_streaming = True
+            # A disconnect or stop during the start leaves nothing streaming to claim.
+            self._imu_streaming = self._imu_stop_count == stop_count
 
     async def imu_streaming_stop(self) -> None:
         """Stop IMU streaming."""
