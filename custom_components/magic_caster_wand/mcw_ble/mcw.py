@@ -15,6 +15,9 @@ from blesession import guarded_write
 from ..common_ble.macros import LedGroup, Macro
 from ..common_ble.notification_dispatcher import NotificationDispatcher
 
+IMU_START_ATTEMPTS = 3
+IMU_START_WAIT = 2.0
+
 SERVICE_UUID = "57420001-587e-48a0-974c-544d6163c577"
 COMMAND_UUID = "57420002-587e-48a0-974c-544d6163c577"
 NOTIFY_UUID = "57420003-587e-48a0-974c-544d6163c577"
@@ -186,6 +189,7 @@ class McwClient:
         self._wand_type: str | None = None
         self._notification_dispatcher: NotificationDispatcher | None = None
         self._error_callback: Callable[[Exception], None] | None = None
+        self._imu_seen: Event = Event()
 
     def register_error_callback(self, callback: Callable[[Exception], None]) -> None:
         """Register a callback for notification parsing failures."""
@@ -450,11 +454,28 @@ class McwClient:
                         self._waiting_cmd_event.clear()
 
     async def imu_streaming_start(self) -> None:
-        """Start IMU data streaming"""
-        _LOGGER.debug("Starting IMU streaming")
-        await self.write_command(struct.pack("B", MESSAGEIDS.IMUFLAG_RESET), False)
-        await sleep(0.1)
-        await self.write_command(struct.pack("BBB", MESSAGEIDS.IMUFLAG_SET, 0x00, 0x80), False)
+        """Start IMU data streaming, re-sending the start a bounded number of times.
+
+        The start commands are unacknowledged writes, so one can be lost or ignored
+        without any error. Wait for the first IMU packet and re-send if none arrives.
+        After IMU_START_ATTEMPTS the writes are taken as delivered, in case the wand
+        only reports while moving.
+        """
+        for attempt in range(1, IMU_START_ATTEMPTS + 1):
+            _LOGGER.debug("Starting IMU streaming (attempt %d/%d)", attempt, IMU_START_ATTEMPTS)
+            self._imu_seen.clear()
+            await self.write_command(struct.pack("B", MESSAGEIDS.IMUFLAG_RESET), False)
+            await sleep(0.1)
+            await self.write_command(struct.pack("BBB", MESSAGEIDS.IMUFLAG_SET, 0x00, 0x80), False)
+            try:
+                await wait_for(self._imu_seen.wait(), IMU_START_WAIT)
+                return
+            except asyncio.TimeoutError:
+                _LOGGER.debug("No IMU data after start attempt %d/%d", attempt, IMU_START_ATTEMPTS)
+        _LOGGER.warning(
+            "No IMU data received after %d start attempts; tracking may not work until the wand moves",
+            IMU_START_ATTEMPTS,
+        )
 
     async def imu_streaming_stop(self) -> None:
         """Stop IMU data streaming"""
@@ -642,6 +663,7 @@ class McwClient:
                 break
 
         if samples:
+            self._imu_seen.set()
             _LOGGER.debug("Parsed %d IMU samples", len(samples))
             if self.callback_imu:
                 # Send scaled data
