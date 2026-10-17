@@ -73,6 +73,13 @@ checks the standards checkout itself; it does not validate this caller automatic
 unexecuted checks honestly. Hardware validation requires actual model, firmware,
 adapter/proxy path and results; passing mocked BLE tests does not establish it.
 
+Dependency updater PRs created with `GITHUB_TOKEN` do not automatically trigger
+ordinary push/PR workflows. The shared updater validates the changed tree and exact
+new dependency floor before synchronizing its bot PR, then dispatches the validation
+workflows. Confirm those dispatched runs match the bot branch and succeed before
+merging. A dispatch failure or the updater's own successful run does not establish
+that every required check ran. Do not auto-merge dependency updates.
+
 ## Releases
 
 A release is a separate reviewed operation. Run lint, actual minimum/current HA tests,

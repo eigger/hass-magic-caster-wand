@@ -2,13 +2,13 @@
 
 - 표준: [Home Assistant Repository Standards](https://github.com/eigger/hass-repo-standards/tree/7acd9cab6ac774e4695f2c962e3d88b5faa4620d)
 - 검토한 중앙 main 전체 SHA: `7acd9cab6ac774e4695f2c962e3d88b5faa4620d`
-- 최초 적용일: 2026-10-18; 현재 상태: **이관 진행 중 (로컬 수정)**
+- 최초 적용일: 2026-10-18; 현재 상태: **PR #114 구현·독립 검증·원격 CI 통과; 최종 반영 절차 진행 중**
 - profile: `integration / ha` (실제 HA fixture·통합/플랫폼 로딩 검증)
 - 적용 점검표: [ADOPTION_CHECKLIST.md](ADOPTION_CHECKLIST.md)
 - 중앙 현황표: [최신 main 현황](https://github.com/eigger/hass-repo-standards/blob/main/docs/adoption-status.md)
 - 조율: Codex root; 구현: `implementation`, `documentation`; 독립 리뷰·검증: `independent_review` (결과는 점검표).
-- 중앙 현황: 조율 담당이 2026-10-18 중앙 checkout에 진행 중 등록; 원격 반영 여부는 최종 기록 확인.
-- 실제 기본 브랜치: `master`; 기준 통합 커밋: `3f21b1b55c02bd7c00633aa12d420cf8d0bcee42` + 이번 미커밋 변경.
+- 중앙 현황: 조율 담당이 2026-10-18 중앙 checkout에 진행 중 등록; 중앙 main c2531e2에 PR·진행 단계 원격 반영. 머지 후 종료 기록은 최신 중앙 표 참조.
+- 실제 기본 브랜치: `master`; 기준 통합 커밋: `3f21b1b55c02bd7c00633aa12d420cf8d0bcee42`; [채택 PR #114](https://github.com/eigger/hass-magic-caster-wand/pull/114), 구현 검증 head `e791d763499700dadd688358c6eca9aba5ceffa7`.
 - domain / 테스트 경로: `magic_caster_wand` / `tests/components/magic_caster_wand/`
 - 변경 전/후 지원 최소: HA `2025.4.0` (`hacs.json.homeassistant`); 통합 버전 `2.1.1` 유지. 지원 최소 상향 없음.
 - current 검증 조합: HA `2026.10.2` / Python `3.14` / pytest-homeassistant-custom-component `0.13.373`.
