@@ -81,10 +81,10 @@ class NotificationDispatcher:
             try:
                 handler(None, bytearray(data))
             except Exception:
-                _LOGGER.exception("Error dispatching BLE notification")
+                _LOGGER.error("Error dispatching BLE notification")
 
     def _on_cleanup_done(self, task: asyncio.Task[None]) -> None:
         if self._cleanup_task is task:
             self._cleanup_task = None
         if not task.cancelled() and task.exception() is not None:
-            _LOGGER.error("Failed to clean up BLE notification subscriptions: %s", task.exception())
+            _LOGGER.error("Failed to clean up BLE notification subscriptions: %s", type(task.exception()).__name__)

@@ -12,7 +12,7 @@ import pathlib
 
 import pytest
 
-COMPONENT = pathlib.Path(__file__).resolve().parents[1] / "custom_components" / "magic_caster_wand"
+COMPONENT = pathlib.Path(__file__).resolve().parents[3] / "custom_components" / "magic_caster_wand"
 PLATFORMS = sorted(
     p.name
     for p in COMPONENT.glob("*.py")

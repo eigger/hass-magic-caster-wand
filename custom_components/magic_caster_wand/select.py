@@ -82,4 +82,4 @@ class McwCastingLedColorSelect(SelectEntity, RestoreEntity):
         try:
             self._apply_color()
         except Exception as err:
-            _LOGGER.error("Failed to apply casting LED color: %s", err)
+            _LOGGER.error("Failed to apply casting LED color: %s", type(err).__name__)

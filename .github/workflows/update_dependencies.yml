@@ -1,0 +1,24 @@
+# Shared standards; upstream action SHAs verified 2026-10-17.
+name: Update dependencies
+'on':
+  schedule:
+  - cron: 41 4 * * 1
+  workflow_dispatch: null
+permissions:
+  contents: read
+concurrency:
+  group: dependency-update
+  cancel-in-progress: false
+jobs:
+  dependencies:
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: eigger/hass-repo-standards/.github/workflows/dependency-update.yml@7acd9cab6ac774e4695f2c962e3d88b5faa4620d # reviewed standards commit
+    with:
+      domain: magic_caster_wand
+      packages: '["blesession"]'
+      python-version: '3.14'
+      ha-components: bluetooth_adapters camera
+      test-profile: ha
+      validation-command: python -m ruff check . && python -m ruff format --check . && python -m pytest tests/components/magic_caster_wand/ -v

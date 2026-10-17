@@ -244,7 +244,7 @@ class McbBaseBinarySensor(CoordinatorEntity[DataUpdateCoordinator[bool]], Binary
                 return None
             return bool(self.coordinator.data)
         except Exception as err:
-            _LOGGER.error("Error reading state: %s", err)
+            _LOGGER.error("Error reading state: %s", type(err).__name__)
             return False
 
     @callback

@@ -71,7 +71,7 @@ class McwAliasTextEntity(RestoreText):
         if (last_text_data := await self.async_get_last_text_data()) is None:
             return
 
-        _LOGGER.debug("Restored state: %s", last_text_data)
+        _LOGGER.debug("Restored alias state")
         self._attr_native_max = last_text_data.native_max
         self._attr_native_min = last_text_data.native_min
         self._attr_native_value = last_text_data.native_value

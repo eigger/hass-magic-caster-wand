@@ -1,0 +1,18 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    # Preserve the declared HA support floor during current tooling updates.
+    exclude-paths:
+      - requirements_test_min.txt
+    groups:
+      home-assistant-tests:
+        patterns:
+          - homeassistant
+          - pytest-homeassistant-custom-component

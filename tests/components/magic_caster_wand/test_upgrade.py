@@ -12,7 +12,7 @@ import pytest
 
 from custom_components.magic_caster_wand.mcw_ble.parser import McbDevice, McwDevice
 
-COMPONENT = pathlib.Path(__file__).resolve().parents[1] / "custom_components" / "magic_caster_wand"
+COMPONENT = pathlib.Path(__file__).resolve().parents[3] / "custom_components" / "magic_caster_wand"
 
 
 def test_entries_without_a_device_type_are_treated_as_wands():

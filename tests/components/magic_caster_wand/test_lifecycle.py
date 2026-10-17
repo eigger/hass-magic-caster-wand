@@ -11,7 +11,7 @@ from custom_components.magic_caster_wand.mcb_ble import mcb, mcb_device
 from custom_components.magic_caster_wand.mcw_ble import mcw_device
 from custom_components.magic_caster_wand.mcw_ble.parser import McbDevice, McwDevice
 
-COMPONENT = pathlib.Path(__file__).resolve().parents[1] / "custom_components" / "magic_caster_wand"
+COMPONENT = pathlib.Path(__file__).resolve().parents[3] / "custom_components" / "magic_caster_wand"
 
 
 # ── The model probe must not drop a connection the user opened ───────────────

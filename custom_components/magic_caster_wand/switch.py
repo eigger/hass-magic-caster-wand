@@ -153,7 +153,7 @@ class McwSpellTrackingSwitch(CoordinatorEntity, SwitchEntity):
                     await self._mcw.imu_streaming_start()
                 except Exception as err:
                     # is_on reads the device, so it already reports off; say why.
-                    _LOGGER.error("Failed to start spell tracking: %s", err)
+                    _LOGGER.error("Failed to start spell tracking: %s", type(err).__name__)
             async_dispatcher_send(self._hass, SIGNAL_SPELL_MODE_CHANGED)
             self.async_write_ha_state()
         elif self.coordinator.data is not True:
@@ -166,7 +166,7 @@ class McwSpellTrackingSwitch(CoordinatorEntity, SwitchEntity):
                 if self.coordinator.data is True:
                     await self._mcw.imu_streaming_stop()
             except Exception as err:
-                _LOGGER.warning("Failed to stop spell tracking stream: %s", err)
+                _LOGGER.warning("Failed to stop spell tracking stream: %s", type(err).__name__)
             finally:
                 # Close the detector even when the wand is disconnected or the
                 # firmware rejects the stop command; the switch represents intent.

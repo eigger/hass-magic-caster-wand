@@ -257,7 +257,7 @@ class McwSpellCamera(CoordinatorEntity, Camera):
         try:
             image_bytes = await self._hass.async_add_executor_job(self._render_frame, snapshot)
         except Exception:
-            _LOGGER.exception("Failed to render spell camera frame")
+            _LOGGER.error("Failed to render spell camera frame")
             if not self._is_removed:
                 self._failed_state_version = max(self._failed_state_version, snapshot[6])
                 async with self._frame_cond:

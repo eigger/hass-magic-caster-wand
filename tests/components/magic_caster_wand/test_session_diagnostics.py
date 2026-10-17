@@ -70,3 +70,26 @@ def test_disconnect_during_connect_setup_is_not_double_counted():
 
     device.diagnostics.record_failure("connect", "initialize", RuntimeError("setup failed"))
     assert device.diagnostics.reports.failures == 1
+
+
+def test_retained_failure_redacts_transport_secrets():
+    diagnostics = BLESessionDiagnostics("AA:BB:CC:DD:EE:FF", "wand")
+    secret = "token=private https://user:password@192.0.2.4 AA:BB:CC:DD:EE:FF"
+    report = diagnostics.record_failure("connect", "session", RuntimeError(secret))
+    assert report["error"] == "RuntimeError"
+    assert secret not in str(diagnostics.reports.last_failure)
+    assert "private" not in str(report)
+    assert "AA:BB:CC:DD:EE:FF" not in str(report)
+
+
+async def test_failure_entity_attributes_redact_transport_secrets(hass, entry, bluetooth_transport):
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    secret = "token=private AA:BB:CC:DD:EE:FF https://user:password@192.0.2.4"
+    entry.runtime_data.diagnostics.record_failure("connect", "session", RuntimeError(secret))
+    await hass.async_block_till_done()
+    failure = next(state for state in hass.states.async_all() if state.entity_id.endswith("_last_failure"))
+    assert failure.attributes["error"] == "RuntimeError"
+    assert secret not in str(failure.attributes)
+    assert "private" not in str(failure.attributes)
+    assert await hass.config_entries.async_unload(entry.entry_id)

@@ -14,7 +14,7 @@ import pytest
 from custom_components.magic_caster_wand.common_ble.macros import LedGroup
 from custom_components.magic_caster_wand.mcw_ble.parser import McbDevice, McwDevice, resolve_led_group
 
-COMPONENT = pathlib.Path(__file__).resolve().parents[1] / "custom_components" / "magic_caster_wand"
+COMPONENT = pathlib.Path(__file__).resolve().parents[3] / "custom_components" / "magic_caster_wand"
 
 # service name -> the device method its handler calls
 SERVICE_METHODS = {

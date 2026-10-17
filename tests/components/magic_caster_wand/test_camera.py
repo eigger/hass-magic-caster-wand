@@ -5,54 +5,18 @@ from __future__ import annotations
 import asyncio
 import io
 import sys
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 from PIL import Image
 
-
-class _Base:
-    """Minimal Home Assistant base class for importing the entity module."""
-
-    def __init__(self, *args, **kwargs):
-        pass
-
-    def __class_getitem__(cls, item):
-        return cls
-
-    async def async_will_remove_from_hass(self):
-        pass
-
-
-class _CameraBase(_Base):
-    pass
-
-
-class _CoordinatorBase(_Base):
-    pass
-
-
-camera_module = ModuleType("homeassistant.components.camera")
-camera_module.Camera = _CameraBase
-sys.modules["homeassistant.components.camera"] = camera_module
-
-entity_platform_module = ModuleType("homeassistant.helpers.entity_platform")
-entity_platform_module.AddEntitiesCallback = _Base
-sys.modules["homeassistant.helpers.entity_platform"] = entity_platform_module
-
-coordinator_module = sys.modules["homeassistant.helpers.update_coordinator"]
-coordinator_module.CoordinatorEntity = _CoordinatorBase
-coordinator_module.DataUpdateCoordinator = _Base
-
-sys.modules["homeassistant.core"].callback = lambda func: func
-
-from custom_components.magic_caster_wand.camera import (  # noqa: E402
+from custom_components.magic_caster_wand.camera import (
     CANVAS_HEIGHT,
     CANVAS_WIDTH,
     McwSpellCamera,
     _text_overlay,
 )
-from custom_components.magic_caster_wand.mcw_ble.spell_tracker import SpellTracker  # noqa: E402
+from custom_components.magic_caster_wand.mcw_ble.spell_tracker import SpellTracker
 
 
 def _camera_for_render_tests() -> McwSpellCamera:
@@ -123,10 +87,10 @@ def test_coordinator_update_ignores_empty_batches():
     camera._schedule_render.assert_not_called()
 
 
-def test_render_snapshot_centers_and_clamps_the_device_trail():
+async def test_render_snapshot_centers_and_clamps_the_device_trail(hass, monkeypatch):
     """Tracker coordinates are mapped onto the canvas when the frame is captured."""
     camera = _camera_for_render_tests()
-    camera._hass = SimpleNamespace(async_create_task=Mock(side_effect=lambda coro: coro.close()))
+    camera._hass = hass
     camera._spell_coordinator = SimpleNamespace(data="awaiting")
     camera._buttons_coordinator = SimpleNamespace(data={"button_all": True})
     camera._mcw = SimpleNamespace(
@@ -172,7 +136,7 @@ def test_tracker_skips_intermediate_position_projection_without_changing_final_p
     )
 
 
-def test_render_requests_during_interval_share_one_timer():
+async def test_render_requests_during_interval_share_one_timer(hass, monkeypatch):
     """A burst of changes should leave only one delayed render scheduled."""
 
     async def run_test():
@@ -190,15 +154,16 @@ def test_render_requests_during_interval_share_one_timer():
         assert camera._start_render.call_count == 0
         timer.cancel()
 
-    asyncio.run(run_test())
+    await run_test()
 
 
-def test_render_requests_during_active_render_are_coalesced():
+async def test_render_requests_during_active_render_are_coalesced(hass, monkeypatch):
     """Changes made during executor work request one later latest-state frame."""
 
     async def run_test():
         camera = _camera_for_render_tests()
-        camera._hass = SimpleNamespace(async_add_executor_job=lambda func, snapshot: asyncio.sleep(0, result=b"jpeg"))
+        camera._hass = hass
+        monkeypatch.setattr(hass, "async_add_executor_job", lambda func, snapshot: asyncio.sleep(0, result=b"jpeg"))
         camera._frame_cond = asyncio.Condition()
         camera.async_write_ha_state = Mock()
         camera._render_frame = Mock(return_value=b"jpeg")
@@ -215,7 +180,7 @@ def test_render_requests_during_active_render_are_coalesced():
         camera.async_write_ha_state.assert_not_called()
         camera._schedule_render.assert_called_once_with(force=False)
 
-    asyncio.run(run_test())
+    await run_test()
 
 
 def test_imu_updates_without_viewers_do_not_schedule_render():
@@ -241,7 +206,7 @@ def test_button_update_advances_render_state_without_imu_data():
     camera._schedule_render.assert_called_once_with()
 
 
-def test_async_camera_image_renders_on_demand():
+async def test_async_camera_image_renders_on_demand(hass, monkeypatch):
     """A snapshot request renders current state even without an MJPEG viewer."""
 
     async def run_test():
@@ -256,10 +221,8 @@ def test_async_camera_image_renders_on_demand():
             await asyncio.sleep(0)
             return func(snapshot)
 
-        camera._hass = SimpleNamespace(
-            async_create_task=asyncio.create_task,
-            async_add_executor_job=run_executor,
-        )
+        camera._hass = hass
+        monkeypatch.setattr(hass, "async_add_executor_job", run_executor)
 
         image = await camera.async_camera_image()
 
@@ -267,10 +230,10 @@ def test_async_camera_image_renders_on_demand():
         assert camera._rendered_state_version == camera._state_version
         assert camera._frame_id == 1
 
-    asyncio.run(run_test())
+    await run_test()
 
 
-def test_newer_snapshot_waits_for_followup_when_an_older_render_is_active():
+async def test_newer_snapshot_waits_for_followup_when_an_older_render_is_active(hass, monkeypatch):
     """A snapshot request keeps the renderer alive for its newer target version."""
 
     async def run_test():
@@ -295,10 +258,8 @@ def test_newer_snapshot_waits_for_followup_when_an_older_render_is_active():
                 await release.wait()
             return func(snapshot)
 
-        camera._hass = SimpleNamespace(
-            async_create_task=asyncio.create_task,
-            async_add_executor_job=run_executor,
-        )
+        camera._hass = hass
+        monkeypatch.setattr(hass, "async_add_executor_job", run_executor)
         camera._schedule_render(force=True)
         await started.wait()
 
@@ -312,10 +273,10 @@ def test_newer_snapshot_waits_for_followup_when_an_older_render_is_active():
         assert render_versions == [1, 2]
         assert camera._snapshot_waiters == 0
 
-    asyncio.run(run_test())
+    await run_test()
 
 
-def test_failed_snapshot_render_is_retried_by_the_next_request():
+async def test_failed_snapshot_render_is_retried_by_the_next_request(hass, monkeypatch):
     """A failed JPEG attempt returns the cache but leaves the version retryable."""
 
     async def run_test():
@@ -340,10 +301,8 @@ def test_failed_snapshot_render_is_retried_by_the_next_request():
             await asyncio.sleep(0)
             return func(snapshot)
 
-        camera._hass = SimpleNamespace(
-            async_create_task=asyncio.create_task,
-            async_add_executor_job=run_executor,
-        )
+        camera._hass = hass
+        monkeypatch.setattr(hass, "async_add_executor_job", run_executor)
 
         assert await camera.async_camera_image() == b"old jpeg"
         assert camera._rendered_state_version == 0
@@ -352,10 +311,10 @@ def test_failed_snapshot_render_is_retried_by_the_next_request():
         assert attempts == 2
         assert camera._rendered_state_version == 1
 
-    asyncio.run(run_test())
+    await run_test()
 
 
-def test_last_mjpeg_viewer_does_not_cancel_a_waiting_snapshot_timer():
+async def test_last_mjpeg_viewer_does_not_cancel_a_waiting_snapshot_timer(hass, monkeypatch):
     """A snapshot waiter keeps a throttled render alive after stream disconnect."""
 
     class FailingResponse:
@@ -382,10 +341,8 @@ def test_last_mjpeg_viewer_does_not_cancel_a_waiting_snapshot_timer():
             await asyncio.sleep(0)
             return func(snapshot)
 
-        camera._hass = SimpleNamespace(
-            async_create_task=asyncio.create_task,
-            async_add_executor_job=run_executor,
-        )
+        camera._hass = hass
+        monkeypatch.setattr(hass, "async_add_executor_job", run_executor)
         camera._schedule_render(force=True)
         render_timer = camera._render_timer
         snapshot_task = asyncio.create_task(camera.async_camera_image())
@@ -405,10 +362,10 @@ def test_last_mjpeg_viewer_does_not_cancel_a_waiting_snapshot_timer():
         finally:
             aiohttp_module.web = previous_web
 
-    asyncio.run(run_test())
+    await run_test()
 
 
-def test_mjpeg_stream_sends_cached_first_frame_and_tracks_viewer():
+async def test_mjpeg_stream_sends_cached_first_frame_and_tracks_viewer(hass, monkeypatch):
     """A new stream receives a frame immediately and unregisters on cancellation."""
 
     class FakeResponse:
@@ -448,10 +405,10 @@ def test_mjpeg_stream_sends_cached_first_frame_and_tracks_viewer():
         finally:
             aiohttp_module.web = previous_web
 
-    asyncio.run(run_test())
+    await run_test()
 
 
-def test_removal_cancels_timer_and_active_render():
+async def test_removal_cancels_timer_and_active_render(hass, monkeypatch):
     """Unloading the entity cancels pending timers and render tasks."""
 
     async def run_test():
@@ -474,4 +431,4 @@ def test_removal_cancels_timer_and_active_render():
         assert not camera._render_dirty
         assert render_task.cancelled()
 
-    asyncio.run(run_test())
+    await run_test()

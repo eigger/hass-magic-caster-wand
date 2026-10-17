@@ -1,30 +1,18 @@
+# Shared standards; upstream action SHAs verified 2026-10-17.
 name: Validate
-
-on:
+'on':
   push:
-    branches: [main, master]
-  pull_request:
+    branches:
+    - master
+  pull_request: null
+  workflow_dispatch: null
   schedule:
-    - cron: "0 0 * * *"
-  workflow_dispatch:
-
-permissions: {}
-
+  - cron: 23 3 * * 1
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
-  validate-hacs:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: HACS validation
-        uses: hacs/action@main
-        with:
-          category: integration
-
-  validate-hassfest:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Hassfest validation
-        uses: home-assistant/actions/hassfest@master
+  validate:
+    uses: eigger/hass-repo-standards/.github/workflows/validate-integration.yml@7acd9cab6ac774e4695f2c962e3d88b5faa4620d # reviewed standards commit

@@ -83,7 +83,7 @@ class McwDevice:
             )
             _LOGGER.debug("Persistent spell tracker created")
         except Exception as err:
-            _LOGGER.warning("Failed to create spell detector: %s", err)
+            _LOGGER.warning("Failed to create spell detector: %s", type(err).__name__)
 
     def register_coordinator(
         self, cn_spell, cn_battery, cn_buttons, cn_calibration=None, cn_imu=None, cn_connection=None
@@ -194,7 +194,7 @@ class McwDevice:
                 await self._mcw.led_on(LedGroup.TIP, r, g, b)
                 _LOGGER.debug("Casting LED turned on with color: (%d, %d, %d)", r, g, b)
             except Exception as err:
-                _LOGGER.warning("Failed to turn on casting LED: %s", err)
+                _LOGGER.warning("Failed to turn on casting LED: %s", type(err).__name__)
 
     async def _turn_off_casting_led(self) -> None:
         """Turn off the casting LED."""
@@ -203,7 +203,7 @@ class McwDevice:
                 await self._mcw.led_off()
                 _LOGGER.debug("Casting LED turned off")
             except Exception as err:
-                _LOGGER.warning("Failed to turn off casting LED: %s", err)
+                _LOGGER.warning("Failed to turn off casting LED: %s", type(err).__name__)
 
     def _callback_calibration(self, data: dict[str, bool]) -> None:
         """Handle calibration state update callback."""
@@ -346,7 +346,7 @@ class McwDevice:
                 await self._cleanup_failed_connection(client)
                 return False
 
-            _LOGGER.debug("Connected to Magic Caster Wand: %s, %s", ble_device.address, self.model)
+            _LOGGER.debug("Connected to Magic Caster Wand: %s, %s", "[redacted]", self.model)
             if self._coordinator_connection:
                 self._coordinator_connection.async_set_updated_data(True)
             self.diagnostics.record("connect", trace)
@@ -358,7 +358,7 @@ class McwDevice:
         except Exception as err:
             self.diagnostics.record("connect", trace, err)
             await self._cleanup_failed_connection(client)
-            _LOGGER.warning("Failed to connect to %s: %s", ble_device.address, err)
+            _LOGGER.warning("Failed to connect to %s: %s", "[redacted]", type(err).__name__)
             return False
         finally:
             self._connecting = False
@@ -371,7 +371,7 @@ class McwDevice:
                 try:
                     await self._mcw.stop_notify()
                 except Exception as err:
-                    _LOGGER.debug("Failed to stop notifications after connect failure: %s", err)
+                    _LOGGER.debug("Failed to stop notifications after connect failure: %s", type(err).__name__)
         finally:
             try:
                 if self._ble_session_stack is not None:
@@ -379,7 +379,7 @@ class McwDevice:
                 elif client is not None and client.is_connected:
                     await client.disconnect()
             except Exception as err:
-                _LOGGER.debug("Failed to disconnect after connect failure: %s", err)
+                _LOGGER.debug("Failed to disconnect after connect failure: %s", type(err).__name__)
             finally:
                 if client is None or self.client is client:
                     self.client = None
@@ -436,7 +436,7 @@ class McwDevice:
             _LOGGER.warning(
                 "Failed to resume IMU streaming after connect: %s. "
                 "Spell tracking is off until the Spell Tracking switch is toggled",
-                err,
+                type(err).__name__,
             )
 
     async def _cancel_background_tasks(self) -> None:
@@ -465,10 +465,10 @@ class McwDevice:
                 try:
                     await self._mcw.imu_streaming_stop()
                 except Exception as imu_err:
-                    _LOGGER.debug("Failed to stop IMU streaming during disconnect: %s", imu_err)
+                    _LOGGER.debug("Failed to stop IMU streaming during disconnect: %s", type(imu_err).__name__)
                 await self._mcw.stop_notify()
         except Exception as err:
-            _LOGGER.warning("Error during disconnect: %s", err)
+            _LOGGER.warning("Error during disconnect: %s", type(err).__name__)
         finally:
             try:
                 if self._ble_session_stack is not None:
@@ -476,7 +476,7 @@ class McwDevice:
                 elif self.client and self.client.is_connected:
                     await self.client.disconnect()
             except Exception as err:
-                _LOGGER.warning("Error closing BLE session: %s", err)
+                _LOGGER.warning("Error closing BLE session: %s", type(err).__name__)
             finally:
                 if self._coordinator_buttons:
                     self._coordinator_buttons.async_set_updated_data(
@@ -664,15 +664,17 @@ class McwDevice:
             try:
                 await self._spell_tracker.close()
             except Exception as close_err:
-                _LOGGER.debug("Failed to close detector after initialization cancellation: %s", close_err)
+                _LOGGER.debug(
+                    "Failed to close detector after initialization cancellation: %s", type(close_err).__name__
+                )
             raise
         except Exception as err:
             self._server_reachable = False
-            _LOGGER.warning("Failed to initialize remote spell detector session: %s", err)
+            _LOGGER.warning("Failed to initialize remote spell detector session: %s", type(err).__name__)
             try:
                 await self._spell_tracker.close()
             except Exception as close_err:
-                _LOGGER.debug("Failed to close detector after initialization error: %s", close_err)
+                _LOGGER.debug("Failed to close detector after initialization error: %s", type(close_err).__name__)
 
         return False
 
@@ -685,5 +687,5 @@ class McwDevice:
             try:
                 await self._spell_tracker.close()
             except Exception as err:
-                _LOGGER.warning("Failed to close spell tracker session: %s", err)
+                _LOGGER.warning("Failed to close spell tracker session: %s", type(err).__name__)
         # Keep the tracker object so it can be initialized again if tracking is re-enabled.
