@@ -39,7 +39,7 @@
 
 - 지팡이 모델: **Defiant, Loyal, Honourable**. Magic Caster Box도 지원합니다.
 - Home Assistant **2025.4.0 이상**, HACS 또는 수동 설치, 연결 가능한 Bluetooth 어댑터 또는 ESPHome Bluetooth proxy가 필요합니다.
-- 기기를 충전하고 깨운 뒤 Bluetooth 범위 안에 둡니다. 다른 앱이 연결을 점유하면 종료하세요. 프록시의 GATT 연결에는 `bluetooth_proxy.active: true`가 필요하며, active 스캔은 별도 설정입니다. [공통 Bluetooth 설정·추천 기기](https://github.com/eigger/hass-repo-standards/blob/main/docs/bluetooth.md)를 참고하세요.
+- 기기를 충전하고 깨운 뒤 Bluetooth 범위 안에 둡니다. 다른 앱이 연결을 점유하면 종료하세요. 프록시의 GATT 연결에는 `bluetooth_proxy.active: true`가 필요하며, active 스캔은 별도 설정입니다. [Bluetooth 프록시 설정](https://github.com/eigger/hass-repo-standards/blob/main/docs/bluetooth.ko.md)을 참고하세요.
 
 ## 설치
 

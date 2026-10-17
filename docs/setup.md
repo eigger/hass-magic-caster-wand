@@ -16,7 +16,7 @@ Exact wake procedures and firmware compatibility have not been independently tes
 in this adoption, so the device instructions remain the source for those steps.
 
 Use an available local Bluetooth adapter or a connectable ESPHome proxy. See the
-[shared Bluetooth setup and hardware recommendations (Korean)](https://github.com/eigger/hass-repo-standards/blob/main/docs/bluetooth.md)
+[Bluetooth proxy setup](https://github.com/eigger/hass-repo-standards/blob/main/docs/bluetooth.md)
 for board revisions, network setup and recommended hardware. Keep default scan timing
 initially. `bluetooth_proxy.active: true` enables GATT connections;
 `esp32_ble_tracker.scan_parameters.active` controls scan responses. These serve

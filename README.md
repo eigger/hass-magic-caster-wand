@@ -39,7 +39,7 @@ Cast **Lumos** to turn on a room light, or **Nox** to turn it off. This HACS cus
 
 - Wand models: **Defiant, Loyal and Honourable**; Magic Caster Box support is also included.
 - Home Assistant **2025.4.0 or later**, HACS or a manual installation, and a connectable Bluetooth adapter or ESPHome Bluetooth proxy.
-- Charge and wake the device, keep it in Bluetooth range, and close other apps if they hold its connection. A proxy needs `bluetooth_proxy.active: true` for GATT connections; active scanning is a separate setting. See [shared Bluetooth setup and hardware guidance (Korean)](https://github.com/eigger/hass-repo-standards/blob/main/docs/bluetooth.md).
+- Charge and wake the device, keep it in Bluetooth range, and close other apps if they hold its connection. A proxy needs `bluetooth_proxy.active: true` for GATT connections; active scanning is a separate setting. See [Bluetooth proxy setup](https://github.com/eigger/hass-repo-standards/blob/main/docs/bluetooth.md).
 
 ## Installation
 

@@ -2,7 +2,7 @@
 
 [Setup](setup.md) | [English quick start](../README.md) | [한국어 빠른 시작](../README.ko.md)
 
-Start with the [shared connection troubleshooting sequence (Korean)](https://github.com/eigger/hass-repo-standards/blob/main/docs/bluetooth.md#연결-문제-확인-순서).
+Start with the [Bluetooth proxy setup](https://github.com/eigger/hass-repo-standards/blob/main/docs/bluetooth.md#troubleshooting).
 It includes proxy firmware, board revisions, connection slots, range and network
 checks. This integration's device-specific checks are below. No physical
 wand/box, firmware or adapter/proxy combination was newly validated for this adoption.
