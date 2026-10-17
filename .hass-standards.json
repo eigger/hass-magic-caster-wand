@@ -1,0 +1,17 @@
+{
+  "repository": "eigger/hass-magic-caster-wand",
+  "default_branch": "master",
+  "readmes": [
+    "README.md",
+    "README.ko.md"
+  ],
+  "hacs": "custom",
+  "release": true,
+  "installation_link": "#installation",
+  "tests_workflow": "tests.yml",
+  "validate_workflow": "validate.yml",
+  "installation_links": {
+    "README.md": "#installation",
+    "README.ko.md": "#\uc124\uce58"
+  }
+}

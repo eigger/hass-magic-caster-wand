@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -63,7 +64,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 if macro := get_spell_macro(spell_name):
                     await device.send_macro(macro)
                 else:
-                    _LOGGER.debug("Unknown spell requested by service: %s", spell_name)
+                    _LOGGER.debug("Unknown spell requested by service")
 
     handlers = {
         "vibrate": handle_vibrate,
@@ -82,7 +83,9 @@ async def async_unload_services(hass: HomeAssistant, entry: MagicCasterWandConfi
     other_loaded_entries = [
         config_entry
         for config_entry in hass.config_entries.async_entries(DOMAIN)
-        if config_entry.entry_id != entry.entry_id and config_entry.runtime_data is not None
+        if config_entry.entry_id != entry.entry_id
+        and config_entry.state in (ConfigEntryState.LOADED, ConfigEntryState.SETUP_IN_PROGRESS)
+        and getattr(config_entry, "runtime_data", None) is not None
     ]
     if not other_loaded_entries:
         for name in SERVICES:
@@ -111,7 +114,10 @@ def _get_device_by_entry_id(hass: HomeAssistant, entry_id: str | None) -> McwDev
     if entry_id is None:
         return None
     config_entry = hass.config_entries.async_get_entry(entry_id)
-    return config_entry.runtime_data.device if config_entry and config_entry.runtime_data else None
+    if config_entry is None or config_entry.state is not ConfigEntryState.LOADED:
+        return None
+    runtime_data = getattr(config_entry, "runtime_data", None)
+    return runtime_data.device if runtime_data else None
 
 
 async def get_entry_id_from_device(hass: HomeAssistant, device_id: str) -> str | None:
@@ -120,12 +126,15 @@ async def get_entry_id_from_device(hass: HomeAssistant, device_id: str) -> str |
     device_entry = device_reg.async_get(device_id)
     if not device_entry:
         raise ValueError(f"Unknown device_id: {device_id}")
-    if not device_entry.config_entries:
-        raise ValueError(f"No config entries for device {device_id}")
-
-    _LOGGER.debug("%s to %s", device_id, device_entry.config_entries)
-    try:
-        return next(iter(device_entry.config_entries))
-    except StopIteration:
-        _LOGGER.error("%s None", device_id)
-        return None
+    # The single-entry property is public in current HA. Preserve the older
+    # public collection API for the declared 2025.4 support floor.
+    if hasattr(device_entry, "config_entry_id"):
+        return device_entry.config_entry_id
+    entries = device_entry.config_entries
+    if not entries:
+        raise ValueError("Device has no config entry")
+    for entry_id in entries:
+        entry = hass.config_entries.async_get_entry(entry_id)
+        if entry is not None and entry.domain == DOMAIN:
+            return entry_id
+    return None

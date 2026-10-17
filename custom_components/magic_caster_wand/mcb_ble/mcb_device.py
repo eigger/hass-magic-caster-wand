@@ -174,7 +174,7 @@ class McbDevice:
                 await self._cleanup_failed_connection(client)
                 return False
 
-            _LOGGER.debug("Connected to Magic Caster Box: %s, %s", ble_device.address, self.model)
+            _LOGGER.debug("Connected to Magic Caster Box: %s, %s", "[redacted]", self.model)
             if self._coordinator_connection:
                 self._coordinator_connection.async_set_updated_data(True)
             self.diagnostics.record("connect", trace)
@@ -186,7 +186,7 @@ class McbDevice:
         except Exception as err:
             self.diagnostics.record("connect", trace, err)
             await self._cleanup_failed_connection(client)
-            _LOGGER.warning("Failed to connect to %s: %s", ble_device.address, err)
+            _LOGGER.warning("Failed to connect to %s: %s", "[redacted]", type(err).__name__)
             return False
         finally:
             self._connecting = False
@@ -199,7 +199,7 @@ class McbDevice:
                 try:
                     await self._mcb.stop_notify()
                 except Exception as err:
-                    _LOGGER.debug("Failed to stop notifications after connect failure: %s", err)
+                    _LOGGER.debug("Failed to stop notifications after connect failure: %s", type(err).__name__)
         finally:
             try:
                 if self._ble_session_stack is not None:
@@ -207,7 +207,7 @@ class McbDevice:
                 elif client is not None and client.is_connected:
                     await client.disconnect()
             except Exception as err:
-                _LOGGER.debug("Failed to disconnect after connect failure: %s", err)
+                _LOGGER.debug("Failed to disconnect after connect failure: %s", type(err).__name__)
             finally:
                 if client is None or self.client is client:
                     self.client = None
@@ -245,7 +245,7 @@ class McbDevice:
         try:
             address = await asyncio.wait_for(self._mcb.get_wand_address(timeout=1.0), 5.0)
         except Exception as err:
-            _LOGGER.debug("Could not read the paired wand address: %s", err)
+            _LOGGER.debug("Could not read the paired wand address: %s", type(err).__name__)
             return
         if address and address != UNPAIRED_WAND_ADDRESS and address != self.wand_address:
             self.wand_address = address
@@ -259,7 +259,7 @@ class McbDevice:
             if self.client and self.client.is_connected and self._mcb:
                 await self._mcb.stop_notify()
         except Exception as err:
-            _LOGGER.warning("Error during disconnect: %s", err)
+            _LOGGER.warning("Error during disconnect: %s", type(err).__name__)
         finally:
             try:
                 if self._ble_session_stack is not None:
@@ -267,7 +267,7 @@ class McbDevice:
                 elif self.client and self.client.is_connected:
                     await self.client.disconnect()
             except Exception as err:
-                _LOGGER.warning("Error closing BLE session: %s", err)
+                _LOGGER.warning("Error closing BLE session: %s", type(err).__name__)
             finally:
                 if self._coordinator_connection:
                     self._coordinator_connection.async_set_updated_data(False)

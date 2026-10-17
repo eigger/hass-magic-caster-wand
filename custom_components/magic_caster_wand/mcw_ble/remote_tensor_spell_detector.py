@@ -67,7 +67,7 @@ class RemoteTensorSpellDetector(SpellDetector):
                 # 200 OK means the server is fully operational
                 return resp.status == 200
         except Exception as exc:
-            _LOGGER.debug("Health check failed for %s: %s", self._base_url, exc)
+            _LOGGER.debug("Remote detector health check failed (%s)", type(exc).__name__)
             return False
         finally:
             if temp_session:
@@ -96,7 +96,7 @@ class RemoteTensorSpellDetector(SpellDetector):
                 "input": positions.reshape(1, 50, 2).tolist(),
             }
         except Exception as exc:  # pragma: no cover - defensive
-            _LOGGER.error("Failed to prepare payload: %s", exc)
+            _LOGGER.error("Failed to prepare detector payload (%s)", type(exc).__name__)
             return None
 
         outputs = await self._invoke(payload)
@@ -116,7 +116,7 @@ class RemoteTensorSpellDetector(SpellDetector):
             best_index = int(np.argmax(probabilities))
             best_prob = float(probabilities[best_index])
         except Exception as exc:  # pragma: no cover - defensive
-            _LOGGER.warning("Invalid probabilities from remote server: %s", exc)
+            _LOGGER.warning("Invalid probabilities from remote server (%s)", type(exc).__name__)
             return None
 
         if best_prob < float(confidence_threshold):
@@ -133,23 +133,23 @@ class RemoteTensorSpellDetector(SpellDetector):
         url = f"{self._base_url}/api/initialize"
         payload = {"model": self._model_name}
 
-        _LOGGER.debug("Initializing model %s at %s", self._model_name, url)
+        _LOGGER.debug("Initializing remote detector model")
         async with self._session.post(url, json=payload, timeout=self._timeout) as resp:
             resp.raise_for_status()
-            body = await resp.json()
-            _LOGGER.info("Model %s initialized successfully: %s", self._model_name, body)
+            await resp.json()
+            _LOGGER.info("Remote detector model initialized successfully")
 
     async def _invoke(self, payload: dict[str, Any]) -> Optional[list[dict[str, Any]]]:
         url = f"{self._base_url}/api/invoke"
         try:
-            _LOGGER.debug("Sending remote invoke request to %s: %s", url, payload)
+            _LOGGER.debug("Sending remote detector request")
             async with self._session.post(url, json=payload, timeout=self._timeout) as resp:
                 resp.raise_for_status()
                 body = await resp.json()
-                _LOGGER.debug("Received remote invoke response: %s", body)
+                _LOGGER.debug("Received remote detector response")
 
                 outputs = body.get("outputs") if isinstance(body, dict) else None
                 return outputs if isinstance(outputs, list) else None
         except Exception as exc:
-            _LOGGER.warning("Remote invoke failed: %s", exc)
+            _LOGGER.warning("Remote detector request failed (%s)", type(exc).__name__)
             return None

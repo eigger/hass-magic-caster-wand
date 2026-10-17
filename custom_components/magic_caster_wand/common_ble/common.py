@@ -65,7 +65,7 @@ def build_macro(commands: list) -> Macro:
         elif isinstance(cmd, dict) and len(cmd) == 1:
             key, value = next(iter(cmd.items()))
         else:
-            _LOGGER.warning("Skipping malformed macro command: %r", cmd)
+            _LOGGER.warning("Skipping malformed macro command")
             continue
 
         try:
@@ -88,9 +88,9 @@ def build_macro(commands: list) -> Macro:
             elif key == "wait":
                 macro.add_wait()
             else:
-                _LOGGER.warning("Skipping unknown macro command: %r", key)
+                _LOGGER.warning("Skipping unknown macro command")
         except (KeyError, ValueError, TypeError) as err:
-            _LOGGER.warning("Skipping invalid macro command %r: %s", cmd, err)
+            _LOGGER.warning("Skipping invalid macro command (%s)", type(err).__name__)
 
     return macro
 

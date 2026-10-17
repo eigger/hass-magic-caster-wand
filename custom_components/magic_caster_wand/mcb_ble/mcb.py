@@ -225,7 +225,7 @@ class McbClient:
             battery_data = await self.client.read_gatt_char(BATTERY_UUID)
             self._handler_battery(None, bytearray(battery_data))
         except Exception as err:
-            _LOGGER.warning("Error reading initial battery level: %s", err)
+            _LOGGER.warning("Error reading initial battery level: %s", type(err).__name__)
 
         try:
             await self.request_box_notifications()
@@ -236,7 +236,7 @@ class McbClient:
             await self.request_lid_status()
 
         except Exception as err:
-            _LOGGER.warning("Error during initial box query: %s", err)
+            _LOGGER.warning("Error during initial box query: %s", type(err).__name__)
             raise
 
     @disconnect_on_missing_services
@@ -246,24 +246,24 @@ class McbClient:
             if self._notification_dispatcher is not None:
                 await self._notification_dispatcher.stop()
         except Exception as err:
-            _LOGGER.debug("Error stopping notifications: %s", err)
+            _LOGGER.debug("Error stopping notifications: %s", type(err).__name__)
 
     @disconnect_on_missing_services
     async def write(self, uuid: str, data: bytes, response: bool = False) -> None:
         """Write data to the specified characteristic."""
-        _LOGGER.debug("Write UUID=%s data=%s", uuid, data.hex())
+        _LOGGER.debug("Write UUID=%s data=%s", uuid, f"{len(data)} bytes")
         await guarded_write(self.client, uuid, data, response=response, step="protocol_write")
 
     def _handler_battery(self, _: Any, data: bytearray) -> None:
         """Handle battery notification."""
-        _LOGGER.debug("Battery received: %s", data.hex())
+        _LOGGER.debug("Battery received: %s", f"{len(data)} bytes")
         battery = int.from_bytes(data, byteorder="little")
         if self.callback_battery:
             self.callback_battery(battery)
 
     def _handler(self, _: Any, data: bytearray) -> None:
         """Handle notification data."""
-        _LOGGER.debug("Received: %s", data.hex())
+        _LOGGER.debug("Received box packet (%d bytes)", len(data))
 
         if not data or len(data) < 1:
             return
@@ -299,8 +299,8 @@ class McbClient:
                 _LOGGER.debug("Unknown opcode: 0x%02X, length=%d", opcode, len(data))
 
         except Exception as e:
-            _LOGGER.error("Error in message handler for opcode 0x%02X: %s", opcode, e)
-            _LOGGER.debug("Stack trace:", exc_info=True)
+            _LOGGER.error("Error in message handler for opcode 0x%02X: %s", opcode, type(e).__name__)
+            _LOGGER.debug("BLE parser failed; exception details omitted")
             if self._error_callback:
                 self._error_callback(e)
 
@@ -375,7 +375,7 @@ class McbClient:
                     self._waiting_cmd_event.clear()
                     if attempt >= max_retries:
                         raise
-                    _LOGGER.warning("Write retry (attempt %d/%d): %s", attempt, max_retries, err)
+                    _LOGGER.warning("Write retry (attempt %d/%d): %s", attempt, max_retries, type(err).__name__)
                     await sleep(0.5)
                 finally:
                     if expects_response:
@@ -459,9 +459,9 @@ class McbClient:
             mac_le = data[1:7]
             mac_be = mac_le[::-1]
             self._wand_address = ":".join(f"{b:02X}" for b in mac_be)
-            _LOGGER.debug("Paired wand address: %s", self._wand_address)
+            _LOGGER.debug("Paired wand address received")
         except Exception as e:
-            _LOGGER.error("Error parsing wand address: %s", e)
+            _LOGGER.error("Error parsing wand address: %s", type(e).__name__)
             if self._error_callback:
                 self._error_callback(e)
 
@@ -488,7 +488,7 @@ class McbClient:
             _LOGGER.debug("Firmware version: %s", version)
             self._box_firmware_version = version
         except Exception as e:
-            _LOGGER.error("Error parsing firmware version: %s", e)
+            _LOGGER.error("Error parsing firmware version: %s", type(e).__name__)
             if self._error_callback:
                 self._error_callback(e)
 
@@ -503,15 +503,15 @@ class McbClient:
                 if len(data) >= 6:
                     serial = struct.unpack("<I", data[2:6])[0]
                     self._box_serial_number = str(serial)
-                    _LOGGER.debug("Box serial number: %s", self._box_serial_number)
+                    _LOGGER.debug("Box serial number received")
             elif info_type == 0x02:
                 self._box_sku = data[2:].decode("ascii", errors="ignore").strip("\x00")
                 _LOGGER.debug("Box SKU: %s", self._box_sku)
             elif info_type == 0x04:
                 self._box_device_id = data[2:].decode("ascii", errors="ignore").strip("\x00")
-                _LOGGER.debug("Box device id: %s", self._box_device_id)
+                _LOGGER.debug("Box device id received")
         except Exception as e:
-            _LOGGER.error("Error parsing box information: %s", e)
+            _LOGGER.error("Error parsing box information: %s", type(e).__name__)
             if self._error_callback:
                 self._error_callback(e)
 

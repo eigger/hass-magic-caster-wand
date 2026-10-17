@@ -123,12 +123,8 @@ class McwConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:
         """Handle a flow initialized by a reauth event."""
-        device: McwBluetoothDeviceData | McbBluetoothDeviceData = entry_data["device"]
-        self._discovered_device = device
-
-        self._discovery_info = device.last_service_info
-
-        # Otherwise there wasn't actually encryption so abort
+        # These BLE devices do not authenticate and persisted entries contain
+        # serializable configuration only, never live device parser objects.
         return self.async_abort(reason="reauth_successful")
 
     def _async_get_or_create_entry(self, bindkey: str | None = None) -> ConfigFlowResult:

@@ -1,5 +1,6 @@
 """The Magic Caster Wand BLE integration."""
 
+import asyncio
 import logging
 from datetime import timedelta
 from functools import partial
@@ -55,8 +56,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MagicCasterWandConfigEnt
     ble_device = bluetooth.async_ble_device_from_address(hass, address)
     if not ble_device:
         _LOGGER.warning(
-            "Could not find Magic Caster Wand device with address %s during setup; continuing without initial data",
-            address,
+            "Device is not in the Bluetooth cache; entities will remain unavailable until it is discovered",
         )
 
     # Create device instance
@@ -107,25 +107,46 @@ async def async_setup_entry(hass: HomeAssistant, entry: MagicCasterWandConfigEnt
         connection_coordinator=connection_coordinator,
     )
 
-    # Perform first refresh (best-effort). If it fails, entities will remain unavailable
-    # until a later successful update.
-    await coordinator.async_refresh()
-    if not coordinator.last_update_success:
-        _LOGGER.warning(
-            "Initial update failed for %s; entities will start as unavailable: %s",
-            address,
-            coordinator.last_exception,
-        )
+    try:
+        # Perform first refresh (best-effort). If it fails, entities will remain unavailable
+        # until a later successful update.
+        await coordinator.async_refresh()
+        if not coordinator.last_update_success:
+            _LOGGER.warning(
+                "Initial update failed; entities will recover after Bluetooth discovery and a successful update",
+            )
 
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    await async_reconcile_links(hass)
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        await async_reconcile_links(hass)
 
-    # Register update listener to handle options changes
-    entry.async_on_unload(entry.add_update_listener(async_update_options))
+        # Register update listener to handle options changes
+        entry.async_on_unload(entry.add_update_listener(async_update_options))
 
-    await async_setup_services(hass)
+        await async_setup_services(hass)
+    except BaseException:
+        # Entry setup can be cancelled after a device opened its session. Always
+        # close resources, including an in-flight detector request, before HA retries.
+        cleanup = hass.async_create_task(_async_cleanup_failed_setup(hass, entry, device))
+        try:
+            await asyncio.shield(cleanup)
+        except asyncio.CancelledError:
+            await cleanup
+        raise
 
     return True
+
+
+async def _async_cleanup_failed_setup(
+    hass: HomeAssistant, entry: MagicCasterWandConfigEntry, device: McwDevice | McbDevice
+) -> None:
+    """Remove partially forwarded entities and resources before a setup retry."""
+    try:
+        await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    finally:
+        try:
+            await _async_close_device(device)
+        finally:
+            await async_unload_services(hass, entry)
 
 
 async def _async_update_method(hass: HomeAssistant, entry: MagicCasterWandConfigEntry, mcw: McwDevice) -> BLEData:
@@ -133,27 +154,32 @@ async def _async_update_method(hass: HomeAssistant, entry: MagicCasterWandConfig
     address = entry.unique_id
     ble_device = bluetooth.async_ble_device_from_address(hass, address)
     if not ble_device:
-        raise UpdateFailed(f"BLE device not available for address {address}")
+        raise UpdateFailed("Device is not in the Bluetooth cache")
 
     try:
         data = await mcw.update_device(ble_device)
     except Exception as err:
-        raise UpdateFailed(f"Unable to fetch data: {err}") from err
+        raise UpdateFailed("Unable to fetch data; check Bluetooth connectivity") from err
 
     return data
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: MagicCasterWandConfigEntry) -> bool:
     """Unload a config entry."""
-    mcw = entry.runtime_data.device
-    await mcw.disconnect()
+    if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        return False
+    await _async_close_device(entry.runtime_data.device)
+    await async_unload_services(hass, entry)
+    return True
 
-    if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        if isinstance(mcw, McwDevice):
-            await mcw.async_spell_tracker_close()
-        await async_unload_services(hass, entry)
 
-    return unload_ok
+async def _async_close_device(device: McwDevice | McbDevice) -> None:
+    """Release the BLE session and detector even if either cleanup fails."""
+    try:
+        await device.disconnect()
+    finally:
+        if isinstance(device, McwDevice):
+            await device.async_spell_tracker_close()
 
 
 async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:

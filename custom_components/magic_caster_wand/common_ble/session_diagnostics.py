@@ -54,6 +54,30 @@ class BLESessionDiagnostics:
             facts=facts,
             noun=self.noun,
         )
+        # Retained reports become entity attributes and may be included in bug
+        # reports. Keep structured facts, never transport exception text, radio
+        # identifiers, or arbitrary trace metadata supplied by a backend.
+        safe_keys = {
+            "operation",
+            "success",
+            "failed_stage",
+            "likely_cause_key",
+            "timed_out",
+            "attempt",
+            "attempts",
+            "retrying",
+            "via_type",
+            "via_unconfirmed",
+            "rssi",
+            "paths",
+        }
+        report = {
+            key: value
+            for key, value in report.items()
+            if key in safe_keys or (key.endswith("_s") and isinstance(value, (int, float)))
+        }
+        if exc is not None:
+            report["error"] = type(exc).__name__
         return self.reports.record(report)
 
     def record_failure(self, operation: str, stage: str, exc: BaseException) -> dict[str, Any] | None:

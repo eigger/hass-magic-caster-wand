@@ -1,275 +1,66 @@
-# hass-magic-caster-wand
-[![HACS](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?logo=home-assistant)](https://hacs.xyz/)
-[![GitHub Release](https://img.shields.io/github/release/eigger/hass-magic-caster-wand.svg)](https://github.com/eigger/hass-magic-caster-wand/releases)
-[![License](https://img.shields.io/github/license/eigger/hass-magic-caster-wand)](https://github.com/eigger/hass-magic-caster-wand/blob/main/LICENSE)
-![integration usage](https://img.shields.io/badge/dynamic/json?color=41BDF5&logo=home-assistant&label=integration%20usage&suffix=%20installs&cacheSeconds=15600&url=https://analytics.home-assistant.io/custom_integrations.json&query=%24.magic_caster_wand.total)
+# Magic Caster Wand
 
-Magic Caster Wand Home Assistant Integration
+<!-- hass-standards:badges:start -->
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5?style=flat-square)](#installation)
+[![Release](https://img.shields.io/github/v/release/eigger/hass-magic-caster-wand?style=flat-square)](https://github.com/eigger/hass-magic-caster-wand/releases)
+[![Home Assistant minimum](https://img.shields.io/badge/HA-%E2%89%A5%202025.4.0-41BDF5?style=flat-square)](hacs.json)
+[![Tests](https://img.shields.io/github/actions/workflow/status/eigger/hass-magic-caster-wand/tests.yml?branch=master&style=flat-square&label=Tests)](https://github.com/eigger/hass-magic-caster-wand/actions/workflows/tests.yml)
+[![Validate](https://img.shields.io/github/actions/workflow/status/eigger/hass-magic-caster-wand/validate.yml?branch=master&style=flat-square&label=Validate)](https://github.com/eigger/hass-magic-caster-wand/actions/workflows/validate.yml)
+[![License](https://img.shields.io/github/license/eigger/hass-magic-caster-wand?style=flat-square)](LICENSE)
+[![Analytics reporting installs](https://img.shields.io/badge/dynamic/json?style=flat-square&color=41BDF5&label=Usage&query=%24.magic_caster_wand.total&url=https%3A%2F%2Fanalytics.home-assistant.io%2Fcustom_integrations.json)](https://analytics.home-assistant.io/)
+<!-- hass-standards:badges:end -->
 
-<table>
-  <tr>
-    <td colspan="2" align="center">
-      <img width="720" alt="mcw" src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/images/mcw.png" />
-    </td>
-  </tr>
-  <tr>
-    <td align="center" valign="bottom">
-      <img width="140"
-           alt="Turn on device demo"
-           src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/images/device_on.gif" />
-      <div style="margin-top:8px;"><b>Turn on Device</b></div>
-    </td>
-    <td align="center" valign="bottom">
-      <img width="360"
-           alt="Turn on light demo"
-           src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/images/light_on.gif" />
-      <div style="margin-top:8px;"><b>Turn on Light</b></div>
-    </td>
-  </tr>
-</table>
+**English** | [한국어](README.ko.md)
 
+A HACS custom integration connecting Harry Potter Magic Caster Wands and their boxes to Home Assistant over Bluetooth. Trigger automations from spells and buttons, control LEDs and vibration, and visualize wand movements.
 
+## Supported devices and requirements
 
-## 💬 Feedback & Support
-
-🐞 Found a bug? Let us know via an [Issue](https://github.com/eigger/hass-magic-caster-wand/issues).  
-💡 Have a question or suggestion? Join the [Discussion](https://github.com/eigger/hass-magic-caster-wand/discussions)!
-
-## Supported Models
-
-- Defiant
-- Loyal
-- Honourable
+- Wand models: **Defiant, Loyal and Honourable**; Magic Caster Box support is also included.
+- Home Assistant **2025.4.0 or later**, HACS or a manual installation, and a connectable Bluetooth adapter or ESPHome Bluetooth proxy.
+- Use a charged, awake device within Bluetooth range. Proxy connections require `bluetooth_proxy.active: true`; see [shared Bluetooth setup and hardware guidance (Korean)](https://github.com/eigger/hass-repo-standards/blob/main/docs/bluetooth.md).
 
 ## Installation
-1. Install this integration with HACS (adding repository required), or copy the contents of this
-repository into the `custom_components/magic_caster_wand` directory.
-2. Restart Home Assistant.
 
-## ⚠️ Important Notice
-- It is **strongly recommended to use a Bluetooth proxy instead of a built-in Bluetooth adapter**.  
-  Bluetooth proxies generally offer more stable connections and better range, especially in environments with multiple BLE devices.
+1. In HACS, add `https://github.com/eigger/hass-magic-caster-wand` as a custom **Integration** repository and download **Magic Caster Wand**. For manual installation, copy only `custom_components/magic_caster_wand` into your configuration's `custom_components` directory.
+2. Restart Home Assistant. Open **Settings → Devices & services → Add integration → Magic Caster Wand**, or confirm its Bluetooth discovery.
+3. Select your awake wand or box and enable its **Connect** switch before receiving spells or sending commands. Enable **Spell Tracking** for wand movement visualization.
 
-> [!TIP]
-> For hardware recommendations, refer to [Great ESP32 Board for an ESPHome Bluetooth Proxy](https://community.home-assistant.io/t/great-esp32-board-for-an-esphome-bluetooth-proxy/916767/31).
-- When using a Bluetooth proxy, it is strongly recommended to **keep the scan interval at its default value**.  
-  Changing these values may cause issues with Bluetooth data transmission.
-- **bluetooth_proxy:** must always have **active: true**.
-  
-  Example (recommended configuration with default values):
+See [setup and options](docs/setup.md) for the TFLite URL, spell timeout and connection details.
 
-  ```yaml
-  esp32_ble_tracker:
-    scan_parameters:
-      active: true
-  
-  bluetooth_proxy:
-    active: true
-  ```
+## Example
 
-## Spells & Motions
->[!IMPORTANT]
->You must connect to the wand via Bluetooth(Switch) first in order to receive the spell values.
-
-## Built-in Spell Gestures for the Wand
-<table>
-  <tr>
-    <td colspan="2" align="center">
-      <img width="560" alt="mcw" src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/images/default_spell.png" />
-    </td>
-  </tr>
-</table>
-
-
-## Spell Gestures
-
-<table>
-  <tr>
-    <td align="center"><b>Aberto</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/aberto.png" width="100"/></td>
-    <td align="center"><b>Accio</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/accio.png" width="100"/></td>
-    <td align="center"><b>Aguamenti</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/aguamenti.png" width="100"/></td>
-    <td align="center"><b>Alohomora</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/alohomora.png" width="100"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>Anteoculatia</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/anteoculatia.png" width="100"/></td>
-    <td align="center"><b>Appare Vestigium</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/appare_vestigium.png" width="100"/></td>
-    <td align="center"><b>Arania Exumai</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/arania_exumai.png" width="100"/></td>
-    <td align="center"><b>Ascendio</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/ascendio.png" width="100"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>Bombarda</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/bombarda.png" width="100"/></td>
-    <td align="center"><b>Brachiabindo</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/brachiabindo.png" width="100"/></td>
-    <td align="center"><b>Calvorio</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/calvorio.png" width="100"/></td>
-    <td align="center"><b>Cantis</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/cantis.png" width="100"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>Colloportus</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/colloportus.png" width="100"/></td>
-    <td align="center"><b>Colloshoo</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/colloshoo.png" width="100"/></td>
-    <td align="center"><b>Colovaria</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/colovaria.png" width="100"/></td>
-    <td align="center"><b>Confringo</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/confringo.png" width="100"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>Confundo</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/confundo.png" width="100"/></td>
-    <td align="center"><b>Densaugeo</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/densaugeo.png" width="100"/></td>
-    <td align="center"><b>Entomorphis</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/entomorphis.png" width="100"/></td>
-    <td align="center"><b>Evanesco</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/evanesco.png" width="100"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>Expecto Patronum</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/expecto_patronum.png" width="100"/></td>
-    <td align="center"><b>Expelliarmus</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/expelliarmus.png" width="100"/></td>
-    <td align="center"><b>Expulso</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/expulso.png" width="100"/></td>
-    <td align="center"><b>Finestra</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/finestra.png" width="100"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>Finite</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/finite.png" width="100"/></td>
-    <td align="center"><b>Flagrate</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/flagrate.png" width="100"/></td>
-    <td align="center"><b>Flipendo</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/flipendo.png" width="100"/></td>
-    <td align="center"><b>Fulgari</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/fulgari.png" width="100"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>Glacius</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/glacius.png" width="100"/></td>
-    <td align="center"><b>Herbivicus</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/herbivicus.png" width="100"/></td>
-    <td align="center"><b>Immobulus</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/immobulus.png" width="100"/></td>
-    <td align="center"><b>Impedimenta</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/impedimenta.png" width="100"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>Incarcerous</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/incarcerous.png" width="100"/></td>
-    <td align="center"><b>Incendio</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/incendio.png" width="100"/></td>
-    <td align="center"><b>Lumos</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/lumos.png" width="100"/></td>
-    <td align="center"><b>Lumos Maxima</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/lumos_maxima.png" width="100"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>Melefors</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/melefors.png" width="100"/></td>
-    <td align="center"><b>Meteolojinx</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/meteolojinx.png" width="100"/></td>
-    <td align="center"><b>Mucus Ad Nauseum</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/mucus_ad_nauseum.png" width="100"/></td>
-    <td align="center"><b>Nox</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/nox.png" width="100"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>Orchideous</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/orchideous.png" width="100"/></td>
-    <td align="center"><b>Petrificus Totalus</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/petrificus_totalus.png" width="100"/></td>
-    <td align="center"><b>Piertotum Locomotor</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/piertotum_locomotor.png" width="100"/></td>
-    <td align="center"><b>Protego</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/protego.png" width="100"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>Quietus</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/quietus.png" width="100"/></td>
-    <td align="center"><b>Reducto</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/reducto.png" width="100"/></td>
-    <td align="center"><b>Reparo</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/reparo.png" width="100"/></td>
-    <td align="center"><b>Revelio</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/revelio.png" width="100"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>Rictusempra</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/rictusempra.png" width="100"/></td>
-    <td align="center"><b>Riddikulus</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/riddikulus.png" width="100"/></td>
-    <td align="center"><b>Salvio Hexia</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/salvio_hexia.png" width="100"/></td>
-    <td align="center"><b>Scourgify</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/scourgify.png" width="100"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>Silencio</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/silencio.png" width="100"/></td>
-    <td align="center"><b>Stupefy</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/stupefy.png" width="100"/></td>
-    <td align="center"><b>The Cheering Charm</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/the_cheering_charm.png" width="100"/></td>
-    <td align="center"><b>The Force Spell</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/the_force_spell.png" width="100"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>The Hair Thickening Growing Charm</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/the_hair_thickening_growing_charm.png" width="100"/></td>
-    <td align="center"><b>The Hour Reversal Charm</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/the_hour_reversal_charm.png" width="100"/></td>
-    <td align="center"><b>The Sleeping Charm</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/the_sleeping_charm.png" width="100"/></td>
-    <td align="center"><b>The Spell Thickening Charm</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/the_spell_thickening_charm.png" width="100"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>The Stretching Jinx</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/the_stretching_jinx.png" width="100"/></td>
-    <td align="center"><b>Ventus</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/ventus.png" width="100"/></td>
-    <td align="center"><b>Verdimillious</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/verdimillious.png" width="100"/></td>
-    <td align="center"><b>Vermillious</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/vermillious.png" width="100"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>Wingardium Leviosa</b><br/><img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/gestures/wingardium_leviosa.png" width="100"/></td>
-    <td></td>
-    <td></td>
-    <td></td>
-  </tr>
-</table>
-
-
----
-
-## Spell Canvas
-
-Real-time visualization of wand movements.
-
-| Feature | Description |
-|--------|-------------|
-| **Spell tracking** | Enable the Spell Tracking switch to receive IMU data from the wand. |
-| **Drawing** | Drawing starts when the wand button is pressed and button states are detected. |
-| **Spell recognition** | Install the [hass-tflite](https://github.com/ificator/hass-tflite) add-on, then use **Open web UI** to upload `model.tflite`. Configure the server address in settings if using a custom fork. |
-
-<table>
-  <tr>
-    <td colspan="2" align="center">
-      <img width="560" alt="mcw" src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/images/tflite_server.png" />
-    </td>
-  </tr>
-  <tr>
-    <td colspan="2" align="center">
-      <img width="320" height="222" alt="image" src="https://github.com/user-attachments/assets/8b896c42-170c-47dc-a7e9-212a4e179563" />
-    </td>
-    <td colspan="2" align="center">
-      <img width="240" height="222" alt="image" src="https://github.com/user-attachments/assets/e8d0baf9-abf9-48b1-b157-c3d5a2679bda" />
-    </td>
-    <td colspan="2" align="center">
-      <img width="240" height="222" alt="image" src="https://github.com/user-attachments/assets/7e8c8c2d-6ead-47a3-9e9a-25f5756ce5f4" />
-    </td>
-  </tr>
-</table>
-
-> [!NOTE]
-> The `model.tflite` file is not shared publicly at this time due to potential issues and to ensure compatibility.
-
-
-<table>
-  <tr>
-    <td align="center">
-      <img src="https://raw.githubusercontent.com/eigger/hass-magic-caster-wand/master/docs/images/spell_canvas.png" width="480" alt="Spell Canvas Demo"/>
-    </td>
-  </tr>
-</table>
-
-## Available Services
-
-This integration provides custom actions (services) to control the wand and box:
-
-- **`magic_caster_wand.vibrate`**: Triggers wand vibration motor.
-  - `duration`: Vibration duration in milliseconds.  
-    > [!NOTE]
-    > Due to wand firmware behavior, a single vibrate command produces a fixed ~800ms pulse regardless of the requested `duration` value. Sending repeated `buzz` macro commands less than 500ms apart can extend the continuous vibration pulse.
-- **`magic_caster_wand.set_led`**: Controls LED color and duration for a specific LED group (`TIP`, `MID_UPPER`, `MID_LOWER`, `POMMEL`).
-- **`magic_caster_wand.clear_leds`**: Clears all wand LEDs immediately.
-- **`magic_caster_wand.play_spell`**: Plays a pre-defined spell macro effect (e.g. `lumos`, `nox`, `incendio`).
-- **`magic_caster_wand.send_macro`**: Sends a custom sequence of macro commands (`changeled`, `clear`, `delay`, `buzz`, `set_loops`, `loop`, `wait`).
-
-## Automation Example
+Replace the entity IDs with yours. Triggering on `last_updated` also handles repeated casts of the same spell.
 
 ```yaml
-alias: Lumos
-description: ""
 triggers:
   - trigger: state
-    entity_id:
-      - sensor.mcw_5363f8ea_spell
+    entity_id: sensor.mcw_example_spell
     attribute: last_updated
-conditions: []
+conditions:
+  - condition: state
+    entity_id: sensor.mcw_example_spell
+    state: Lumos
 actions:
-  - choose:
-      - conditions:
-          - condition: state
-            entity_id: sensor.mcw_5363f8ea_spell
-            state:
-              - Lumos
-        sequence:
-          - action: light.turn_on
-            target:
-              entity_id: light.esp_kocom_livingroom_light_1
-mode: single
+  - action: light.turn_on
+    target:
+      entity_id: light.example
 ```
 
-## References
-- [Magic-Caster-Wand-Open-app-ai (whymaxwhy)](https://github.com/whymaxwhy/Magic-Caster-Wand-Open-app-ai.git)
-- [OpenCaster (Blues-Hailfire)](https://github.com/Blues-Hailfire/OpenCaster.git)
+## Important limitations
+
+A single vibration command produces a firmware-controlled pulse of about 800 ms, regardless of its duration parameter. Spell recognition using TFLite requires a separate server and compatible `model.tflite`; that model is **not publicly provided**. Hardware/proxy combinations were not newly tested during this standards adoption. See [troubleshooting](docs/troubleshooting.md).
+
+The Usage badge counts HA Analytics participating installations that opted into reporting. Missing data or a failed lookup does not mean zero installations.
+
+## Documentation
+
+- [Setup and options (English)](docs/setup.md)
+- [Full user guide, gesture gallery, Spell Canvas, actions and automation example (English)](docs/user-guide.md)
+- [Connection troubleshooting and diagnostics (English)](docs/troubleshooting.md)
+- [Development, real HA testing and dependencies (English)](CONTRIBUTING.md)
+- [Standards adoption and verification record (Korean)](STANDARDS.md)
+
+## Support and license
+
+Report bugs in [Issues](https://github.com/eigger/hass-magic-caster-wand/issues); use [Discussions](https://github.com/eigger/hass-magic-caster-wand/discussions) for questions and suggestions. Licensed under [MIT](LICENSE).
