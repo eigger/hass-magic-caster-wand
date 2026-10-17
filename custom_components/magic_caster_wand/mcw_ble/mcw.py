@@ -190,6 +190,7 @@ class McwClient:
         self._notification_dispatcher: NotificationDispatcher | None = None
         self._error_callback: Callable[[Exception], None] | None = None
         self._imu_seen: Event = Event()
+        self._imu_stop_count = 0
 
     def register_error_callback(self, callback: Callable[[Exception], None]) -> None:
         """Register a callback for notification parsing failures."""
@@ -461,17 +462,24 @@ class McwClient:
         After IMU_START_ATTEMPTS the writes are taken as delivered, in case the wand
         only reports while moving.
         """
+        stop_count = self._imu_stop_count
         for attempt in range(1, IMU_START_ATTEMPTS + 1):
             _LOGGER.debug("Starting IMU streaming (attempt %d/%d)", attempt, IMU_START_ATTEMPTS)
             self._imu_seen.clear()
             await self.write_command(struct.pack("B", MESSAGEIDS.IMUFLAG_RESET), False)
             await sleep(0.1)
+            if self._imu_stop_count != stop_count:
+                return  # stopped while starting; do not turn the stream back on
             await self.write_command(struct.pack("BBB", MESSAGEIDS.IMUFLAG_SET, 0x00, 0x80), False)
             try:
                 await wait_for(self._imu_seen.wait(), IMU_START_WAIT)
                 return
             except asyncio.TimeoutError:
                 _LOGGER.debug("No IMU data after start attempt %d/%d", attempt, IMU_START_ATTEMPTS)
+            if self._imu_stop_count != stop_count:
+                return
+        if not self.client.is_connected:
+            raise BleakError("Disconnected while starting IMU streaming")
         _LOGGER.warning(
             "No IMU data received after %d start attempts; tracking may not work until the wand moves",
             IMU_START_ATTEMPTS,
@@ -480,6 +488,7 @@ class McwClient:
     async def imu_streaming_stop(self) -> None:
         """Stop IMU data streaming"""
         _LOGGER.debug("Stopping IMU streaming")
+        self._imu_stop_count += 1
         await self.write_command(struct.pack("B", MESSAGEIDS.IMUFLAG_RESET), False)
 
     async def init_wand(self) -> None:
