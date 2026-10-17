@@ -32,8 +32,11 @@ provided to change that physical pairing.
 Enable the device's **Connect** switch before receiving spells or issuing actions.
 A connection is kept until disconnection or unload; do not assume an unlimited
 proxy slot pool or guaranteed automatic reconnection. If disconnected, wake the
-device and turn **Connect** on again. For a wand, enable **Spell Tracking** when
-IMU data or Spell Canvas is needed. After a reconnect, check its actual state.
+device and turn **Connect** on again. For built-in wand spells, leave **Spell Tracking** off: native recognized spells
+arrive through the **Spell** sensor without an external model. For the optional
+server/IMU/Spell Canvas path, prepare the compatible server and model first, then
+enable **Spell Tracking**. The current switch starts IMU only after detector
+initialization succeeds. After a reconnect, check its actual state.
 
 ## Integration options
 
@@ -45,8 +48,10 @@ Open the integration's options from **Settings → Devices & services**.
 | Spell Timeout | `0` seconds | Nonnegative time until a detected spell resets to `awaiting`; `0` disables the timeout. |
 
 The server and a compatible `model.tflite` are optional external components for
-TFLite recognition. The model is not publicly supplied. See [Spell Canvas](user-guide.md#spell-canvas)
-for the original server instructions and screenshots.
+the server recognition/Spell Canvas path. They are not needed for native wand
+spells, LED/vibration actions or button automations. The model is not publicly
+supplied. See [Spell Canvas](user-guide.md#spell-canvas) for prerequisites, grip/release
+behavior, a dashboard example and the original server screenshots.
 
 ## Entities and actions
 
