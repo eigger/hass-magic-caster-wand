@@ -123,11 +123,7 @@ def test_tracker_skips_intermediate_position_projection_without_changing_final_p
         sparse_point = sparse_tracker.update(*sample, calculate_position=index == len(samples) - 1)
 
     assert sparse_point == full_point
-    assert (
-        *sparse_tracker._state.orientation.attitude,
-    ) == (
-        *full_tracker._state.orientation.attitude,
-    )
+    assert sparse_tracker._state.orientation.attitude == full_tracker._state.orientation.attitude
 
 
 async def test_render_requests_during_interval_share_one_timer(hass, monkeypatch):

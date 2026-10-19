@@ -323,8 +323,8 @@ def trim_idle_ends(points: np.ndarray) -> tuple[int, int]:
 
     The end is pulled back one chunk at a time while the tip barely moved over
     the trailing window; the start is then pushed forward one chunk at a time
-    while the tip barely moved over the next chunk. Trimming stops once(
-)    :data:`MIN_POINTS_AFTER_TRIM` or fewer points remain, so the result can end up
+    while the tip barely moved over the next chunk. Trimming stops once
+    :data:`MIN_POINTS_AFTER_TRIM` or fewer points remain, so the result can be
     up to one chunk shorter than that.
     """
     start, end = 0, len(points)
