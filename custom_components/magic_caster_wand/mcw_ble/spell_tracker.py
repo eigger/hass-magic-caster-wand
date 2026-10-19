@@ -1,4 +1,24 @@
+"""Turn a stream of wand IMU samples into a 2D gesture and recognize it.
+
+The pipeline has three stages:
+
+1. Orientation: a Mahony complementary filter fuses the gyroscope (angular
+   rate) with the accelerometer (gravity direction) into a unit quaternion
+   describing how the wand is held.
+2. Projection: the wand is modelled as a rigid stick of fixed length pointing
+   along its body X axis. While a gesture is being recorded, the tip of that
+   stick is projected onto the vertical plane facing the heading the wand had
+   when recording began, giving one 2D point (in millimetres) per sample.
+3. Recognition: when recording stops, idle stretches at the start and end of
+   the stroke are dropped, the rest is resampled to a fixed number of points
+   evenly spaced in time, scaled into the unit square and handed to the
+   configured :class:`SpellDetector`.
+"""
+
+from __future__ import annotations
+
 import logging
+import math
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -7,165 +27,202 @@ from .spell_detector import SpellDetector
 
 _LOGGER = logging.getLogger(__name__)
 
+# ── IMU input ────────────────────────────────────────────────────────────────
+
+#: The wand streams IMU samples at this rate; the filter integrates at 1/rate.
+IMU_SAMPLE_RATE_HZ = 234.0
+IMU_SAMPLE_PERIOD_S = 1.0 / IMU_SAMPLE_RATE_HZ
+
+# ── Orientation filter ───────────────────────────────────────────────────────
+
+#: Proportional gain of the Mahony filter: how strongly the measured gravity
+#: direction pulls the gyro-integrated attitude back into line. No integral
+#: (gyro bias) term is used.
+MAHONY_PROPORTIONAL_GAIN = 0.5
+
+# ── Gesture projection ───────────────────────────────────────────────────────
+
+#: Distance from the pivot (the hand) to the wand tip, in millimetres. All
+#: recorded gesture points are tip displacements in this unit.
+WAND_LENGTH_MM = 294.0
+
+#: Upper bound on the number of points kept for a single gesture (~35 s).
+MAX_GESTURE_POINTS = 8192
+
+# ── Recognition pre-processing ───────────────────────────────────────────────
+
+#: A recording needs at least this many points to be worth recognizing.
+MIN_GESTURE_POINTS = 100
+
+#: Trimming stops once this many points or fewer remain (one final chunk may
+#: take it slightly below this value).
+MIN_POINTS_AFTER_TRIM = 120
+
+#: The tip counts as resting while it moves less than this over a window.
+IDLE_MOVEMENT_MM = 8.0
+
+#: Idle stretches are removed in chunks of this many samples.
+TRIM_CHUNK_POINTS = 10
+
+#: Window used to decide whether the end of the stroke is at rest. It is wider
+#: than the chunk size so a slow finishing flourish is not cut off.
+TRAILING_IDLE_WINDOW_POINTS = 40
+
+#: Number of points the detector expects.
+DETECTOR_INPUT_POINTS = 50
+
+#: Minimum detector confidence for a spell to be reported.
+DEFAULT_CONFIDENCE_THRESHOLD = 0.99
+
+
+# ── Quaternion helpers (w, x, y, z order, unit quaternions) ──────────────────
+
+Quaternion = tuple[float, float, float, float]
+
+_IDENTITY: Quaternion = (1.0, 0.0, 0.0, 0.0)
+
+
+def _quat_multiply(a: Quaternion, b: Quaternion) -> Quaternion:
+    """Return the Hamilton product ``a * b``."""
+    aw, ax, ay, az = a
+    bw, bx, by, bz = b
+    return (
+        aw * bw - ax * bx - ay * by - az * bz,
+        aw * bx + ax * bw + ay * bz - az * by,
+        aw * by - ax * bz + ay * bw + az * bx,
+        aw * bz + ax * by - ay * bx + az * bw,
+    )
+
+
+def _heading_of(q: Quaternion) -> float:
+    """Return the rotation about the world vertical (Z) axis, in radians."""
+    w, x, y, z = q
+    return math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
+
+
+def _rotation_about_vertical(angle: float) -> Quaternion:
+    """Return the quaternion for a rotation of ``angle`` radians about world Z."""
+    half = 0.5 * angle
+    return (math.cos(half), 0.0, 0.0, math.sin(half))
+
+
+def _wand_tip_lateral(q: Quaternion) -> tuple[float, float]:
+    """Return the world Y and Z coordinates of the wand tip for attitude ``q``.
+
+    The wand points along its body X axis, so the tip is the first column of
+    the rotation matrix scaled by the wand length. The X (depth) component is
+    not needed for the projection and is not computed.
+    """
+    w, x, y, z = q
+    tip_y = 2.0 * (x * y + w * z) * WAND_LENGTH_MM
+    tip_z = 2.0 * (x * z - w * y) * WAND_LENGTH_MM
+    return tip_y, tip_z
+
+
+class MahonyFilter:
+    """Attitude estimator fusing gyroscope and accelerometer readings.
+
+    Each step rotates the current attitude by the measured angular rate. Before
+    integrating, the rate is nudged by the cross product between the measured
+    gravity direction and the gravity direction predicted by the current
+    attitude, which slowly removes roll and pitch drift. Heading (yaw) is not
+    observable without a magnetometer and is left to the gyroscope alone.
+    """
+
+    def __init__(self, proportional_gain: float = MAHONY_PROPORTIONAL_GAIN) -> None:
+        self.proportional_gain = proportional_gain
+        self.attitude: Quaternion = _IDENTITY
+
+    def step(
+        self,
+        gyro: tuple[float, float, float],
+        accel: tuple[float, float, float],
+        dt: float,
+    ) -> Quaternion:
+        """Advance the filter by ``dt`` seconds and return the new attitude.
+
+        ``gyro`` is in rad/s; ``accel`` may be in any unit since only its
+        direction is used. An all-zero or invalid accelerometer reading skips
+        the gravity correction for this step.
+        """
+        w, x, y, z = self.attitude
+        rate_x, rate_y, rate_z = gyro
+        acc_x, acc_y, acc_z = accel
+
+        acc_norm = math.sqrt(acc_x * acc_x + acc_y * acc_y + acc_z * acc_z)
+        if acc_norm > 0.0 and math.isfinite(acc_norm):
+            acc_x, acc_y, acc_z = acc_x / acc_norm, acc_y / acc_norm, acc_z / acc_norm
+
+            # World "up" expressed in the sensor frame (last row of the
+            # body-to-world rotation matrix).
+            up_x = 2.0 * (x * z - w * y)
+            up_y = 2.0 * (w * x + y * z)
+            up_z = w * w - x * x - y * y + z * z
+
+            # Misalignment between measured and predicted gravity.
+            gain = self.proportional_gain
+            rate_x += gain * (acc_y * up_z - acc_z * up_y)
+            rate_y += gain * (acc_z * up_x - acc_x * up_z)
+            rate_z += gain * (acc_x * up_y - acc_y * up_x)
+
+        # First-order integration of dq/dt = 0.5 * q * (0, rate).
+        half_dt = 0.5 * dt
+        new_w = w + half_dt * (-x * rate_x - y * rate_y - z * rate_z)
+        new_x = x + half_dt * (w * rate_x + y * rate_z - z * rate_y)
+        new_y = y + half_dt * (w * rate_y - x * rate_z + z * rate_x)
+        new_z = z + half_dt * (w * rate_z + x * rate_y - y * rate_x)
+
+        norm = math.sqrt(new_w * new_w + new_x * new_x + new_y * new_y + new_z * new_z)
+        if norm > 0.0 and math.isfinite(norm):
+            self.attitude = (new_w / norm, new_x / norm, new_y / norm, new_z / norm)
+        else:
+            _LOGGER.debug("Orientation filter diverged; resetting attitude")
+            self.attitude = _IDENTITY
+        return self.attitude
+
 
 @dataclass
 class SpellTrackerState:
-    ahrs_quat_q0: np.float32 = 1.0
-    ahrs_quat_q1: np.float32 = 0.0
-    ahrs_quat_q2: np.float32 = 0.0
-    ahrs_quat_q3: np.float32 = 0.0
+    """Mutable state of a :class:`SpellTracker`."""
+
+    orientation: MahonyFilter = field(default_factory=MahonyFilter)
+    tracking_active: bool = False
+    #: Rotation that cancels the heading the wand had when recording began.
+    heading_offset: Quaternion = _IDENTITY
+    #: Tip position (world Y, Z) when recording began, in millimetres.
+    start_tip: tuple[float, float] = (0.0, 0.0)
+    points: np.ndarray = field(default_factory=lambda: np.zeros((MAX_GESTURE_POINTS, 2), dtype=np.float32))
     position_count: int = 0
-    initial_yaw: np.float32 = 0.0
-    tracking_active: int = 0
-    positions: np.ndarray = field(default_factory=lambda: np.zeros((8192, 2), dtype=np.float32))
-    start_pos_z: np.float32 = -294.0
-    start_quat_q0: np.float32 = 0.0
-    inv_quat_q0: np.float32 = 0.0
-    ref_vec_x: np.float32 = 0.0
-    ref_vec_y: np.float32 = 0.0
-    ref_vec_z: np.float32 = 0.0
-    start_quat_q1: np.float32 = 0.0
-    start_quat_q2: np.float32 = 0.0
-    start_quat_q3: np.float32 = 0.0
-    inv_quat_q1: np.float32 = 0.0
-    inv_quat_q2: np.float32 = 0.0
-    inv_quat_q3: np.float32 = 0.0
 
 
 class SpellTracker:
-    _CONST_NEG_2_0 = np.float32(-2.0)
-    _CONST_NEG_1_0 = np.float32(-1.0)
-    _CONST_NEG_0_5 = np.float32(-0.5)
-    _CONST_NEG_0_0 = np.float32(-0.0)
-
-    _CONST_0_0 = np.float32(0.0)
-    _CONST_0_5 = np.float32(0.5)
-    _CONST_0_99 = np.float32(0.99)
-    _CONST_1_0 = np.float32(1.0)
-    _CONST_1_5 = np.float32(1.5)
-    _CONST_2_0 = np.float32(2.0)
-
-    _CONST_GRAVITY = np.float32(9.8100004196167)
-    _CONST_MILLIMETERMOVETHRESHOLD = np.float32(8.0)
-    _CONST_PI = np.float32(np.pi)
+    """Record wand gestures from IMU samples and recognize them as spells."""
 
     def __init__(self, detector: SpellDetector | None):
         self._detector: SpellDetector | None = detector
-        self._state: SpellTrackerState = SpellTrackerState()
+        self._state = SpellTrackerState()
 
-    @staticmethod
-    def _inv_sqrt(x: np.float32) -> np.float32:
-        if not np.isfinite(x) or x <= SpellTracker._CONST_0_0:
-            return SpellTracker._CONST_0_0
-        x2 = SpellTracker._CONST_0_5 * x
-        # use ndarray view to avoid scalar .view limitations
-        y = np.array([x], dtype=np.float32)
-        i = y.view(np.uint32)
-        i[:] = np.uint32(0x5F3759DF) - (i >> 1)
-        y = i.view(np.float32)
-        y = y * (SpellTracker._CONST_1_5 - (x2 * y * y))
-        return np.float32(y[0])
-
-    @staticmethod
-    def _wrap_to_2pi(angle: np.float32) -> np.float32:
-        return angle if angle >= 0.0 else angle + SpellTracker._CONST_2_0 * SpellTracker._CONST_PI
+    # ── Lifecycle ────────────────────────────────────────────────────────────
 
     def start(self) -> None:
-        self._state.position_count = 0
+        """Begin recording a new gesture from the wand's current pose.
 
-        roll, pitch, yaw = self._calc_eulers_from_attitude()
-        self._state.initial_yaw = yaw
+        The current heading becomes "straight ahead" and the current tip
+        position becomes the origin of the drawing plane.
+        """
+        state = self._state
+        attitude = state.orientation.attitude
+        state.heading_offset = _rotation_about_vertical(-_heading_of(attitude))
+        state.start_tip = _wand_tip_lateral(_quat_multiply(state.heading_offset, attitude))
 
-        half_roll: np.float32 = roll * SpellTracker._CONST_0_5
-        dStack_c: np.float32 = np.float32(np.sin(half_roll))
-        dStack_14: np.float32 = np.float32(np.cos(half_roll))
-
-        half_pitch: np.float32 = pitch * SpellTracker._CONST_0_5
-        dStack_1c: np.float32 = np.float32(np.sin(half_pitch))
-        dStack_24: np.float32 = np.float32(np.cos(half_pitch))
-
-        self._state.start_quat_q0 = np.float32(dStack_c * dStack_1c * SpellTracker._CONST_0_0 + dStack_14 * dStack_24)
-        self._state.start_quat_q1 = np.float32(dStack_c * dStack_24 - dStack_14 * dStack_1c * SpellTracker._CONST_0_0)
-        self._state.start_quat_q2 = np.float32(dStack_c * dStack_24 * SpellTracker._CONST_0_0 + dStack_14 * dStack_1c)
-        self._state.start_quat_q3 = np.float32(dStack_14 * dStack_24 * SpellTracker._CONST_0_0 - dStack_c * dStack_1c)
-
-        fVar4: np.float32 = SpellTracker._CONST_NEG_1_0 / (
-            self._state.start_quat_q3 * self._state.start_quat_q3
-            + self._state.start_quat_q2 * self._state.start_quat_q2
-            + self._state.start_quat_q1 * self._state.start_quat_q1
-            + self._state.start_quat_q0 * self._state.start_quat_q0
-        )
-        fVar1: np.float32 = fVar4 * self._state.start_quat_q0
-        self._state.inv_quat_q1 = fVar4 * self._state.start_quat_q1
-        fVar2: np.float32 = fVar1 * SpellTracker._CONST_NEG_0_0
-        fVar7: np.float32 = self._state.inv_quat_q1 * SpellTracker._CONST_0_0
-        self._state.inv_quat_q2 = fVar4 * self._state.start_quat_q2
-        self._state.inv_quat_q3 = fVar4 * self._state.start_quat_q3
-        fVar8: np.float32 = self._state.inv_quat_q2 * SpellTracker._CONST_0_0
-        fVar4: np.float32 = self._state.inv_quat_q3 * SpellTracker._CONST_0_0
-
-        fVar5: np.float32 = ((fVar7 - self._state.start_pos_z * fVar1) - fVar8) - fVar4
-        fVar3: np.float32 = ((fVar2 - self._state.start_pos_z * self._state.inv_quat_q1) - fVar8) - fVar4
-        fVar9: np.float32 = ((fVar8 + fVar2) - self._state.start_pos_z * self._state.inv_quat_q3) + fVar7
-        fVar7: np.float32 = (self._state.start_pos_z * self._state.inv_quat_q2 + fVar4 + fVar2) - fVar7
-
-        fVar8: np.float32 = (
-            fVar7 * self._state.start_quat_q2 + fVar3 * self._state.start_quat_q1 + fVar5 * self._state.start_quat_q0
-        ) - fVar9 * self._state.start_quat_q3
-        fVar4: np.float32 = fVar5 * self._state.start_quat_q3 + (
-            (fVar3 * self._state.start_quat_q2 + fVar9 * self._state.start_quat_q0) - fVar7 * self._state.start_quat_q1
-        )
-        fVar10: np.float32 = (
-            fVar9 * self._state.start_quat_q1 + fVar3 * self._state.start_quat_q3 + fVar7 * self._state.start_quat_q0
-        ) - fVar5 * self._state.start_quat_q2
-
-        fVar6: np.float32 = SpellTracker._CONST_NEG_1_0 / (
-            self._state.inv_quat_q3 * self._state.inv_quat_q3
-            + self._state.inv_quat_q2 * self._state.inv_quat_q2
-            + self._state.inv_quat_q1 * self._state.inv_quat_q1
-            + fVar1 * fVar1
-        )
-        self._state.inv_quat_q0 = -fVar1
-        fVar2: np.float32 = -fVar1 * fVar6
-        fVar5: np.float32 = self._state.inv_quat_q1 * fVar6
-        fVar11: np.float32 = self._state.inv_quat_q2 * fVar6
-        fVar6: np.float32 = self._state.inv_quat_q3 * fVar6
-        fVar7: np.float32 = ((fVar2 * SpellTracker._CONST_NEG_0_0 - fVar5 * fVar8) - fVar11 * fVar4) - fVar6 * fVar10
-        fVar9: np.float32 = (fVar6 * fVar4 + (fVar5 * SpellTracker._CONST_0_0 - fVar8 * fVar2)) - fVar11 * fVar10
-        fVar3: np.float32 = fVar5 * fVar10 + ((fVar11 * SpellTracker._CONST_0_0 - fVar4 * fVar2) - fVar6 * fVar8)
-        fVar4: np.float32 = (fVar11 * fVar8 + (fVar6 * SpellTracker._CONST_0_0 - fVar2 * fVar10)) - fVar5 * fVar4
-
-        self._state.ref_vec_x = (
-            self._state.inv_quat_q2 * fVar4 + (self._state.inv_quat_q1 * fVar7 - fVar9 * fVar1)
-        ) - self._state.inv_quat_q3 * fVar3
-        self._state.ref_vec_y = self._state.inv_quat_q3 * fVar9 + (
-            (self._state.inv_quat_q2 * fVar7 - fVar3 * fVar1) - self._state.inv_quat_q1 * fVar4
-        )
-        self._state.ref_vec_z = (
-            fVar3 * self._state.inv_quat_q1 + (fVar7 * self._state.inv_quat_q3 - fVar4 * fVar1)
-        ) - fVar9 * self._state.inv_quat_q2
-
-        self._state.positions[0] = np.float32(0.0), np.float32(0.0)
-        self._state.position_count = 1
-        self._state.tracking_active = 1
-
-    _RECOGNITION_ERRORS = {
-        -1: "no movement detected",
-        -2: "not enough data points",
-        -3: "no spell recognized with sufficient confidence",
-        -4: "no detector configured",
-    }
+        state.points[0] = (0.0, 0.0)
+        state.position_count = 1
+        state.tracking_active = True
 
     async def stop(self) -> str | None:
-        self._state.tracking_active = 0
-        result = await self._recognize_spell()
-        if isinstance(result, str):
-            return result
-        _LOGGER.debug(
-            "Spell recognition failed: %s",
-            self._RECOGNITION_ERRORS.get(result, f"unknown error {result}"),
-        )
-        return None
+        """Finish recording and return the recognized spell name, if any."""
+        self._state.tracking_active = False
+        return await self._recognize_spell()
 
     def abort(self) -> None:
         """Discard an in-flight recording without attempting recognition.
@@ -173,7 +230,7 @@ class SpellTracker:
         Used when a cast is interrupted rather than completed -- a disconnect
         mid-gesture -- so the partial sample run cannot be carried into the next one.
         """
-        self._state.tracking_active = 0
+        self._state.tracking_active = False
         self._state.position_count = 0
 
     async def close(self) -> None:
@@ -191,336 +248,135 @@ class SpellTracker:
         """Return the underlying detector."""
         return self._detector
 
+    # ── Per-sample processing ────────────────────────────────────────────────
+
     def update(
         self,
-        ax: np.float32,
-        ay: np.float32,
-        az: np.float32,
-        gx: np.float32,
-        gy: np.float32,
-        gz: np.float32,
+        ax: float,
+        ay: float,
+        az: float,
+        gx: float,
+        gy: float,
+        gz: float,
         *,
         calculate_position: bool = True,
-    ) -> tuple[np.float32, np.float32] | None:
+    ) -> tuple[float, float] | None:
+        """Feed one IMU sample (accel in g, gyro in rad/s).
 
-        self._update_imu_only(
-            gx,
-            gy,
-            gz,
-            ax * SpellTracker._CONST_GRAVITY,
-            ay * SpellTracker._CONST_GRAVITY,
-            az * SpellTracker._CONST_GRAVITY,
-            np.float32(0.0042735),
+        The orientation filter always advances. While recording, and when
+        ``calculate_position`` is true, the wand tip is projected onto the
+        drawing plane; the point is stored and returned as ``(x, y)`` in
+        millimetres relative to where recording began, with x growing to the
+        right and y growing downward (screen convention). Otherwise ``None``
+        is returned.
+        """
+        state = self._state
+        attitude = state.orientation.step(
+            (float(gx), float(gy), float(gz)),
+            (float(ax), float(ay), float(az)),
+            IMU_SAMPLE_PERIOD_S,
         )
 
-        if self._state.tracking_active != 1:
+        if not state.tracking_active or not calculate_position:
             return None
 
-        if not calculate_position:
-            return None
+        tip_y, tip_z = _wand_tip_lateral(_quat_multiply(state.heading_offset, attitude))
+        start_y, start_z = state.start_tip
+        # World +Y is to the user's left and +Z is up; flip both for screen axes.
+        point = (start_y - tip_y, start_z - tip_z)
 
-        roll, pitch, yaw = self._calc_eulers_from_attitude()
+        if state.position_count < MAX_GESTURE_POINTS:
+            state.points[state.position_count] = point
+            state.position_count += 1
 
-        fVar1: np.float32 = yaw - self._state.initial_yaw
+        return point
 
-        half_roll: np.float32 = roll * SpellTracker._CONST_0_5
-        dStack_24: np.float32 = np.sin(half_roll)
-        dStack_2c: np.float32 = np.cos(half_roll)
+    # ── Recognition ──────────────────────────────────────────────────────────
 
-        half_pitch: np.float32 = pitch * SpellTracker._CONST_0_5
-        dStack_14: np.float32 = np.sin(half_pitch)
-        dStack_1c: np.float32 = np.cos(half_pitch)
-
-        half_yaw: np.float32 = fVar1 * SpellTracker._CONST_0_5
-        dStack_34: np.float32 = np.sin(half_yaw)
-        dStack_3c: np.float32 = np.cos(half_yaw)
-
-        fVar9: np.float32 = dStack_34 * dStack_24 * dStack_14 + dStack_3c * dStack_2c * dStack_1c
-        fVar5: np.float32 = dStack_3c * dStack_24 * dStack_1c - dStack_34 * dStack_2c * dStack_14
-        fVar11: np.float32 = dStack_24 * dStack_1c * dStack_34 + dStack_2c * dStack_14 * dStack_3c
-        fVar3: np.float32 = dStack_2c * dStack_1c * dStack_34 - dStack_24 * dStack_14 * dStack_3c
-
-        fVar7: np.float32 = SpellTracker._CONST_NEG_1_0 / (
-            fVar3 * fVar3 + fVar11 * fVar11 + fVar5 * fVar5 + fVar9 * fVar9
-        )
-        fVar2: np.float32 = fVar7 * fVar9 * SpellTracker._CONST_NEG_0_0
-        fVar10: np.float32 = fVar7 * fVar5 * SpellTracker._CONST_0_0
-        fVar6: np.float32 = fVar7 * fVar11 * SpellTracker._CONST_0_0
-        fVar8: np.float32 = fVar7 * fVar3 * SpellTracker._CONST_0_0
-
-        fVar4: np.float32 = ((fVar10 - self._state.start_pos_z * fVar7 * fVar9) + fVar8) - fVar6
-        fVar1: np.float32 = ((fVar2 - self._state.start_pos_z * fVar7 * fVar5) - fVar6) - fVar8
-        fVar6: np.float32 = ((fVar6 + fVar2) - self._state.start_pos_z * fVar7 * fVar3) + fVar10
-        fVar10: np.float32 = (fVar7 * fVar11 * self._state.start_pos_z + fVar8 + fVar2) - fVar10
-        fVar7: np.float32 = (fVar10 * fVar11 + fVar1 * fVar5 + fVar4 * fVar9) - fVar6 * fVar3
-        fVar2: np.float32 = fVar4 * fVar3 + ((fVar1 * fVar11 + fVar6 * fVar9) - fVar10 * fVar5)
-        fVar4: np.float32 = (fVar6 * fVar5 + fVar1 * fVar3 + fVar10 * fVar9) - fVar4 * fVar11
-
-        fVar6: np.float32 = SpellTracker._CONST_NEG_1_0 / (
-            self._state.inv_quat_q3 * self._state.inv_quat_q3
-            + self._state.inv_quat_q2 * self._state.inv_quat_q2
-            + self._state.inv_quat_q1 * self._state.inv_quat_q1
-            + self._state.inv_quat_q0 * self._state.inv_quat_q0
-        )
-        fVar8: np.float32 = self._state.inv_quat_q0 * fVar6
-        fVar5: np.float32 = self._state.inv_quat_q1 * fVar6
-        fVar3: np.float32 = self._state.inv_quat_q2 * fVar6
-        fVar6: np.float32 = fVar6 * self._state.inv_quat_q3
-
-        fVar11: np.float32 = ((fVar8 * SpellTracker._CONST_NEG_0_0 - fVar5 * fVar7) - fVar3 * fVar2) - fVar6 * fVar4
-        fVar1: np.float32 = (fVar6 * fVar2 + (fVar5 * SpellTracker._CONST_0_0 - fVar7 * fVar8)) - fVar3 * fVar4
-        fVar12: np.float32 = fVar5 * fVar4 + ((fVar3 * SpellTracker._CONST_0_0 - fVar2 * fVar8) - fVar6 * fVar7)
-        fVar2: np.float32 = (fVar3 * fVar7 + (fVar6 * SpellTracker._CONST_0_0 - fVar8 * fVar4)) - fVar5 * fVar2
-
-        fVar9: np.float32 = SpellTracker._CONST_NEG_1_0 / (
-            self._state.start_quat_q3 * self._state.start_quat_q3
-            + self._state.start_quat_q2 * self._state.start_quat_q2
-            + self._state.start_quat_q1 * self._state.start_quat_q1
-            + self._state.start_quat_q0 * self._state.start_quat_q0
-        )
-        fVar3: np.float32 = (
-            (self._state.inv_quat_q2 * fVar2 + self._state.inv_quat_q1 * fVar11 + self._state.inv_quat_q0 * fVar1)
-            - self._state.inv_quat_q3 * fVar12
-        ) - self._state.ref_vec_x
-        fVar7: np.float32 = self._state.start_quat_q0 * fVar9
-        fVar10: np.float32 = self._state.start_quat_q1 * fVar9
-
-        fVar4: np.float32 = (
-            self._state.inv_quat_q3 * fVar1
-            + ((self._state.inv_quat_q2 * fVar11 + self._state.inv_quat_q0 * fVar12) - self._state.inv_quat_q1 * fVar2)
-        ) - self._state.ref_vec_y
-        fVar8: np.float32 = self._state.start_quat_q2 * fVar9
-        fVar5: np.float32 = (
-            (fVar12 * self._state.inv_quat_q1 + fVar11 * self._state.inv_quat_q3 + fVar2 * self._state.inv_quat_q0)
-            - fVar1 * self._state.inv_quat_q2
-        ) - self._state.ref_vec_z
-        fVar9: np.float32 = fVar9 * self._state.start_quat_q3
-
-        fVar2: np.float32 = ((fVar7 * SpellTracker._CONST_NEG_0_0 - fVar10 * fVar3) - fVar8 * fVar4) - fVar9 * fVar5
-        fVar1: np.float32 = (fVar9 * fVar4 + (fVar10 * SpellTracker._CONST_0_0 - fVar3 * fVar7)) - fVar8 * fVar5
-        fVar6: np.float32 = fVar10 * fVar5 + ((fVar8 * SpellTracker._CONST_0_0 - fVar4 * fVar7) - fVar9 * fVar3)
-        fVar4: np.float32 = (fVar8 * fVar3 + (fVar9 * SpellTracker._CONST_0_0 - fVar7 * fVar5)) - fVar10 * fVar4
-
-        fVar3: np.float32 = self._state.start_quat_q3 * fVar1 + (
-            (self._state.start_quat_q2 * fVar2 + self._state.start_quat_q0 * fVar6) - self._state.start_quat_q1 * fVar4
-        )
-        fVar1: np.float32 = (
-            fVar6 * self._state.start_quat_q1 + fVar2 * self._state.start_quat_q3 + fVar4 * self._state.start_quat_q0
-        ) - fVar1 * self._state.start_quat_q2
-
-        if self._state.position_count < 0x2000:
-            self._state.positions[self._state.position_count] = (fVar3, fVar1)
-            self._state.position_count += 1
-
-        return (fVar3, fVar1)
-
-    def _calc_eulers_from_attitude(self) -> tuple[np.float32, np.float32, np.float32]:
-        qw: np.float32 = self._state.ahrs_quat_q0
-        qx: np.float32 = self._state.ahrs_quat_q1
-        qy: np.float32 = self._state.ahrs_quat_q2
-        qz: np.float32 = self._state.ahrs_quat_q3
-
-        # Calculate roll
-        sinroll_cospitch: np.float32 = SpellTracker._CONST_2_0 * (qy * qz + qw * qx)
-        cosroll_cospitch: np.float32 = SpellTracker._CONST_1_0 - SpellTracker._CONST_2_0 * (qx * qx + qy * qy)
-        roll: np.float32 = np.float32(np.arctan2(sinroll_cospitch, cosroll_cospitch))
-
-        # Calculate pitch
-        gimbal_test: np.float32 = qw * qz + qx * qy
-        if gimbal_test != SpellTracker._CONST_0_5 or np.isnan(gimbal_test):
-            if gimbal_test != SpellTracker._CONST_NEG_0_5 or np.isnan(gimbal_test):
-                sinpitch: np.float32 = SpellTracker._CONST_2_0 * (qw * qy - qz * qx)
-                sinpitch_clamped: np.float32 = np.clip(sinpitch, SpellTracker._CONST_NEG_1_0, SpellTracker._CONST_1_0)
-                pitch: np.float32 = np.float32(np.arcsin(sinpitch_clamped))
-            else:
-                pitch: np.float32 = SpellTracker._CONST_NEG_2_0 * np.float32(np.arctan2(qx, qw))
-        else:
-            pitch: np.float32 = SpellTracker._CONST_2_0 * np.float32(np.arctan2(qx, qw))
-
-        # Calculate yaw
-        sinyaw_cospitch: np.float32 = SpellTracker._CONST_2_0 * (qw * qz + qx * qy)
-        cosyaw_cospitch: np.float32 = SpellTracker._CONST_1_0 - SpellTracker._CONST_2_0 * (qy * qy + qz * qz)
-        yaw: np.float32 = np.float32(np.arctan2(sinyaw_cospitch, cosyaw_cospitch))
-
-        return self._wrap_to_2pi(roll), pitch, self._wrap_to_2pi(yaw)
-
-    def _update_imu_only(
-        self,
-        gx: np.float32,
-        gy: np.float32,
-        gz: np.float32,
-        ax: np.float32,
-        ay: np.float32,
-        az: np.float32,
-        dt: np.float32,
-    ) -> None:
-        if (
-            ax != SpellTracker._CONST_0_0
-            or np.isnan(ax)
-            or ay != SpellTracker._CONST_0_0
-            or np.isnan(ay)
-            or az != SpellTracker._CONST_0_0
-            or np.isnan(az)
-        ):
-            fVar2: np.float32 = az * az + ay * ay + ax * ax
-            fVar1: np.float32 = self._inv_sqrt(fVar2)
-            fVar3: np.float32 = (
-                self._state.ahrs_quat_q1 * self._state.ahrs_quat_q3
-                - self._state.ahrs_quat_q0 * self._state.ahrs_quat_q2
-            )
-            fVar2: np.float32 = (
-                self._state.ahrs_quat_q3 * self._state.ahrs_quat_q2
-                + self._state.ahrs_quat_q1 * self._state.ahrs_quat_q0
-            )
-            fVar4: np.float32 = (
-                self._state.ahrs_quat_q3 * self._state.ahrs_quat_q3
-                + self._state.ahrs_quat_q0 * self._state.ahrs_quat_q0
-                + SpellTracker._CONST_NEG_0_5
-            )
-            gx: np.float32 = gx + (ay * fVar1 * fVar4 - fVar1 * az * fVar2)
-            gy: np.float32 = gy + (fVar1 * az * fVar3 - fVar4 * ax * fVar1)
-            gz: np.float32 = gz + (fVar2 * ax * fVar1 - fVar3 * ay * fVar1)
-
-        fVar1: np.float32 = dt * SpellTracker._CONST_0_5
-        fVar6: np.float32 = gx * fVar1
-        fVar4: np.float32 = gy * fVar1
-        fVar1: np.float32 = fVar1 * gz
-
-        fVar3 = (
-            (-(fVar6 * self._state.ahrs_quat_q1) - fVar4 * self._state.ahrs_quat_q2) - fVar1 * self._state.ahrs_quat_q3
-        ) + self._state.ahrs_quat_q0
-        fVar2 = (
-            (fVar1 * self._state.ahrs_quat_q2 + self._state.ahrs_quat_q0 * fVar6) - fVar4 * self._state.ahrs_quat_q3
-        ) + self._state.ahrs_quat_q1
-        fVar5 = (
-            fVar6 * self._state.ahrs_quat_q3
-            + (fVar4 * self._state.ahrs_quat_q0 - fVar1 * self._state.ahrs_quat_q1)
-            + self._state.ahrs_quat_q2
-        )
-        fVar4 = (
-            (fVar4 * self._state.ahrs_quat_q1 + fVar1 * self._state.ahrs_quat_q0) - fVar6 * self._state.ahrs_quat_q2
-        ) + self._state.ahrs_quat_q3
-        fVar6 = fVar4 * fVar4 + fVar5 * fVar5 + fVar2 * fVar2 + fVar3 * fVar3
-        fVar1 = self._inv_sqrt(fVar6)
-
-        self._state.ahrs_quat_q0 = fVar3 * fVar1
-        self._state.ahrs_quat_q1 = fVar2 * fVar1
-        self._state.ahrs_quat_q2 = fVar5 * fVar1
-        self._state.ahrs_quat_q3 = fVar1 * fVar4
-
-    async def _recognize_spell(self, confidence_threshold: np.float32 = _CONST_0_99) -> str | int:
-        _LOGGER.debug("Spell recognition started with %d positions", self._state.position_count)
-        """
-        Recognize a spell/gesture from recorded positions.
-
-        Returns:
-            The recognized spell name as a string, or a negative integer error code:
-            -1: No movement detected
-            -2: Not enough data points (need > 99)
-            -3: No spell recognized with sufficient confidence
-            -4: No detector configured
-        """
+    async def _recognize_spell(self, confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD) -> str | None:
+        """Prepare the recorded gesture and ask the detector to classify it."""
+        count = self._state.position_count
+        _LOGGER.debug("Spell recognition started with %d positions", count)
 
         if self._detector is None:
-            return -4  # No detector configured
+            _LOGGER.debug("Spell recognition skipped: no detector configured")
+            return None
 
-        positions: np.ndarray = self._state.positions
-        position_count: int = self._state.position_count
+        features = build_detector_input(self._state.points[:count])
+        if features is None:
+            return None
 
-        # Phase 1: Calculate bounding box (min/max X and Y)
-        min_x: np.float32 = np.float32(np.inf)
-        max_x: np.float32 = np.float32(-np.inf)
-        min_y: np.float32 = np.float32(np.inf)
-        max_y: np.float32 = np.float32(-np.inf)
-
-        for i in range(position_count):
-            x: np.float32 = positions[i, 0]
-            y: np.float32 = positions[i, 1]
-            if x < min_x:
-                min_x: np.float32 = x
-            if x > max_x:
-                max_x: np.float32 = x
-            if y < min_y:
-                min_y: np.float32 = y
-            if y > max_y:
-                max_y: np.float32 = y
-
-        # Compute bounding box size (larger of width or height)
-        width: np.float32 = max_x - min_x
-        height: np.float32 = max_y - min_y
-        bbox_size: np.float32 = np.maximum(width, height)
-
-        # Phase 2: Early exit checks
-        if bbox_size <= SpellTracker._CONST_0_0:
-            return -1  # No movement detected
-
-        if position_count <= 99:
-            return -2  # Not enough data points
-
-        # Phase 3: Trim stationary tail (end of gesture)
-        threshold_sq = SpellTracker._CONST_MILLIMETERMOVETHRESHOLD * SpellTracker._CONST_MILLIMETERMOVETHRESHOLD
-        end_index = position_count
-
-        if threshold_sq > SpellTracker._CONST_0_0:
-            while end_index >= 121:  # 0x79 = 121
-                # Compare points 40 apart from the end
-                curr_idx = end_index - 1
-                prev_idx = curr_idx - 40
-
-                dx = positions[curr_idx, 0] - positions[prev_idx, 0]
-                dy = positions[curr_idx, 1] - positions[prev_idx, 1]
-                dist_sq = dx * dx + dy * dy
-
-                if dist_sq >= threshold_sq:
-                    break
-
-                end_index -= 10
-
-        # Phase 4: Trim stationary head (start of gesture)
-        start_index = 0
-
-        if threshold_sq > SpellTracker._CONST_0_0 and end_index > 120:
-            while start_index < end_index - 120:  # Keep at least 120 points
-                # Compare points 10 apart from the start
-                curr_idx = start_index
-                next_idx = curr_idx + 10
-
-                dx = positions[next_idx, 0] - positions[curr_idx, 0]
-                dy = positions[next_idx, 1] - positions[curr_idx, 1]
-                dist_sq = dx * dx + dy * dy
-
-                if dist_sq >= threshold_sq:
-                    break
-
-                start_index += 10
-
-        # Adjust indices for resampling
-        start_float = np.float32(start_index + 1)
-        trimmed_count = end_index - start_index
-
-        # Phase 5: Resample to 50 normalized points (100 floats)
-        pos_inputs = np.zeros((50, 2), dtype=np.float32)
-        step = np.float32(trimmed_count) / np.float32(50.0)
-
-        sample_pos = start_float
-        for i in range(50):
-            idx = int(sample_pos)
-
-            # Clamp index to valid range
-            if idx >= position_count:
-                idx = position_count - 1
-            if idx < 0:
-                idx = 0
-
-            # Normalize to [0, 1] based on bounding box
-            pos_inputs[i, 0] = (positions[idx, 0] - min_x) / bbox_size
-            pos_inputs[i, 1] = (positions[idx, 1] - min_y) / bbox_size
-
-            sample_pos += step
-
-        # Phase 6: Run spell detection via the configured detector
-        spell_name: str | None = await self._detector.detect(pos_inputs, confidence_threshold)
+        spell_name = await self._detector.detect(features, np.float32(confidence_threshold))
         if spell_name is None:
-            return -3  # No spell recognized with sufficient confidence
-
+            _LOGGER.debug("Spell recognition failed: no spell recognized with sufficient confidence")
         return spell_name
+
+
+def _is_idle(points: np.ndarray, first: int, second: int) -> bool:
+    """Return whether the tip moved less than the idle threshold between two samples."""
+    dx, dy = points[second] - points[first]
+    return dx * dx + dy * dy < IDLE_MOVEMENT_MM * IDLE_MOVEMENT_MM
+
+
+def trim_idle_ends(points: np.ndarray) -> tuple[int, int]:
+    """Return ``(start, end)`` bounds of the stroke with resting ends removed.
+
+    The end is pulled back one chunk at a time while the tip barely moved over
+    the trailing window; the start is then pushed forward one chunk at a time
+    while the tip barely moved over the next chunk. Trimming stops once
+    :data:`MIN_POINTS_AFTER_TRIM` or fewer points remain, so the result can be
+    up to one chunk shorter than that.
+    """
+    start, end = 0, len(points)
+
+    while end > MIN_POINTS_AFTER_TRIM and _is_idle(points, end - 1 - TRAILING_IDLE_WINDOW_POINTS, end - 1):
+        end -= TRIM_CHUNK_POINTS
+
+    while end - start > MIN_POINTS_AFTER_TRIM and _is_idle(points, start, start + TRIM_CHUNK_POINTS):
+        start += TRIM_CHUNK_POINTS
+
+    return start, end
+
+
+def resample_uniform(points: np.ndarray, count: int) -> np.ndarray:
+    """Resample a polyline to ``count`` points evenly spaced in time.
+
+    Samples arrive at a fixed rate, so time is proportional to sample index.
+    The stroke is split into ``count`` equal time slices and the position at
+    the start of each slice is taken, linearly interpolating between samples.
+    """
+    source_index = np.arange(len(points), dtype=np.float64)
+    target_index = np.arange(count, dtype=np.float64) * (len(points) / count)
+    resampled = np.empty((count, 2), dtype=np.float32)
+    resampled[:, 0] = np.interp(target_index, source_index, points[:, 0])
+    resampled[:, 1] = np.interp(target_index, source_index, points[:, 1])
+    return resampled
+
+
+def build_detector_input(points: np.ndarray) -> np.ndarray | None:
+    """Convert a recorded gesture into the detector's ``(50, 2)`` input.
+
+    Coordinates are shifted so the recording's bounding box starts at the
+    origin and divided by the longer side of that box, so the shape keeps its
+    aspect ratio and fits in ``[0, 1]``. Returns ``None`` (after logging why)
+    when the recording cannot be recognized.
+    """
+    if len(points) == 0:
+        _LOGGER.debug("Spell recognition failed: no movement detected")
+        return None
+
+    lower = points.min(axis=0)
+    extent = float((points.max(axis=0) - lower).max())
+    if not extent > 0.0:
+        _LOGGER.debug("Spell recognition failed: no movement detected")
+        return None
+
+    if len(points) < MIN_GESTURE_POINTS:
+        _LOGGER.debug("Spell recognition failed: not enough data points (%d)", len(points))
+        return None
+
+    # The bounding box above deliberately covers the whole recording, resting
+    # ends included, so scaling matches what the detector was trained on.
+    start, end = trim_idle_ends(points)
+    stroke = resample_uniform(points[start:end], DETECTOR_INPUT_POINTS)
+    return ((stroke - lower) / extent).astype(np.float32)
