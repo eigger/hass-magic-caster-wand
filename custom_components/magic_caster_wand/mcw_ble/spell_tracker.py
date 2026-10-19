@@ -33,9 +33,6 @@ _LOGGER = logging.getLogger(__name__)
 IMU_SAMPLE_RATE_HZ = 234.0
 IMU_SAMPLE_PERIOD_S = 1.0 / IMU_SAMPLE_RATE_HZ
 
-#: Accelerometer samples arrive in units of g; they are converted to m/s^2.
-STANDARD_GRAVITY_MS2 = 9.81
-
 # ── Orientation filter ───────────────────────────────────────────────────────
 
 #: Proportional gain of the Mahony filter: how strongly the measured gravity
@@ -57,7 +54,8 @@ MAX_GESTURE_POINTS = 8192
 #: A recording needs at least this many points to be worth recognizing.
 MIN_GESTURE_POINTS = 100
 
-#: Trimming never shortens the stroke below this many points.
+#: Trimming stops once this many points or fewer remain (one final chunk may
+#: take it slightly below this value).
 MIN_POINTS_AFTER_TRIM = 120
 
 #: The tip counts as resting while it moves less than this over a window.
@@ -292,11 +290,7 @@ class SpellTracker:
         state = self._state
         attitude = state.orientation.step(
             (float(gx), float(gy), float(gz)),
-            (
-                float(ax) * STANDARD_GRAVITY_MS2,
-                float(ay) * STANDARD_GRAVITY_MS2,
-                float(az) * STANDARD_GRAVITY_MS2,
-            ),
+            (float(ax), float(ay), float(az)),
             IMU_SAMPLE_PERIOD_S,
         )
 
@@ -346,8 +340,9 @@ def trim_idle_ends(points: np.ndarray) -> tuple[int, int]:
 
     The end is pulled back one chunk at a time while the tip barely moved over
     the trailing window; the start is then pushed forward one chunk at a time
-    while the tip barely moved over the next chunk. Neither step ever leaves
-    fewer than :data:`MIN_POINTS_AFTER_TRIM` points.
+    while the tip barely moved over the next chunk. Trimming stops once(
+)    :data:`MIN_POINTS_AFTER_TRIM` or fewer points remain, so the result can end up
+    up to one chunk shorter than that.
     """
     start, end = 0, len(points)
 
@@ -397,6 +392,8 @@ def build_detector_input(points: np.ndarray) -> np.ndarray | None:
         _LOGGER.debug("Spell recognition failed: not enough data points (%d)", len(points))
         return None
 
+    # The bounding box above deliberately covers the whole recording, resting
+    # ends included, so scaling matches what the detector was trained on.
     start, end = trim_idle_ends(points)
     stroke = resample_uniform(points[start:end], DETECTOR_INPUT_POINTS)
     return ((stroke - lower) / extent).astype(np.float32)
