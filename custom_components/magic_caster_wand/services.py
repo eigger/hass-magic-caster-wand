@@ -82,7 +82,8 @@ async def async_unload_services(hass: HomeAssistant, entry: MagicCasterWandConfi
     other_loaded_entries = [
         config_entry
         for config_entry in hass.config_entries.async_entries(DOMAIN)
-        if config_entry.entry_id != entry.entry_id and config_entry.runtime_data is not None
+        if config_entry.entry_id != entry.entry_id
+        and getattr(config_entry, "runtime_data", None) is not None
     ]
     if not other_loaded_entries:
         for name in SERVICES:
@@ -111,7 +112,8 @@ def _get_device_by_entry_id(hass: HomeAssistant, entry_id: str | None) -> McwDev
     if entry_id is None:
         return None
     config_entry = hass.config_entries.async_get_entry(entry_id)
-    return config_entry.runtime_data.device if config_entry and config_entry.runtime_data else None
+    runtime_data = getattr(config_entry, "runtime_data", None)
+    return runtime_data.device if runtime_data else None
 
 
 async def get_entry_id_from_device(hass: HomeAssistant, device_id: str) -> str | None:
