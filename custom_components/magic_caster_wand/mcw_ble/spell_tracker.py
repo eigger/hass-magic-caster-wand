@@ -194,23 +194,6 @@ class SpellTrackerState:
     points: np.ndarray = field(default_factory=lambda: np.zeros((MAX_GESTURE_POINTS, 2), dtype=np.float32))
     position_count: int = 0
 
-    # Attitude components, exposed for diagnostics and tests.
-    @property
-    def ahrs_quat_q0(self) -> float:
-        return self.orientation.attitude[0]
-
-    @property
-    def ahrs_quat_q1(self) -> float:
-        return self.orientation.attitude[1]
-
-    @property
-    def ahrs_quat_q2(self) -> float:
-        return self.orientation.attitude[2]
-
-    @property
-    def ahrs_quat_q3(self) -> float:
-        return self.orientation.attitude[3]
-
 
 class SpellTracker:
     """Record wand gestures from IMU samples and recognize them as spells."""

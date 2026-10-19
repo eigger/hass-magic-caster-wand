@@ -124,15 +124,9 @@ def test_tracker_skips_intermediate_position_projection_without_changing_final_p
 
     assert sparse_point == full_point
     assert (
-        sparse_tracker._state.ahrs_quat_q0,
-        sparse_tracker._state.ahrs_quat_q1,
-        sparse_tracker._state.ahrs_quat_q2,
-        sparse_tracker._state.ahrs_quat_q3,
+        *sparse_tracker._state.orientation.attitude,
     ) == (
-        full_tracker._state.ahrs_quat_q0,
-        full_tracker._state.ahrs_quat_q1,
-        full_tracker._state.ahrs_quat_q2,
-        full_tracker._state.ahrs_quat_q3,
+        *full_tracker._state.orientation.attitude,
     )
 
 
