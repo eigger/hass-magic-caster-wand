@@ -1,8 +1,8 @@
-"""Repository fixtures using the real Home Assistant test plugin."""
+"""Shared Home Assistant test configuration."""
 
 import pytest
 
 
 @pytest.fixture(autouse=True)
-def custom_integrations(enable_custom_integrations):
-    """Allow Home Assistant to discover this custom integration."""
+def auto_enable_custom_integrations(enable_custom_integrations):
+    """Enable custom integrations for all tests."""

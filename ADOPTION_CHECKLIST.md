@@ -1,5 +1,41 @@
 # 공통 규칙 적용 체크리스트
 
+## 최신 재검토 — 2026-10-22
+
+- 검토한 표준: `0ec31111a81b0ee5702f1d8a17f03616a10a5db6` (원격 main 확인).
+- 대상: `master`의 `5e71012776658291d4aa88310d563520ee784a81` 이후 로컬 변경. 이번 commit/push·PR·원격 CI는 수행하지 않았습니다.
+- 조율 `root(mcw-20261022)` / 구현 `standards_implementation` / 독립 리뷰·검증 `independent_review`.
+- 기존 채택 근거는 아래 역사 기록으로 보존합니다. 과거 PASS는 이번 변경의 실행 결과가 아닙니다.
+- 범위: 중앙 렌더러의 양언어 README 관리 영역·Default 배지/집계/설치 안내, 최신 SHA의 공용 CI·중앙 계약 검사, 테스트 기반/플랫폼 파일, 번역 계약, 양언어 기기별 Bluetooth 문제 해결, 제품 분류.
+- 최소 HA `2025.4.0`, 통합 `2.1.2`, 런타임 의존성·domain·unique ID·entry schema 유지. imagespec 미사용으로 DOC-08은 N/A입니다.
+- HACS-03/DOC-02: 2026-10-22 [공식 기본 목록](https://github.com/hacs/default/blob/master/integration)에서 `eigger/hass-magic-caster-wand`를 구현 담당 및 주 담당이 각각 확인했습니다. HACS Default 및 공식 HACS Downloads를 사용하며 조회 실패를 설치 0으로 해석하지 않습니다.
+- HA-02: `buttons_remotes` 선택. 지팡이 제스처·물리 버튼으로 HA 자동화를 제어하는 실제 용도에 근거합니다. 메타데이터의 `categories_review`에 근거를 기록하며 플랫폼 종류로 분류하지 않습니다.
+- GOV-04: 최신 중앙 clone `C:/Users/eigger/AppData/Local/Temp/mcw-standards-20261022/docs/adoption-status.md`의 자기 행만 로컬 갱신했습니다. 기존 `D:/Source/Github/hass-repo-standards`는 다른 리포의 미커밋 변경과 오래된 HEAD가 있어 수정하지 않았습니다. 원격 현황표는 미게시이며 게시·새 CI 결과 추가가 남았습니다.
+
+| 이번 검증 | 상태 | 명령·근거 |
+|---|---|---|
+| 대상 중앙 계약·README·배지 | PASS | 최신 중앙 `python -X utf8 scripts/check_integration.py .`, `scripts/sync_badges.py . --check` 종료 0. 양언어 README의 기존 이미지 src와 fenced YAML을 HEAD와 비교: 참조/예제 변경 없음. README·STANDARDS·CONTRIBUTING·양언어 문제 해결의 로컬 파일 링크 PASS |
+| lint·workflow·diff | PASS | `python -m ruff check .`, `python -m ruff format --check .` (Ruff 0.16.4, 75 files), `actionlint -shellcheck= -pyflakes=` (1.7.12), `git diff --check`. 구현·주 담당·독립 담당이 별도 실행 |
+| 실제 최소/current HA와 library 축 | PASS | 독립 WSL 격리 환경 네 조합에서 중앙 manifest installer·`python -m pytest tests/components/magic_caster_wand/ -q` 각각 **280 passed, skip 0**·`python -m pip check` 충돌 없음. 정확한 버전·로그는 아래 |
+| 중앙 원본 자체 검사 | FAIL (상위 원본 결함) | `python -X utf8 <standards>/scripts/check_repository.py`: templates/integration README.md 및 README.ko.md의 `Header contains non-template content; migrate manually without loss`. 대상 통합 실패와 별개이며 중앙 코드를 임의 수정하지 않음 |
+| 원격 HACS·Hassfest·Tests·새 required check | TODO | 이번 tree는 미게시. 과거 CI를 이번 실행으로 재사용하지 않음 |
+| 실물 BLE·HA UI | 미검증 | 실제 기기 없이 문서·외부 경계 mock 테스트로 동작을 보장하지 않음 |
+
+| 실제 검증 축 | Python / HA / pytest plugin | 실제 runtime 패키지 | 결과 |
+|---|---|---|---|
+| current HA × current/minimum libraries | 3.14.7 / 2026.10.2 / 0.13.373 | blesession 0.9.0, bluetooth-sensor-state-data 1.7.5, bleak 3.0.2, numpy 2.3.2 | 각 280 passed, skip 0; pip check PASS |
+| 정확한 최소 HA × current/minimum libraries | 3.13.15 / 2025.4.0 / 0.13.232 | blesession 0.9.0, bluetooth-sensor-state-data 1.7.5, bleak 0.22.3, numpy 2.2.2 | 각 280 passed, skip 0; pip check PASS |
+
+재현은 CONTRIBUTING의 중앙 `actions/python-environment/install.py`와 동일한 입력으로 수행했습니다. 각 모드에 `INPUT_DOMAIN=magic_caster_wand`, `INPUT_DEPENDENCY_MODE=current` 또는 `minimum`, `INPUT_MINIMUM_PACKAGES='["blesession", "bluetooth-sensor-state-data"]'`, `INPUT_HA_COMPONENTS='bluetooth_adapters camera'`, `INPUT_TEST_PROFILE=ha`, 실제 requirements/expected HA를 지정했습니다. 네 환경은 `/home/eigger/.cache/mcw-review-20261022/` 아래 독립 venv이며 global Python 패키지를 변경하지 않았습니다. 최소 HA의 pymicro-vad/pyspeex-noise 빌드는 C++ 컴파일러가 없어 첫 설치가 실패했으나 WSL build-essential 설치 후 네 resolver·전체 테스트를 성공했습니다. current/minimum library mode의 실제 선택 blesession이 모두 0.9.0임을 확인했으며 다른 버전을 실행했다고 해석하지 않습니다.
+
+최종 로그: `C:/Users/eigger/AppData/Local/Temp/mcw-review-{current,current-minlib,minha,minha-minlib}-{tests,versions,pipcheck}-final.log`. 독립 검증 지적 중 별칭 길이 초과 서비스의 실제 `ValueError` 기대값과 중앙 fixture 이름 `mock_config_entry`/`mock_client`를 수정한 뒤 네 전체 조합을 재실행했습니다. 기존 fixture 이름은 호환 별칭으로 유지하고, HEAD의 기존 185개 test 함수 이름 누락 0을 AST 비교로 확인했습니다.
+
+플랫폼 테스트 6개는 실제 HA entry/platform·registry·services·coordinator를 사용해 버튼 누름/해제, calibration 명령, 색상 선택/잘못된 값, 배터리 0, 연결 해제, 별칭 길이 제한을 검증합니다. 기존 회귀 테스트는 삭제하지 않았습니다. strings.json의 Core 참조는 기존 en.json의 실제 영어 원문으로 해소하여 영어 배포본과 일치시켰으며 화면 문구는 바뀌지 않습니다.
+
+Windows 기본 cp949에서 중앙 검사의 UTF-8 파일 읽기가 실패하므로 `python -X utf8`로 실행합니다. 이 실행 설정은 중앙 코드·검사 계약을 변경하지 않습니다.
+
+## 이전 채택 기록 — 2026-10-18
+
 이 기록은 2026-10-18 채택 PR의 구현·독립 로컬 검증·원격 CI 결과입니다. 기본 브랜치 반영과 머지 커밋 CI의 최종 결과는 중앙 현황표에 기록합니다. [사용법과 판정 기준](https://github.com/eigger/hass-repo-standards/blob/7acd9cab6ac774e4695f2c962e3d88b5faa4620d/docs/checklist.md)을 읽고, 아래 규칙은 `STANDARDS.md`에 기록한 표준 커밋에서 확인합니다. 표준은 태그·릴리스 대신 검토한 `main` 커밋 SHA로 고정합니다.
 
 ## 검토 대상

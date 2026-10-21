@@ -1,18 +1,20 @@
+<!-- hass-standards:header:start -->
 # Magic Caster Wand
 
-<!-- hass-standards:badges:start -->
-[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5?style=flat-square)](#installation)
-[![Release](https://img.shields.io/github/v/release/eigger/hass-magic-caster-wand?style=flat-square)](https://github.com/eigger/hass-magic-caster-wand/releases)
-[![Home Assistant minimum](https://img.shields.io/badge/HA-%E2%89%A5%202025.4.0-41BDF5?style=flat-square)](hacs.json)
-[![Tests](https://img.shields.io/github/actions/workflow/status/eigger/hass-magic-caster-wand/tests.yml?branch=master&style=flat-square&label=Tests)](https://github.com/eigger/hass-magic-caster-wand/actions/workflows/tests.yml)
-[![Validate](https://img.shields.io/github/actions/workflow/status/eigger/hass-magic-caster-wand/validate.yml?branch=master&style=flat-square&label=Validate)](https://github.com/eigger/hass-magic-caster-wand/actions/workflows/validate.yml)
-[![License](https://img.shields.io/github/license/eigger/hass-magic-caster-wand?style=flat-square)](LICENSE)
-[![Analytics reporting installs](https://img.shields.io/badge/dynamic/json?style=flat-square&color=41BDF5&label=Usage&query=%24.magic_caster_wand.total&url=https%3A%2F%2Fanalytics.home-assistant.io%2Fcustom_integrations.json)](https://analytics.home-assistant.io/)
-<!-- hass-standards:badges:end -->
+Cast **Lumos** to turn on a room light, or **Nox** to turn it off. This HACS custom integration connects Harry Potter Magic Caster Wands and their boxes to Home Assistant over Bluetooth, turning spells and button presses into automation triggers and letting Home Assistant send LED and vibration effects back to the wand.
 
 **English** | [한국어](README.ko.md)
 
-Cast **Lumos** to turn on a room light, or **Nox** to turn it off. This HACS custom integration connects Harry Potter Magic Caster Wands and their boxes to Home Assistant over Bluetooth, turning spells and button presses into automation triggers and letting Home Assistant send LED and vibration effects back to the wand.
+<!-- hass-standards:badges:start -->
+[![Release](https://img.shields.io/github/v/release/eigger/hass-magic-caster-wand?style=flat)](https://github.com/eigger/hass-magic-caster-wand/releases)
+[![HACS Default](https://img.shields.io/badge/HACS-Default-41BDF5?style=flat)](#installation)
+[![Home Assistant minimum](https://img.shields.io/badge/HA-%E2%89%A5%202025.4.0-41BDF5?style=flat)](hacs.json)
+[![Tests](https://img.shields.io/github/actions/workflow/status/eigger/hass-magic-caster-wand/tests.yml?branch=master&style=flat&label=Tests)](https://github.com/eigger/hass-magic-caster-wand/actions/workflows/tests.yml)
+[![Validate](https://img.shields.io/github/actions/workflow/status/eigger/hass-magic-caster-wand/validate.yml?branch=master&style=flat&label=Validate)](https://github.com/eigger/hass-magic-caster-wand/actions/workflows/validate.yml)
+[![License](https://img.shields.io/github/license/eigger/hass-magic-caster-wand?style=flat)](LICENSE)
+[![HACS Downloads](https://img.shields.io/badge/dynamic/json?style=flat&color=41BDF5&label=HACS+Downloads&query=%24%5B%3F%28%40.full_name%3D%3D%22eigger%2Fhass-magic-caster-wand%22%29%5D.downloads&url=https%3A%2F%2Fdata-v2.hacs.xyz%2Fintegration%2Fdata.json)](https://www.hacs.xyz/)
+<!-- hass-standards:badges:end -->
+<!-- hass-standards:header:end -->
 
 <img src="docs/images/mcw.png" width="720" alt="Magic Caster Wand in Home Assistant" />
 
@@ -39,11 +41,15 @@ Cast **Lumos** to turn on a room light, or **Nox** to turn it off. This HACS cus
 
 - Wand models: **Defiant, Loyal and Honourable**; Magic Caster Box support is also included.
 - Home Assistant **2025.4.0 or later**, HACS or a manual installation, and a connectable Bluetooth adapter or ESPHome Bluetooth proxy.
-- Charge and wake the device, keep it in Bluetooth range, and close other apps if they hold its connection. A proxy needs `bluetooth_proxy.active: true` for GATT connections; active scanning is a separate setting. See [Bluetooth proxy setup](https://github.com/eigger/hass-repo-standards/blob/main/docs/bluetooth.md).
+- Charge and wake the device, keep it in Bluetooth range, and close other apps if they hold its connection. A proxy needs `bluetooth_proxy.active: true` for GATT connections; active scanning is a separate setting. See [Bluetooth proxy setup](https://github.com/eigger/blesession/blob/main/docs/bluetooth.md).
 
 ## Installation
 
-1. In HACS, add `https://github.com/eigger/hass-magic-caster-wand` as a custom **Integration** repository and download **Magic Caster Wand**. For manual installation, copy only `custom_components/magic_caster_wand` into your configuration's `custom_components` directory.
+<!-- hass-standards:installation:start -->
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=eigger&repository=hass-magic-caster-wand)
+<!-- hass-standards:installation:end -->
+
+1. In HACS, search for **Magic Caster Wand** and download it, or use the button above. It is included in the HACS default repository list. For manual installation, copy only `custom_components/magic_caster_wand` into your configuration's `custom_components` directory.
 2. Restart Home Assistant. Open **Settings → Devices & services → Add integration → Magic Caster Wand**, or confirm its Bluetooth discovery.
 3. Select your awake wand or box. On its device page, turn on **Connect** before receiving spells or sending effects. Finding a Bluetooth advertisement alone does not confirm a working connection.
 
@@ -140,8 +146,20 @@ Bluetooth discovery, connection and successful command execution are separate st
 - [Development and tests (English)](CONTRIBUTING.md)
 - [Standards and verification record (Korean)](STANDARDS.md)
 
-The Usage badge counts HA Analytics participating installations that opted into reporting. Missing data or a failed lookup does not mean zero installations.
+The HACS Downloads badge shows download data reported by HACS for this default repository. Missing data or a failed lookup does not mean zero downloads.
 
-## Support and license
+<!-- hass-standards:support:start -->
+## Support
 
-Report bugs in [Issues](https://github.com/eigger/hass-magic-caster-wand/issues); use [Discussions](https://github.com/eigger/hass-magic-caster-wand/discussions) for questions and suggestions. Licensed under [MIT](LICENSE).
+- [Issues](https://github.com/eigger/hass-magic-caster-wand/issues): Report bugs or request features.
+- [Discussions](https://github.com/eigger/hass-magic-caster-wand/discussions): Ask questions and share your experience.
+<!-- hass-standards:support:end -->
+
+<!-- hass-standards:related-projects:start -->
+<!-- hass-standards:related-projects:end -->
+
+<!-- hass-standards:license:start -->
+## License
+
+Released under the [MIT License](LICENSE).
+<!-- hass-standards:license:end -->

@@ -5,13 +5,37 @@
     "README.md",
     "README.ko.md"
   ],
-  "hacs": "custom",
+  "hacs": "default",
   "release": true,
   "installation_link": "#installation",
   "tests_workflow": "tests.yml",
   "validate_workflow": "validate.yml",
   "installation_links": {
     "README.md": "#installation",
-    "README.ko.md": "#\uc124\uce58"
+    "README.ko.md": "#설치"
+  },
+  "hacs_default_evidence": "https://github.com/hacs/default/blob/master/integration (eigger/hass-magic-caster-wand verified 2026-10-22)",
+  "readme": {
+    "title": "Magic Caster Wand",
+    "descriptions": {
+      "en": "Cast **Lumos** to turn on a room light, or **Nox** to turn it off. This HACS custom integration connects Harry Potter Magic Caster Wands and their boxes to Home Assistant over Bluetooth, turning spells and button presses into automation triggers and letting Home Assistant send LED and vibration effects back to the wand.",
+      "ko": "**Lumos**를 시전해 방의 조명을 켜고, **Nox**로 끄세요. 해리 포터 Magic Caster Wand와 보관함을 Bluetooth로 Home Assistant에 연결하는 HACS 커스텀 통합입니다. 주문과 버튼으로 자동화를 실행하고, HA에서 지팡이로 LED·진동 효과를 보낼 수 있습니다."
+    },
+    "issues": true,
+    "discussions": true,
+    "license_name": "MIT License",
+    "license_notices": {
+      "en": [],
+      "ko": []
+    },
+    "related_projects": []
+  },
+  "exceptions": [],
+  "categories_review": {
+    "value": [
+      "buttons_remotes"
+    ],
+    "integration_type": null,
+    "source": "README.md: physical Magic Caster Wand gestures and button presses trigger Home Assistant automations; wand/box LEDs and vibration provide feedback. Primary product use is an automation remote, so buttons_remotes; no secondary category inferred from entity platforms. Official taxonomy: https://github.com/home-assistant/core/blob/ec18d8b25d1ee39aa8b85a72a170e42bee33228c/homeassistant/generated/integration_categories.json (reviewed 2026-10-22)."
   }
 }
