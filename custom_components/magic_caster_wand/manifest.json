@@ -12,6 +12,9 @@
       "local_name": "MCB-*"
     }
   ],
+  "categories": [
+    "buttons_remotes"
+  ],
   "codeowners": [
     "@eigger"
   ],

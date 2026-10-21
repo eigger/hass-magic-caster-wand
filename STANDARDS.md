@@ -1,26 +1,24 @@
 # 적용한 공통 규칙
 
-- 표준: [Home Assistant Repository Standards](https://github.com/eigger/hass-repo-standards/tree/7acd9cab6ac774e4695f2c962e3d88b5faa4620d)
-- 검토한 중앙 main 전체 SHA: `7acd9cab6ac774e4695f2c962e3d88b5faa4620d`
-- 최초 적용일: 2026-10-18; 현재 상태: **PR #114 구현·독립 검증·원격 CI 통과; 최종 반영 절차 진행 중**
-- profile: `integration / ha` (실제 HA fixture·통합/플랫폼 로딩 검증)
-- 적용 점검표: [ADOPTION_CHECKLIST.md](ADOPTION_CHECKLIST.md)
-- 중앙 현황표: [최신 main 현황](https://github.com/eigger/hass-repo-standards/blob/main/docs/adoption-status.md)
-- 조율: Codex root; 구현: `implementation`, `documentation`; 독립 리뷰·검증: `independent_review` (결과는 점검표).
-- 중앙 현황: 조율 담당이 2026-10-18 중앙 checkout에 진행 중 등록; 중앙 main c2531e2에 PR·진행 단계 원격 반영. 머지 후 종료 기록은 최신 중앙 표 참조.
-- 실제 기본 브랜치: `master`; 기준 통합 커밋: `3f21b1b55c02bd7c00633aa12d420cf8d0bcee42`; [채택 PR #114](https://github.com/eigger/hass-magic-caster-wand/pull/114), 구현 검증 head `e791d763499700dadd688358c6eca9aba5ceffa7`.
-- domain / 테스트 경로: `magic_caster_wand` / `tests/components/magic_caster_wand/`
-- 변경 전/후 지원 최소: HA `2025.4.0` (`hacs.json.homeassistant`); 통합 버전 `2.1.1` 유지. 지원 최소 상향 없음.
-- current 검증 조합: HA `2026.10.2` / Python `3.14` / pytest-homeassistant-custom-component `0.13.373`.
-- 정확한 최소 HA 검증 조합: HA `2025.4.0` / Python `3.13` / pytest-homeassistant-custom-component `0.13.232`.
-- 라이브러리 검증 축: blesession 정확한 최소 `0.9.0` 및 current를 각 HA 환경과 분리해 검증. 실제 설치값·결과는 점검표에 기록.
+- 표준: [Home Assistant Repository Standards](https://github.com/eigger/hass-repo-standards/tree/0ec31111a81b0ee5702f1d8a17f03616a10a5db6)
+- 참조 커밋 SHA: `0ec31111a81b0ee5702f1d8a17f03616a10a5db6`
+- 중앙 main 확인일: 2026-10-22.
+- 최초 적용: 2026-10-18, [PR #114](https://github.com/eigger/hass-magic-caster-wand/pull/114). 이번 재검토: 2026-10-22, 기준 통합 `5e71012776658291d4aa88310d563520ee784a81` 이후 로컬 변경.
+- profile: `integration / ha`; 실제 기본 브랜치: `master`; domain: `magic_caster_wand`; 테스트: `tests/components/magic_caster_wand/`.
+- 조율: `root`; 구현: `standards_implementation`; 독립 리뷰·검증: `independent_review`.
+- 적용·검증 근거: [ADOPTION_CHECKLIST.md](ADOPTION_CHECKLIST.md). 과거 실행과 이번 실행은 구분합니다.
+- 중앙 현황: [원격 현황표](https://github.com/eigger/hass-repo-standards/blob/main/docs/adoption-status.md). 이번 갱신은 별도 중앙 checkout의 로컬 기록이며 원격 게시 전입니다.
 
-## 적용 내용과 사용자 영향
+## 이번 적용과 사용자 영향
 
-공통 CI와 실제 HA 테스트 구조를 채택하고, 간결한 영어/한국어 README 및 상세 사용·Bluetooth·개발 문서를 분리합니다. 이전 README 본문은 [전체 사용 안내](docs/user-guide.md)에 보존합니다. 설정 초기화·재등록·버전 상향을 요구하는 문서 변경은 없습니다. 부분 setup 실패·취소의 BLE/플랫폼 정리, 다중 entry 해제 시 서비스 정리, 저장된 entry의 reauth 처리와 직접 사용하는 `bluetooth-sensor-state-data==1.7.5` 선언을 보완합니다. 공개 domain·unique ID·entry schema와 통합 버전은 유지합니다. 로그와 진단 속성은 민감 정보 노출을 줄이기 위해 원문 예외 대신 예외 클래스만 기록하고 장치/프록시 식별 정보·임의 backend metadata를 제거합니다. 구조화된 실패 단계·원인 키·신호/경로 개수·시간 정보는 유지합니다. 검증 결과는 점검표에서 확인합니다. 검토 SHA 갱신은 향후 명시적 채택 변경으로 진행하며 중앙 변경을 자동 상속하지 않습니다.
+이전 검토 SHA `7acd9cab6ac774e4695f2c962e3d88b5faa4620d`에서 최신 공용 CI·README 관리 영역·테스트 기반·양언어 Bluetooth 문제 해결 계약으로 갱신합니다. 기존 사진·GIF·사용법·자동화 예제와 외부 전송 경계의 회귀 테스트를 보존합니다. 공용 workflow와 `standards-ref`를 같은 검토 SHA로 고정하고 Validate에 중앙 계약 검사를 추가합니다. 실제 HA 플랫폼별 입력·서비스·경계값 테스트 6개를 보완하고, strings.json의 Core 번역 참조를 기존 영어 배포 문자열과 같은 원문으로 해소합니다. 화면의 영어·한국어 문구와 런타임 동작은 변경하지 않습니다. 중앙 AGENTS.md를 이 저장소에 설치하지 않습니다.
 
-## 예외
+HACS Default는 [공식 기본 통합 목록](https://github.com/hacs/default/blob/master/integration)의 `eigger/hass-magic-caster-wand` 등재를 2026-10-22 확인했습니다. 양언어 README의 Default 배지·공식 HACS Downloads 집계·My Home Assistant 설치 버튼과 기본 목록 다운로드 안내에 반영합니다. 설정 초기화나 기존 사용자 재등록은 필요하지 않습니다.
 
-현재 승인된 예외는 없습니다. 미충족·미검증은 예외로 간주하지 않고 점검표에 `TODO`로 기록합니다. 향후 예외가 필요하면 규칙 ID·이유·담당자·재검토 조건을 이곳에 기록합니다.
+제품 분류는 `buttons_remotes`입니다. 실제 지팡이 제스처와 물리 버튼 입력으로 다른 HA 기기의 자동화를 제어하는 제품 용도에 근거하며, LED 효과·센서 플랫폼만으로 별도 제품 분류를 추정하지 않습니다. manifest의 `categories`는 배포 메타데이터입니다.
 
-원격 CI, required checks 설정, 기본 브랜치 반영과 실물 검증을 수행하지 않은 상태를 완료로 표시하지 않습니다. 2026-10-18 사용자 후속 지시로 채택 PR·CI 확인·스쿼시 머지를 진행합니다. tag/release는 생성하지 않습니다.
+최소 HA `2025.4.0`, 통합 버전 `2.1.2`, 공개 domain·unique ID·config entry schema와 런타임 의존성은 유지합니다. current 검증 선언은 HA `2026.10.2` / Python `3.14` / pytest-homeassistant-custom-component `0.13.373`, 정확한 최소는 HA `2025.4.0` / Python `3.13` / plugin `0.13.232`입니다. blesession 최소 `0.9.0`/current 검증 축은 HA 최소/current와 별개입니다.
+
+## 예외와 남은 검증
+
+승인된 예외는 없습니다. 미실행·실패·미확인은 점검표에 그대로 기록하며 과거 PASS로 대체하지 않습니다. 원격 CI·기본 브랜치 게시·실물 검증은 해당 실행 근거가 생기기 전 완료로 표시하지 않습니다. 이번 변경의 commit/push·PR·tag/release는 수행하지 않습니다.

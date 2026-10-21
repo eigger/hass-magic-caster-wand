@@ -1,18 +1,20 @@
+<!-- hass-standards:header:start -->
 # Magic Caster Wand
 
-<!-- hass-standards:badges:start -->
-[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5?style=flat-square)](#설치)
-[![Release](https://img.shields.io/github/v/release/eigger/hass-magic-caster-wand?style=flat-square)](https://github.com/eigger/hass-magic-caster-wand/releases)
-[![Home Assistant minimum](https://img.shields.io/badge/HA-%E2%89%A5%202025.4.0-41BDF5?style=flat-square)](hacs.json)
-[![Tests](https://img.shields.io/github/actions/workflow/status/eigger/hass-magic-caster-wand/tests.yml?branch=master&style=flat-square&label=Tests)](https://github.com/eigger/hass-magic-caster-wand/actions/workflows/tests.yml)
-[![Validate](https://img.shields.io/github/actions/workflow/status/eigger/hass-magic-caster-wand/validate.yml?branch=master&style=flat-square&label=Validate)](https://github.com/eigger/hass-magic-caster-wand/actions/workflows/validate.yml)
-[![License](https://img.shields.io/github/license/eigger/hass-magic-caster-wand?style=flat-square)](LICENSE)
-[![Analytics reporting installs](https://img.shields.io/badge/dynamic/json?style=flat-square&color=41BDF5&label=Usage&query=%24.magic_caster_wand.total&url=https%3A%2F%2Fanalytics.home-assistant.io%2Fcustom_integrations.json)](https://analytics.home-assistant.io/)
-<!-- hass-standards:badges:end -->
+**Lumos**를 시전해 방의 조명을 켜고, **Nox**로 끄세요. 해리 포터 Magic Caster Wand와 보관함을 Bluetooth로 Home Assistant에 연결하는 HACS 커스텀 통합입니다. 주문과 버튼으로 자동화를 실행하고, HA에서 지팡이로 LED·진동 효과를 보낼 수 있습니다.
 
 [English](README.md) | **한국어**
 
-**Lumos**를 시전해 방의 조명을 켜고, **Nox**로 끄세요. 해리 포터 Magic Caster Wand와 보관함을 Bluetooth로 Home Assistant에 연결하는 HACS 커스텀 통합입니다. 주문과 버튼으로 자동화를 실행하고, HA에서 지팡이로 LED·진동 효과를 보낼 수 있습니다.
+<!-- hass-standards:badges:start -->
+[![Release](https://img.shields.io/github/v/release/eigger/hass-magic-caster-wand?style=flat)](https://github.com/eigger/hass-magic-caster-wand/releases)
+[![HACS Default](https://img.shields.io/badge/HACS-Default-41BDF5?style=flat)](#설치)
+[![Home Assistant minimum](https://img.shields.io/badge/HA-%E2%89%A5%202025.4.0-41BDF5?style=flat)](hacs.json)
+[![Tests](https://img.shields.io/github/actions/workflow/status/eigger/hass-magic-caster-wand/tests.yml?branch=master&style=flat&label=Tests)](https://github.com/eigger/hass-magic-caster-wand/actions/workflows/tests.yml)
+[![Validate](https://img.shields.io/github/actions/workflow/status/eigger/hass-magic-caster-wand/validate.yml?branch=master&style=flat&label=Validate)](https://github.com/eigger/hass-magic-caster-wand/actions/workflows/validate.yml)
+[![License](https://img.shields.io/github/license/eigger/hass-magic-caster-wand?style=flat)](LICENSE)
+[![HACS Downloads](https://img.shields.io/badge/dynamic/json?style=flat&color=41BDF5&label=HACS+Downloads&query=%24%5B%3F%28%40.full_name%3D%3D%22eigger%2Fhass-magic-caster-wand%22%29%5D.downloads&url=https%3A%2F%2Fdata-v2.hacs.xyz%2Fintegration%2Fdata.json)](https://www.hacs.xyz/)
+<!-- hass-standards:badges:end -->
+<!-- hass-standards:header:end -->
 
 <img src="docs/images/mcw.png" width="720" alt="Magic Caster Wand in Home Assistant" />
 
@@ -39,11 +41,15 @@
 
 - 지팡이 모델: **Defiant, Loyal, Honourable**. Magic Caster Box도 지원합니다.
 - Home Assistant **2025.4.0 이상**, HACS 또는 수동 설치, 연결 가능한 Bluetooth 어댑터 또는 ESPHome Bluetooth proxy가 필요합니다.
-- 기기를 충전하고 깨운 뒤 Bluetooth 범위 안에 둡니다. 다른 앱이 연결을 점유하면 종료하세요. 프록시의 GATT 연결에는 `bluetooth_proxy.active: true`가 필요하며, active 스캔은 별도 설정입니다. [Bluetooth 프록시 설정](https://github.com/eigger/hass-repo-standards/blob/main/docs/bluetooth.ko.md)을 참고하세요.
+- 기기를 충전하고 깨운 뒤 Bluetooth 범위 안에 둡니다. 다른 앱이 연결을 점유하면 종료하세요. 프록시의 GATT 연결에는 `bluetooth_proxy.active: true`가 필요하며, active 스캔은 별도 설정입니다. [Bluetooth 프록시 설정](https://github.com/eigger/blesession/blob/main/docs/bluetooth.ko.md)을 참고하세요.
 
 ## 설치
 
-1. HACS에서 `https://github.com/eigger/hass-magic-caster-wand`를 **Integration** 유형의 사용자 지정 저장소로 추가하고 **Magic Caster Wand**를 다운로드합니다. 수동 설치 시 `custom_components/magic_caster_wand` 폴더만 HA 설정 폴더의 `custom_components` 안에 복사합니다.
+<!-- hass-standards:installation:start -->
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=eigger&repository=hass-magic-caster-wand)
+<!-- hass-standards:installation:end -->
+
+1. HACS에서 **Magic Caster Wand**를 검색해 다운로드하거나 위 버튼을 누릅니다. HACS 기본 저장소 목록에 등록되어 있습니다. 수동 설치 시 `custom_components/magic_caster_wand` 폴더만 HA 설정 폴더의 `custom_components` 안에 복사합니다.
 2. Home Assistant를 재시작합니다. **설정 → 기기 및 서비스 → 통합 구성요소 추가 → Magic Caster Wand**를 선택하거나 Bluetooth 발견 알림을 확인합니다.
 3. 깨어 있는 지팡이 또는 보관함을 선택합니다. 기기 페이지에서 **Connect** 스위치를 켠 뒤 주문을 받거나 효과를 보내세요. Bluetooth 광고 발견만으로 실제 연결이 확인된 것은 아닙니다.
 
@@ -133,15 +139,27 @@ data:
 
 ## 연결 도움말과 문서
 
-Bluetooth 발견, 연결, 명령 실행 성공은 각각 다른 단계입니다. 연결이 끊기면 지팡이를 깨우고 **Connect**를 다시 켜세요. 프록시 연결 슬롯·거리·다른 앱의 연결도 확인합니다. 기기·펌웨어 조합에 따라 동작이 다를 수 있습니다. [문제 해결 및 진단 엔티티(영어)](docs/troubleshooting.md)를 참고하세요.
+Bluetooth 발견, 연결, 명령 실행 성공은 각각 다른 단계입니다. 연결이 끊기면 지팡이를 깨우고 **Connect**를 다시 켜세요. 프록시 연결 슬롯·거리·다른 앱의 연결도 확인합니다. 기기·펌웨어 조합에 따라 동작이 다를 수 있습니다. [문제 해결 및 진단 엔티티](docs/troubleshooting.ko.md)를 참고하세요.
 
 - [설정·옵션·연결 상세(영어)](docs/setup.md)
 - [전체 제스처·미디어·Spell Canvas·액션 안내(영어)](docs/user-guide.md)
 - [개발·테스트(영어)](CONTRIBUTING.md)
 - [공통 규칙 및 검증 기록(한국어)](STANDARDS.md)
 
-Usage 배지는 데이터 제공에 동의한 HA Analytics 참여 설치 집계입니다. 미집계·조회 실패는 설치 수 0을 의미하지 않습니다.
+HACS Downloads 배지는 HACS 기본 저장소의 다운로드 집계를 표시합니다. 데이터가 없거나 조회에 실패했다고 다운로드 수가 0이라는 뜻은 아닙니다.
 
-## 지원 및 라이선스
+<!-- hass-standards:support:start -->
+## 지원
 
-버그는 [Issues](https://github.com/eigger/hass-magic-caster-wand/issues), 질문·기능 제안은 [Discussions](https://github.com/eigger/hass-magic-caster-wand/discussions)에 남겨 주세요. [MIT 라이선스](LICENSE)를 따릅니다.
+- [Issues](https://github.com/eigger/hass-magic-caster-wand/issues): 버그를 신고하거나 기능을 요청하세요.
+- [Discussions](https://github.com/eigger/hass-magic-caster-wand/discussions): 질문하고 사용 경험을 공유하세요.
+<!-- hass-standards:support:end -->
+
+<!-- hass-standards:related-projects:start -->
+<!-- hass-standards:related-projects:end -->
+
+<!-- hass-standards:license:start -->
+## 라이선스
+
+[MIT License](LICENSE) 라이선스로 배포됩니다.
+<!-- hass-standards:license:end -->

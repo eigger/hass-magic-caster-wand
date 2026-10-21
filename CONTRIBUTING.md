@@ -35,7 +35,7 @@ python -m pip install packaging==26.3
 INPUT_DOMAIN=magic_caster_wand \
 INPUT_REQUIREMENTS=requirements_test.txt \
 INPUT_DEPENDENCY_MODE=current \
-INPUT_MINIMUM_PACKAGES='["blesession"]' \
+INPUT_MINIMUM_PACKAGES='["blesession", "bluetooth-sensor-state-data"]' \
 INPUT_HA_COMPONENTS='bluetooth_adapters camera' \
 INPUT_EXPECTED_HA_VERSION=2026.10.2 \
 INPUT_TEST_PROFILE=ha \
@@ -64,9 +64,14 @@ belong in their own requirements files. Before adding a dependency, review packa
 source/license, supported Python/platforms, maintained public APIs and its need.
 Preserve extras, operators and markers when updating, verify resolver and `pip check`,
 and test the exact minimum/current combinations. Follow the [reviewed dependency
-procedure](https://github.com/eigger/hass-repo-standards/blob/7acd9cab6ac774e4695f2c962e3d88b5faa4620d/docs/dependencies.md).
+procedure](https://github.com/eigger/hass-repo-standards/blob/0ec31111a81b0ee5702f1d8a17f03616a10a5db6/docs/dependencies.md).
 
-Update both concise READMEs and the detailed docs when behavior changes. Run `python "$STANDARDS_CHECKOUT/scripts/sync_badges.py" . --check` for this
+Update both READMEs and the detailed docs when behavior changes. Use the reviewed central
+`python "$STANDARDS_CHECKOUT/scripts/check_integration.py" .` to check managed README
+regions, the shared test foundation, CI callers, product category evidence and Bluetooth docs.
+Preserve existing user examples and media outside managed regions. HACS Default status
+requires dated evidence from the official default integration list in `.hass-standards.json`.
+Run `python "$STANDARDS_CHECKOUT/scripts/sync_badges.py" . --check` for this
 checkout and `python "$STANDARDS_CHECKOUT/scripts/check_repository.py"` for the
 central documentation/workflow contracts when reviewing standards adoption. The latter
 checks the standards checkout itself; it does not validate this caller automatically. Independent review must record failures and
