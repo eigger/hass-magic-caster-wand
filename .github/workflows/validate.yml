@@ -16,6 +16,8 @@ concurrency:
 jobs:
   validate:
     uses: eigger/hass-repo-standards/.github/workflows/validate-integration.yml@0ec31111a81b0ee5702f1d8a17f03616a10a5db6 # reviewed standards commit
+    with:
+      hassfest-core-ref: 'c517d079e1cd3831dd8aa547dd953e336830e846'
   standards:
     name: Central template compliance
     runs-on: ubuntu-latest
