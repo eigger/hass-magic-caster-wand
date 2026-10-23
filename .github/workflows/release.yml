@@ -1,0 +1,36 @@
+name: Release
+'on':
+  release:
+    types: [published]
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+jobs:
+  release:
+    name: Attach HACS ZIP
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      with:
+        ref: ${{ github.sha }}
+        persist-credentials: false
+        fetch-depth: 0
+    - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+      with:
+        python-version: '3.13'
+    - id: archive
+      uses: eigger/hass-repo-standards/actions/release-zip@0c1592977591ecba077a4666d699840062711201
+      with:
+        tag: ${{ github.event.release.tag_name }}
+    - name: Upload ZIP to the published release
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+        RELEASE_TAG: ${{ github.event.release.tag_name }}
+        ARCHIVE_PATH: ${{ steps.archive.outputs.archive }}
+      run: gh release upload "$RELEASE_TAG" "$ARCHIVE_PATH" --repo "$GH_REPO"
