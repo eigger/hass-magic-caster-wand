@@ -12,7 +12,7 @@
 [![Tests](https://img.shields.io/github/actions/workflow/status/eigger/hass-magic-caster-wand/tests.yml?branch=master&style=flat&label=Tests)](https://github.com/eigger/hass-magic-caster-wand/actions/workflows/tests.yml)
 [![Validate](https://img.shields.io/github/actions/workflow/status/eigger/hass-magic-caster-wand/validate.yml?branch=master&style=flat&label=Validate)](https://github.com/eigger/hass-magic-caster-wand/actions/workflows/validate.yml)
 [![License](https://img.shields.io/github/license/eigger/hass-magic-caster-wand?style=flat)](LICENSE)
-[![HACS Downloads](https://img.shields.io/badge/dynamic/json?style=flat&color=41BDF5&label=HACS+Downloads&query=%24%5B%3F%28%40.full_name%3D%3D%22eigger%2Fhass-magic-caster-wand%22%29%5D.downloads&url=https%3A%2F%2Fdata-v2.hacs.xyz%2Fintegration%2Fdata.json)](https://www.hacs.xyz/)
+[![Downloads](https://img.shields.io/github/downloads/eigger/hass-magic-caster-wand/total?style=flat&color=41BDF5&label=Downloads)](https://github.com/eigger/hass-magic-caster-wand/releases)
 <!-- hass-standards:badges:end -->
 <!-- hass-standards:header:end -->
 
@@ -146,7 +146,7 @@ Bluetooth 발견, 연결, 명령 실행 성공은 각각 다른 단계입니다.
 - [개발·테스트(영어)](CONTRIBUTING.md)
 - [공통 규칙 및 검증 기록(한국어)](STANDARDS.md)
 
-HACS Downloads 배지는 HACS 기본 저장소의 다운로드 집계를 표시합니다. 데이터가 없거나 조회에 실패했다고 다운로드 수가 0이라는 뜻은 아닙니다.
+Downloads 배지는 모든 GitHub 릴리스의 첨부 asset 다운로드 합계이며 활성 설치 수가 아닙니다.
 
 <!-- hass-standards:support:start -->
 ## 지원
