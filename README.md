@@ -146,7 +146,7 @@ Bluetooth discovery, connection and successful command execution are separate st
 - [Development and tests (English)](CONTRIBUTING.md)
 - [Standards and verification record (Korean)](STANDARDS.md)
 
-The Downloads badge counts GitHub release asset downloads across all releases, not active installations. HACS source-file installations are not counted; ZIP release distribution is not used.
+The Downloads badge counts GitHub release asset downloads across all releases, not active installations.
 
 <!-- hass-standards:support:start -->
 ## Support

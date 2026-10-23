@@ -146,7 +146,7 @@ Bluetooth 발견, 연결, 명령 실행 성공은 각각 다른 단계입니다.
 - [개발·테스트(영어)](CONTRIBUTING.md)
 - [공통 규칙 및 검증 기록(한국어)](STANDARDS.md)
 
-Downloads 배지는 모든 GitHub 릴리스의 첨부 asset 다운로드 합계이며 활성 설치 수가 아닙니다. HACS 소스 파일 설치는 집계되지 않으며 ZIP 릴리스 배포는 사용하지 않습니다.
+Downloads 배지는 모든 GitHub 릴리스의 첨부 asset 다운로드 합계이며 활성 설치 수가 아닙니다.
 
 <!-- hass-standards:support:start -->
 ## 지원
