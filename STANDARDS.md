@@ -1,7 +1,7 @@
 # 적용한 공통 규칙
 
-- 표준: [Home Assistant Repository Standards](https://github.com/eigger/hass-repo-standards/tree/0c1592977591ecba077a4666d699840062711201)
-- 참조 커밋 SHA: `0c1592977591ecba077a4666d699840062711201`
+- 표준: [Home Assistant Repository Standards](https://github.com/eigger/hass-repo-standards/tree/1863343638014adb8a4001afc8fddc1a27dc500f)
+- 참조 커밋 SHA: `1863343638014adb8a4001afc8fddc1a27dc500f`
 - 중앙 main 확인일: 2026-10-22.
 - 최초 적용: 2026-10-18, [PR #114](https://github.com/eigger/hass-magic-caster-wand/pull/114). 이번 재검토: 2026-10-22, 기준 통합 `5e71012776658291d4aa88310d563520ee784a81` 이후 로컬 변경.
 - profile: `integration / ha`; 실제 기본 브랜치: `master`; domain: `magic_caster_wand`; 테스트: `tests/components/magic_caster_wand/`.
@@ -36,3 +36,9 @@ HACS Default는 [공식 기본 통합 목록](https://github.com/hacs/default/bl
 - 중앙 workflow/action pin과 standards-ref는 단일 SHA로 정합화합니다. release:published에서 기존 해당 릴리스에 ZIP만 첨부하며 소스 버전·태그·릴리스 발행은 자동 변경하지 않습니다. 기존 asset 덮어쓰기를 거부합니다.
 - 기존 지원 최소 HA `2025.4.0`와 통합 버전 `2.1.3` 및 의존성·구현은 보존합니다. 기존 태그의 hacs.json은 소급 수정하지 않으므로 다음 릴리스부터 ZIP 설치로 전환됩니다.
 - immutable-releases 설정은 enabled=false/enforced_by_owner=false로 확인했습니다. 업로드 지연·실패 및 기존 asset 복구는 중앙 [릴리스 계약](https://github.com/eigger/hass-repo-standards/blob/0c1592977591ecba077a4666d699840062711201/docs/releases.md#zip-릴리스-첨부)을 따릅니다. 실제 새 릴리스 발행·설치·기기 검증은 이번 작업에 포함하지 않습니다.
+
+## 2026-10-25 중앙 검사기 갱신
+
+- 검토한 중앙 main: `1863343638014adb8a4001afc8fddc1a27dc500f` (git ls-remote 확인). 이전 기본 기준 `0c1592977591ecba077a4666d699840062711201`의 채택 이력은 위 기록을 보존합니다.
+- 모든 중앙 workflow/action pin과 reusable workflow의 standards-ref를 같은 검토 SHA로 맞춥니다. HACS-04는 actions/*의 full SHA 고정을 유지하면서 SHA 값 차이를 허용합니다.
+- 통합 코드·런타임 의존성·지원 최소·배포 버전은 이번 변경 대상이 아닙니다. 기존 채택 범위를 전체 완료로 바꾸지 않으며 실제 검증 결과와 남은 항목은 ADOPTION_CHECKLIST.md의 같은 날짜 기록을 참조합니다.

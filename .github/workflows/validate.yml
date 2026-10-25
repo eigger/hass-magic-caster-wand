@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   validate:
-    uses: eigger/hass-repo-standards/.github/workflows/validate-integration.yml@0c1592977591ecba077a4666d699840062711201 # reviewed standards commit
+    uses: eigger/hass-repo-standards/.github/workflows/validate-integration.yml@1863343638014adb8a4001afc8fddc1a27dc500f # reviewed standards commit
     with:
       hassfest-core-ref: 'c517d079e1cd3831dd8aa547dd953e336830e846'
   standards:
@@ -29,4 +29,4 @@ jobs:
     - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
       with:
         python-version: '3.14'
-    - uses: eigger/hass-repo-standards/actions/check-standards@0c1592977591ecba077a4666d699840062711201
+    - uses: eigger/hass-repo-standards/actions/check-standards@1863343638014adb8a4001afc8fddc1a27dc500f

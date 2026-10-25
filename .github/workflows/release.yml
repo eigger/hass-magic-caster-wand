@@ -24,7 +24,7 @@ jobs:
       with:
         python-version: '3.13'
     - id: archive
-      uses: eigger/hass-repo-standards/actions/release-zip@0c1592977591ecba077a4666d699840062711201
+      uses: eigger/hass-repo-standards/actions/release-zip@1863343638014adb8a4001afc8fddc1a27dc500f
       with:
         tag: ${{ github.event.release.tag_name }}
     - name: Upload ZIP to the published release
