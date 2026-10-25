@@ -64,7 +64,7 @@ belong in their own requirements files. Before adding a dependency, review packa
 source/license, supported Python/platforms, maintained public APIs and its need.
 Preserve extras, operators and markers when updating, verify resolver and `pip check`,
 and test the exact minimum/current combinations. Follow the [reviewed dependency
-procedure](https://github.com/eigger/hass-repo-standards/blob/0ec31111a81b0ee5702f1d8a17f03616a10a5db6/docs/dependencies.md).
+procedure](https://github.com/eigger/hass-repo-standards/blob/v1.0.0/docs/dependencies.md).
 
 Update both READMEs and the detailed docs when behavior changes. Use the reviewed central
 `python "$STANDARDS_CHECKOUT/scripts/check_integration.py" .` to check managed README
