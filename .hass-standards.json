@@ -10,6 +10,11 @@
   "installation_link": "#installation",
   "tests_workflow": "tests.yml",
   "validate_workflow": "validate.yml",
+  "standards": {
+    "kind": "release",
+    "tag": "v1.0.0",
+    "resolved_sha": "44349ee5621eea5d80e5c427f7a2435d2c2491bb"
+  },
   "installation_links": {
     "README.md": "#installation",
     "README.ko.md": "#설치"
