@@ -14,9 +14,9 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    uses: eigger/hass-repo-standards/.github/workflows/dependency-update.yml@v1.0.0 # reviewed standards commit
+    uses: eigger/hass-repo-standards/.github/workflows/dependency-update.yml@v1.0.1 # reviewed standards release
     with:
-      standards-ref: 44349ee5621eea5d80e5c427f7a2435d2c2491bb
+      standards-ref: c9b4553184f9c27bdbe7bf8564eaf10153e9575b
       domain: magic_caster_wand
       packages: '["blesession"]'
       python-version: '3.14'
