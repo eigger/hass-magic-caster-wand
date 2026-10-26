@@ -1,0 +1,28 @@
+name: Update standards
+'on':
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+  schedule:
+    - cron: '47 4 * * *'
+  workflow_dispatch:
+    inputs:
+      pull-request-number:
+        description: Optional reviewed standards-only PR; empty reconciles Dependabot PRs
+        required: false
+        type: number
+        default: 0
+permissions:
+  contents: read
+jobs:
+  update:
+    if: >-
+      github.event_name != 'pull_request_target' ||
+      (github.event.pull_request.user.login == 'dependabot[bot]' &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    uses: eigger/hass-repo-standards/.github/workflows/standards-update.yml@v1.1.2
+    with:
+      pull-request-number: ${{ fromJSON(format('{0}', github.event.pull_request.number || inputs.pull-request-number || 0)) }}

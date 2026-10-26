@@ -12,8 +12,8 @@
   "validate_workflow": "validate.yml",
   "standards": {
     "kind": "release",
-    "tag": "v1.0.1",
-    "resolved_sha": "c9b4553184f9c27bdbe7bf8564eaf10153e9575b"
+    "tag": "v1.1.2",
+    "resolved_sha": "df9798509d9228247ec32efb313ec7b687b5b152"
   },
   "installation_links": {
     "README.md": "#installation",
@@ -42,5 +42,9 @@
     ],
     "integration_type": null,
     "source": "README.md: physical Magic Caster Wand gestures and button presses trigger Home Assistant automations; wand/box LEDs and vibration provide feedback. Primary product use is an automation remote, so buttons_remotes; no secondary category inferred from entity platforms. Official taxonomy: https://github.com/home-assistant/core/blob/ec18d8b25d1ee39aa8b85a72a170e42bee33228c/homeassistant/generated/integration_categories.json (reviewed 2026-10-22)."
+  },
+  "standards_update": {
+    "provider": "dependabot",
+    "workflow": "update_standards.yml"
   }
 }

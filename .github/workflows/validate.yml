@@ -15,6 +15,6 @@ concurrency:
   cancel-in-progress: true
 jobs:
   validate:
-    uses: eigger/hass-repo-standards/.github/workflows/validate-integration.yml@v1.0.1 # reviewed standards release
+    uses: eigger/hass-repo-standards/.github/workflows/validate-integration.yml@v1.1.2 # reviewed standards release
     with:
       hassfest-core-ref: 'c517d079e1cd3831dd8aa547dd953e336830e846'
