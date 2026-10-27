@@ -19,7 +19,6 @@ jobs:
       domain: magic_caster_wand
       python-versions: '["3.14"]'
       requirements: requirements_test.txt
-      expected-ha-version: '2026.10.2'
       dependency-modes: '["current", "minimum"]'
       minimum-packages: '["blesession", "bluetooth-sensor-state-data"]'
       ha-components: bluetooth_adapters camera
