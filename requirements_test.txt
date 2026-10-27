@@ -1,2 +1,1 @@
-homeassistant==2026.10.2
 pytest-homeassistant-custom-component==0.13.373
