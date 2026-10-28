@@ -23,6 +23,6 @@ jobs:
       contents: write
       pull-requests: write
       actions: write
-    uses: eigger/hass-repo-standards/.github/workflows/standards-update.yml@v1.1.3
+    uses: eigger/hass-repo-standards/.github/workflows/standards-update.yml@v1.1.4
     with:
       pull-request-number: ${{ fromJSON(format('{0}', github.event.pull_request.number || inputs.pull-request-number || 0)) }}
