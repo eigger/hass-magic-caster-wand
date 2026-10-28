@@ -1,8 +1,8 @@
 # 적용한 공통 규칙
-- 표준: https://github.com/eigger/hass-repo-standards/tree/v1.1.3
-- 참조 커밋 SHA: c8c2771a2de68769af40f56e19e958e374e6e091
-- Standards release: v1.1.3
-- Resolved standards SHA: c8c2771a2de68769af40f56e19e958e374e6e091
+- 표준: https://github.com/eigger/hass-repo-standards/tree/v1.1.4
+- 참조 커밋 SHA: a90531d05613597632a4c10c11ce1dbc45e0bab6
+- Standards release: v1.1.4
+- Resolved standards SHA: a90531d05613597632a4c10c11ce1dbc45e0bab6
 - 중앙 main 확인일: 2026-10-22.
 - 최초 적용: 2026-10-18, [PR #114](https://github.com/eigger/hass-magic-caster-wand/pull/114). 이번 재검토: 2026-10-22, 기준 통합 `5e71012776658291d4aa88310d563520ee784a81` 이후 로컬 변경.
 - profile: `integration / ha`; 실제 기본 브랜치: `master`; domain: `magic_caster_wand`; 테스트: `tests/components/magic_caster_wand/`.
