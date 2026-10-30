@@ -1,8 +1,8 @@
 # 적용한 공통 규칙
-- 표준: https://github.com/eigger/hass-repo-standards/tree/v1.1.4
-- 참조 커밋 SHA: a90531d05613597632a4c10c11ce1dbc45e0bab6
-- Standards release: v1.1.4
-- Resolved standards SHA: a90531d05613597632a4c10c11ce1dbc45e0bab6
+- 표준: https://github.com/eigger/hass-repo-standards/tree/v1.1.5
+- 참조 커밋 SHA: f56987f7f765a774c926fb8005fe5df68bb32451
+- Standards release: v1.1.5
+- Resolved standards SHA: f56987f7f765a774c926fb8005fe5df68bb32451
 - 중앙 main 확인일: 2026-10-22.
 - 최초 적용: 2026-10-18, [PR #114](https://github.com/eigger/hass-magic-caster-wand/pull/114). 이번 재검토: 2026-10-22, 기준 통합 `5e71012776658291d4aa88310d563520ee784a81` 이후 로컬 변경.
 - profile: `integration / ha`; 실제 기본 브랜치: `master`; domain: `magic_caster_wand`; 테스트: `tests/components/magic_caster_wand/`.
@@ -28,7 +28,7 @@ HACS Default는 [공식 기본 통합 목록](https://github.com/hacs/default/bl
 
 - 배지·DOC-03/05와 Validate 형식 검사기만 중앙 [`b54ac48102d6e326c6929071fdc02ba8fade794e`](https://github.com/eigger/hass-repo-standards/tree/b54ac48102d6e326c6929071fdc02ba8fade794e)를 채택합니다. 이전 기준 SHA `0ec31111a81b0ee5702f1d8a17f03616a10a5db6`의 채택 이력·예외는 보존합니다. 모든 중앙 workflow/action pin과 standards-ref는 GOV-02의 단일 기준 SHA 계약에 맞춰 갱신합니다. 중앙 diff에서 공용 workflow/action 실행 파일은 이전 기준과 동일함을 확인했습니다.
 - 대상 기본 브랜치 커밋: `8cf723a523edfa2df425da40a62e87db2efbd1d9`. 주 에이전트 직접 구현·자체 리뷰(GOV-05의 배지/생성물 변경 범위), 검증은 [ADOPTION_CHECKLIST.md](ADOPTION_CHECKLIST.md#2026-10-23-downloads-배지-부분-검증)에 기록합니다.
-- Downloads는 모든 릴리스 첨부 asset 다운로드 합계입니다. 사용자 지시에 따라 ZIP 배포를 도입하지 않으며 현재 HACS 소스 파일 설치는 이 수치에 집계되지 않습니다. 통합 코드·의존성·지원 최소·기존 설치 안내는 변경하지 않습니다.
+- Downloads는 현재 릴리스 첨부 asset 다운로드 합계입니다. 사용자 지시에 따라 ZIP 배포를 도입하지 않으며 현재 HACS 소스 파일 설치는 이 수치에 집계되지 않습니다. 통합 코드·의존성·지원 최소·기존 설치 안내는 변경하지 않습니다.
 
 ## 2026-10-23 ZIP 릴리스 배포
 

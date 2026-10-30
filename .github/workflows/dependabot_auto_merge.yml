@@ -12,4 +12,4 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    uses: eigger/hass-repo-standards/.github/workflows/dependabot-auto-merge.yml@v1.1.4
+    uses: eigger/hass-repo-standards/.github/workflows/dependabot-auto-merge.yml@v1.1.5

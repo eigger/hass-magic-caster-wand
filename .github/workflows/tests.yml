@@ -14,7 +14,7 @@ concurrency:
 # Test the current release and the unchanged declared HA support floor.
 jobs:
   current:
-    uses: eigger/hass-repo-standards/.github/workflows/python-tests.yml@v1.1.4 # reviewed standards release
+    uses: eigger/hass-repo-standards/.github/workflows/python-tests.yml@v1.1.5 # reviewed standards release
     with:
       domain: magic_caster_wand
       python-versions: '["3.14"]'
@@ -25,7 +25,7 @@ jobs:
       test-profile: ha
       pytest-args: tests/components/magic_caster_wand/ -v
   minimum-ha:
-    uses: eigger/hass-repo-standards/.github/workflows/python-tests.yml@v1.1.4 # reviewed standards release
+    uses: eigger/hass-repo-standards/.github/workflows/python-tests.yml@v1.1.5 # reviewed standards release
     with:
       domain: magic_caster_wand
       python-versions: '["3.13"]'
