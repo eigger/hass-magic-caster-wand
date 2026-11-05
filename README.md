@@ -1,7 +1,7 @@
 <!-- hass-standards:header:start -->
-# Magic Caster Wand
+# Magic Caster Wand for Home Assistant
 
-Cast **Lumos** to turn on a room light, or **Nox** to turn it off. This HACS custom integration connects Harry Potter Magic Caster Wands and their boxes to Home Assistant over Bluetooth, turning spells and button presses into automation triggers and letting Home Assistant send LED and vibration effects back to the wand.
+A Home Assistant custom integration that connects Harry Potter Magic Caster Wands and their boxes over Bluetooth. Spells and buttons trigger automations, and Home Assistant can send LED and vibration effects back to the wand.
 
 **English** | [한국어](README.ko.md)
 
@@ -37,11 +37,13 @@ Cast **Lumos** to turn on a room light, or **Nox** to turn it off. This HACS cus
 | Optional movement tracking | **Spell Tracking** streams the wand's IMU data for **Spell Canvas** and server-based recognition; it needs separate setup below. |
 | Magic Caster Box | Monitor lid, USB and wand-presence status, battery and connection; control its single `TIP` LED. It has no vibration motor or wand IMU. Add the box separately from the wand. |
 
-## Supported devices and requirements
+<a name="supported-devices-and-requirements"></a>
 
-- Wand models: **Defiant, Loyal and Honourable**; Magic Caster Box support is also included.
-- Home Assistant **2025.4.0 or later**, HACS or a manual installation, and a connectable Bluetooth adapter or ESPHome Bluetooth proxy.
-- Charge and wake the device, keep it in Bluetooth range, and close other apps if they hold its connection. A proxy needs `bluetooth_proxy.active: true` for GATT connections; active scanning is a separate setting. See [Bluetooth proxy setup](https://github.com/eigger/blesession/blob/main/docs/bluetooth.md).
+## Requirements
+
+- **Home Assistant:** 2025.4.0 or later.
+- **Bluetooth:** A connectable adapter or ESPHome proxy. GATT needs `bluetooth_proxy.active: true`. Active scanning is separate. See [Bluetooth proxy setup](https://github.com/eigger/blesession/blob/main/docs/bluetooth.md).
+- **Device:** A Defiant, Loyal or Honourable wand, or a Magic Caster Box.
 
 ## Installation
 
@@ -49,9 +51,16 @@ Cast **Lumos** to turn on a room light, or **Nox** to turn it off. This HACS cus
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=eigger&repository=hass-magic-caster-wand)
 <!-- hass-standards:installation:end -->
 
-1. In HACS, search for **Magic Caster Wand** and download it, or use the button above. It is included in the HACS default repository list. For manual installation, copy only `custom_components/magic_caster_wand` into your configuration's `custom_components` directory.
-2. Restart Home Assistant. Open **Settings → Devices & services → Add integration → Magic Caster Wand**, or confirm its Bluetooth discovery.
-3. Select your awake wand or box. On its device page, turn on **Connect** before receiving spells or sending effects. Finding a Bluetooth advertisement alone does not confirm a working connection.
+1. Click the badge above to open the repository in Marketplace.
+2. If you need to add it yourself, go to **Settings → Marketplace → Add from link** and enter <https://github.com/eigger/hass-magic-caster-wand>. Connect GitHub if prompted.
+3. Select **Install**. Restart Home Assistant if prompted, then continue to [Configuration](#configuration).
+
+## Configuration
+
+Charge and wake the device, keep it in Bluetooth range and close other apps using it.
+
+1. Open **Settings → Devices & services → Add integration → Magic Caster Wand**, or confirm its Bluetooth discovery.
+2. Select your awake wand or box. On its device page, turn on **Connect** before receiving spells or sending effects. Finding a Bluetooth advertisement alone does not confirm a working connection.
 
 For your first check, leave **Spell Tracking off**, confirm **Connected** is on, and cast a built-in gesture below using the wand's normal casting grip. Open the **Spell** entity and check that its value changes. If it does not, check the connection and button states before adding an automation. The spell value can remain visible after a disconnect, so a previously displayed spell is not proof of a current connection.
 
@@ -145,8 +154,6 @@ Bluetooth discovery, connection and successful command execution are separate st
 - [Complete gesture gallery, media, Spell Canvas and action reference (English)](docs/user-guide.md)
 - [Development and tests (English)](CONTRIBUTING.md)
 - [Standards and verification record (Korean)](STANDARDS.md)
-
-The Downloads badge counts GitHub release asset downloads of the current release, not active installations.
 
 <!-- hass-standards:support:start -->
 ## Support
