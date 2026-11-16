@@ -28,7 +28,7 @@
   "issue_tracker": "https://github.com/eigger/hass-magic-caster-wand/issues",
   "requirements": [
     "numpy",
-    "blesession>=0.9.1",
+    "blesession>=0.10.0",
     "bluetooth-sensor-state-data==1.7.5"
   ],
   "version": "2.2.0"
