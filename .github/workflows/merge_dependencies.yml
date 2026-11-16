@@ -1,0 +1,23 @@
+name: Merge dependencies
+'on':
+  workflow_run:
+    workflows: [Update dependencies]
+    types: [completed]
+  schedule:
+    - cron: '17 5 * * *'
+  workflow_dispatch: null
+permissions:
+  contents: read
+jobs:
+  merge:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    uses: eigger/hass-repo-standards/.github/workflows/manifest-dependency-merge.yml@v1.3.0
+    with:
+      domain: magic_caster_wand
+      packages: '["blesession"]'
