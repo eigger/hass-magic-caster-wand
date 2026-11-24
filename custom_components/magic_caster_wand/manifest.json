@@ -31,5 +31,5 @@
     "blesession>=0.10.0",
     "bluetooth-sensor-state-data==1.7.5"
   ],
-  "version": "2.2.1"
+  "version": "2.3.0"
 }
