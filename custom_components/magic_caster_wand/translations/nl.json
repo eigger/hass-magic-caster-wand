@@ -1,0 +1,192 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "description": "Kies een apparaat om in te stellen",
+        "data": {
+          "address": "Apparaat"
+        }
+      },
+      "bluetooth_confirm": {
+        "description": "Wil je {name} instellen?"
+      }
+    },
+    "abort": {
+      "no_devices_found": "Geen apparaten gevonden",
+      "already_in_progress": "De configuratiestroom is al bezig",
+      "already_configured": "Apparaat is al geconfigureerd",
+      "not_supported": "Apparaat wordt niet ondersteund",
+      "reauth_successful": "Herauthenticatie geslaagd",
+      "cannot_connect": "Verbinden mislukt",
+      "unknown": "Onverwachte fout"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Magic Caster Wand-configuratie",
+        "description": "Configureer de TFLite-server-URL voor spreukdetectie en de spreuktime-out.",
+        "data": {
+          "tflite_url": "TFLite-server-URL",
+          "spell_timeout": "Spreuktime-out (seconden)"
+        },
+        "data_description": {
+          "spell_timeout": "Tijd in seconden voordat een gedetecteerde spreuk terugkeert naar wachten. Stel in op 0 om de time-out uit te schakelen."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "spell": {
+        "name": "Spreuk"
+      },
+      "battery": {
+        "name": "Batterij"
+      },
+      "battery_state": {
+        "name": "Batterijstatus"
+      },
+      "spell_mode": {
+        "name": "Spreukdetectiemodus"
+      },
+      "calibration_button": {
+        "name": "Knopkalibratie"
+      },
+      "calibration_imu": {
+        "name": "IMU-kalibratie"
+      },
+      "ble_connection_duration": {
+        "name": "Verbindingsduur"
+      },
+      "ble_failure_count": {
+        "name": "Aantal fouten"
+      },
+      "ble_last_failure": {
+        "name": "Laatste fout"
+      }
+    },
+    "binary_sensor": {
+      "button_1": {
+        "name": "Knop 1"
+      },
+      "button_2": {
+        "name": "Knop 2"
+      },
+      "button_3": {
+        "name": "Knop 3"
+      },
+      "button_4": {
+        "name": "Knop 4"
+      },
+      "connected": {
+        "name": "Verbonden"
+      },
+      "lid": {
+        "name": "Deksel"
+      },
+      "usb_plugged": {
+        "name": "USB aangesloten"
+      },
+      "wand_present": {
+        "name": "Toverstaf"
+      }
+    },
+    "button": {
+      "calibration_button": {
+        "name": "Knopkalibratie"
+      },
+      "calibration_imu": {
+        "name": "IMU-kalibratie"
+      }
+    },
+    "switch": {
+      "connect": {
+        "name": "Verbinden"
+      },
+      "spell_tracking": {
+        "name": "Spreuken volgen"
+      }
+    },
+    "select": {
+      "casting_led_color": {
+        "name": "LED-kleur bij spreuk"
+      }
+    },
+    "text": {
+      "alias": {
+        "name": "Alias"
+      }
+    },
+    "camera": {
+      "spell_canvas": {
+        "name": "Spreukcanvas"
+      }
+    }
+  },
+  "services": {
+    "vibrate": {
+      "name": "Toverstaf laten trillen",
+      "description": "Laat de toverstaf trillen. Eén opdracht geeft een vaste puls van ongeveer 800 ms, ongeacht de gevraagde duur.",
+      "fields": {
+        "duration": {
+          "name": "Duur",
+          "description": "Gevraagde trillingsduur in milliseconden. Opdrachten die kort na elkaar komen kunnen de firmwarepuls verlengen."
+        }
+      }
+    },
+    "set_led": {
+      "name": "LED instellen",
+      "description": "Stel de kleur van een specifieke LED-groep op de toverstaf in.",
+      "fields": {
+        "group": {
+          "name": "LED-groep",
+          "description": "De LED-groep die moet worden aangestuurd."
+        },
+        "rgb_color": {
+          "name": "RGB-kleur",
+          "description": "De kleur in RGB-indeling."
+        },
+        "duration": {
+          "name": "Duur",
+          "description": "Verlichtingsduur in milliseconden. Gebruik 0 voor permanent."
+        }
+      }
+    },
+    "send_macro": {
+      "name": "Macro verzenden",
+      "description": "Verzend een reeks macro-opdrachten naar een toverstaf of box. Opdrachten worden op volgorde uitgevoerd en kunnen LED's wijzigen, wachten, trillen en lussen definiëren. De box heeft één LED-groep (TIP) en geen trilmotor.",
+      "fields": {
+        "commands": {
+          "name": "Macro-opdrachten",
+          "description": "Een lijst met opdrachtobjecten. Ondersteunde sleutels: changeled (group, rgb, duration), clear, delay (delay), buzz (buzz), set_loops (1–255), loop en wait. LED-groepen: TIP, MID_UPPER, MID_LOWER, POMMEL (of 0–3). RGB-kanalen lopen van 0 tot 255; duration is in milliseconden."
+        }
+      }
+    },
+    "clear_leds": {
+      "name": "LED's wissen",
+      "description": "Schakel alle LED's op de toverstaf uit."
+    },
+    "play_spell": {
+      "name": "Spreukeffect afspelen",
+      "description": "Speel een vooraf gedefinieerd spreukmacro-effect af.",
+      "fields": {
+        "spell": {
+          "name": "Spreuk",
+          "description": "Het af te spelen spreukeffect."
+        }
+      }
+    }
+  },
+  "selector": {
+    "led_group": {
+      "options": {
+        "tip": "Punt",
+        "pommel": "Knop (onderkant)",
+        "mid_lower": "Midden onder",
+        "mid_upper": "Midden boven"
+      }
+    }
+  }
+}

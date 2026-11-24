@@ -1,0 +1,192 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "description": "Välj en enhet att konfigurera",
+        "data": {
+          "address": "Enhet"
+        }
+      },
+      "bluetooth_confirm": {
+        "description": "Vill du konfigurera {name}?"
+      }
+    },
+    "abort": {
+      "no_devices_found": "Inga enheter hittades",
+      "already_in_progress": "Konfigurationsflödet pågår redan",
+      "already_configured": "Enheten är redan konfigurerad",
+      "not_supported": "Enheten stöds inte",
+      "reauth_successful": "Återautentiseringen lyckades",
+      "cannot_connect": "Det gick inte att ansluta",
+      "unknown": "Oväntat fel"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Konfiguration av Magic Caster Wand",
+        "description": "Konfigurera URL för TFLite-servern för trollformelsigenkänning samt timeout för trollformler.",
+        "data": {
+          "tflite_url": "URL för TFLite-server",
+          "spell_timeout": "Timeout för trollformel (sekunder)"
+        },
+        "data_description": {
+          "spell_timeout": "Tid i sekunder innan en identifierad trollformel återställs till väntande. Ange 0 för att inaktivera timeout."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "spell": {
+        "name": "Trollformel"
+      },
+      "battery": {
+        "name": "Batteri"
+      },
+      "battery_state": {
+        "name": "Batteristatus"
+      },
+      "spell_mode": {
+        "name": "Läge för trollformelsigenkänning"
+      },
+      "calibration_button": {
+        "name": "Kalibrering av knapp"
+      },
+      "calibration_imu": {
+        "name": "IMU-kalibrering"
+      },
+      "ble_connection_duration": {
+        "name": "Anslutningstid"
+      },
+      "ble_failure_count": {
+        "name": "Antal fel"
+      },
+      "ble_last_failure": {
+        "name": "Senaste fel"
+      }
+    },
+    "binary_sensor": {
+      "button_1": {
+        "name": "Knapp 1"
+      },
+      "button_2": {
+        "name": "Knapp 2"
+      },
+      "button_3": {
+        "name": "Knapp 3"
+      },
+      "button_4": {
+        "name": "Knapp 4"
+      },
+      "connected": {
+        "name": "Ansluten"
+      },
+      "lid": {
+        "name": "Lock"
+      },
+      "usb_plugged": {
+        "name": "USB ansluten"
+      },
+      "wand_present": {
+        "name": "Trollstav"
+      }
+    },
+    "button": {
+      "calibration_button": {
+        "name": "Kalibrera knapp"
+      },
+      "calibration_imu": {
+        "name": "Kalibrera IMU"
+      }
+    },
+    "switch": {
+      "connect": {
+        "name": "Anslut"
+      },
+      "spell_tracking": {
+        "name": "Spåra trollformler"
+      }
+    },
+    "select": {
+      "casting_led_color": {
+        "name": "LED-färg vid trollformel"
+      }
+    },
+    "text": {
+      "alias": {
+        "name": "Alias"
+      }
+    },
+    "camera": {
+      "spell_canvas": {
+        "name": "Trollformelsyta"
+      }
+    }
+  },
+  "services": {
+    "vibrate": {
+      "name": "Vibrera trollstav",
+      "description": "Få trollstaven att vibrera. Ett enskilt kommando ger en fast puls på cirka 800 ms oavsett begärd varaktighet.",
+      "fields": {
+        "duration": {
+          "name": "Varaktighet",
+          "description": "Begärd vibrationstid i millisekunder. Tätt följande kommandon kan förlänga firmwarens puls."
+        }
+      }
+    },
+    "set_led": {
+      "name": "Ställ in LED",
+      "description": "Ställ in färgen på en specifik LED-grupp på trollstaven.",
+      "fields": {
+        "group": {
+          "name": "LED-grupp",
+          "description": "LED-gruppen som ska styras."
+        },
+        "rgb_color": {
+          "name": "RGB-färg",
+          "description": "Färgen i RGB-format."
+        },
+        "duration": {
+          "name": "Varaktighet",
+          "description": "Ljusets varaktighet i millisekunder. Använd 0 för permanent."
+        }
+      }
+    },
+    "send_macro": {
+      "name": "Skicka makro",
+      "description": "Skicka en sekvens av makrokommandon till en trollstav eller ask. Kommandona körs i ordning och kan ändra LED, vänta, vibrera och definiera loopar. Asken har en LED-grupp (TIP) och ingen vibrationsmotor.",
+      "fields": {
+        "commands": {
+          "name": "Makrokommandon",
+          "description": "En lista med kommandoobjekt. Nycklar som stöds: changeled (group, rgb, duration), clear, delay (delay), buzz (buzz), set_loops (1–255), loop och wait. LED-grupper: TIP, MID_UPPER, MID_LOWER, POMMEL (eller 0–3). RGB-kanaler går från 0 till 255; duration anges i millisekunder."
+        }
+      }
+    },
+    "clear_leds": {
+      "name": "Rensa LED",
+      "description": "Stäng av alla LED på trollstaven."
+    },
+    "play_spell": {
+      "name": "Spela trollformelseffekt",
+      "description": "Spela upp en fördefinierad makroeffekt för trollformel.",
+      "fields": {
+        "spell": {
+          "name": "Trollformel",
+          "description": "Trollformelseffekten som ska spelas."
+        }
+      }
+    }
+  },
+  "selector": {
+    "led_group": {
+      "options": {
+        "tip": "Spets",
+        "pommel": "Knopp",
+        "mid_lower": "Mitten nedre",
+        "mid_upper": "Mitten övre"
+      }
+    }
+  }
+}

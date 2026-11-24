@@ -1,0 +1,192 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "description": "Виберіть пристрій для налаштування",
+        "data": {
+          "address": "Пристрій"
+        }
+      },
+      "bluetooth_confirm": {
+        "description": "Налаштувати {name}?"
+      }
+    },
+    "abort": {
+      "no_devices_found": "Пристроїв не знайдено",
+      "already_in_progress": "Процес налаштування вже запущено",
+      "already_configured": "Пристрій уже налаштовано",
+      "not_supported": "Пристрій не підтримується",
+      "reauth_successful": "Повторну автентифікацію пройдено успішно",
+      "cannot_connect": "Не вдалося підключитися",
+      "unknown": "Неочікувана помилка"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Налаштування Magic Caster Wand",
+        "description": "Укажіть URL сервера TFLite для розпізнавання заклинань і тайм-аут заклинання.",
+        "data": {
+          "tflite_url": "URL сервера TFLite",
+          "spell_timeout": "Тайм-аут заклинання (секунди)"
+        },
+        "data_description": {
+          "spell_timeout": "Час у секундах, після якого розпізнане заклинання скидається в стан очікування. Укажіть 0, щоб вимкнути тайм-аут."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "spell": {
+        "name": "Заклинання"
+      },
+      "battery": {
+        "name": "Батарея"
+      },
+      "battery_state": {
+        "name": "Стан батареї"
+      },
+      "spell_mode": {
+        "name": "Режим розпізнавання заклинань"
+      },
+      "calibration_button": {
+        "name": "Калібрування кнопки"
+      },
+      "calibration_imu": {
+        "name": "Калібрування IMU"
+      },
+      "ble_connection_duration": {
+        "name": "Тривалість підключення"
+      },
+      "ble_failure_count": {
+        "name": "Кількість збоїв"
+      },
+      "ble_last_failure": {
+        "name": "Останній збій"
+      }
+    },
+    "binary_sensor": {
+      "button_1": {
+        "name": "Кнопка 1"
+      },
+      "button_2": {
+        "name": "Кнопка 2"
+      },
+      "button_3": {
+        "name": "Кнопка 3"
+      },
+      "button_4": {
+        "name": "Кнопка 4"
+      },
+      "connected": {
+        "name": "Підключено"
+      },
+      "lid": {
+        "name": "Кришка"
+      },
+      "usb_plugged": {
+        "name": "USB підключено"
+      },
+      "wand_present": {
+        "name": "Паличка"
+      }
+    },
+    "button": {
+      "calibration_button": {
+        "name": "Калібрування кнопки"
+      },
+      "calibration_imu": {
+        "name": "Калібрування IMU"
+      }
+    },
+    "switch": {
+      "connect": {
+        "name": "Підключити"
+      },
+      "spell_tracking": {
+        "name": "Відстеження заклинань"
+      }
+    },
+    "select": {
+      "casting_led_color": {
+        "name": "Колір світлодіода під час чаклування"
+      }
+    },
+    "text": {
+      "alias": {
+        "name": "Псевдонім"
+      }
+    },
+    "camera": {
+      "spell_canvas": {
+        "name": "Полотно заклинань"
+      }
+    }
+  },
+  "services": {
+    "vibrate": {
+      "name": "Вібрація палички",
+      "description": "Змушує паличку вібрувати. Одна команда створює імпульс фіксованої тривалості приблизно 800 мс незалежно від запитаної тривалості.",
+      "fields": {
+        "duration": {
+          "name": "Тривалість",
+          "description": "Запитана тривалість вібрації в мілісекундах. Команди, надіслані з малим інтервалом, можуть подовжити імпульс прошивки."
+        }
+      }
+    },
+    "set_led": {
+      "name": "Задати LED",
+      "description": "Задає колір указаної групи світлодіодів на паличці.",
+      "fields": {
+        "group": {
+          "name": "Група LED",
+          "description": "Група світлодіодів для керування."
+        },
+        "rgb_color": {
+          "name": "Колір RGB",
+          "description": "Колір у форматі RGB."
+        },
+        "duration": {
+          "name": "Тривалість",
+          "description": "Тривалість світіння в мілісекундах. 0 означає постійне світіння."
+        }
+      }
+    },
+    "send_macro": {
+      "name": "Надіслати макрос",
+      "description": "Надсилає послідовність макрокоманд на паличку або коробку. Команди виконуються по черзі й можуть змінювати підсвітку, чекати, вібрувати та задавати цикли. У коробки одна група LED (TIP) і немає вібромотора.",
+      "fields": {
+        "commands": {
+          "name": "Команди макросу",
+          "description": "Список об’єктів команд. Підтримувані ключі: changeled (group, rgb, duration), clear, delay (delay), buzz (buzz), set_loops (1–255), loop і wait. Групи LED: TIP, MID_UPPER, MID_LOWER, POMMEL (або 0–3). Канали RGB мають значення від 0 до 255; duration задається в мілісекундах."
+        }
+      }
+    },
+    "clear_leds": {
+      "name": "Вимкнути LED",
+      "description": "Вимикає всі світлодіоди на паличці."
+    },
+    "play_spell": {
+      "name": "Відтворити ефект заклинання",
+      "description": "Відтворює попередньо визначений макроефект заклинання.",
+      "fields": {
+        "spell": {
+          "name": "Заклинання",
+          "description": "Ефект заклинання для відтворення."
+        }
+      }
+    }
+  },
+  "selector": {
+    "led_group": {
+      "options": {
+        "tip": "Кінчик",
+        "pommel": "Навершя",
+        "mid_lower": "Середина (нижня)",
+        "mid_upper": "Середина (верхня)"
+      }
+    }
+  }
+}
