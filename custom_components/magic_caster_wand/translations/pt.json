@@ -1,0 +1,192 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "description": "Escolha um dispositivo para configurar",
+        "data": {
+          "address": "Dispositivo"
+        }
+      },
+      "bluetooth_confirm": {
+        "description": "Pretende configurar {name}?"
+      }
+    },
+    "abort": {
+      "no_devices_found": "Nenhum dispositivo encontrado",
+      "already_in_progress": "O fluxo de configuração já está em curso",
+      "already_configured": "O dispositivo já está configurado",
+      "not_supported": "O dispositivo não é suportado",
+      "reauth_successful": "Reautenticação bem-sucedida",
+      "cannot_connect": "Falha na ligação",
+      "unknown": "Erro inesperado"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configuração do Magic Caster Wand",
+        "description": "Configure o URL do servidor TFLite para a deteção de feitiços e o tempo limite do feitiço.",
+        "data": {
+          "tflite_url": "URL do servidor TFLite",
+          "spell_timeout": "Tempo limite do feitiço (segundos)"
+        },
+        "data_description": {
+          "spell_timeout": "Tempo, em segundos, até um feitiço detetado voltar ao estado de espera. Defina 0 para desativar o tempo limite."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "spell": {
+        "name": "Feitiço"
+      },
+      "battery": {
+        "name": "Bateria"
+      },
+      "battery_state": {
+        "name": "Estado da bateria"
+      },
+      "spell_mode": {
+        "name": "Modo de deteção de feitiços"
+      },
+      "calibration_button": {
+        "name": "Calibração do botão"
+      },
+      "calibration_imu": {
+        "name": "Calibração IMU"
+      },
+      "ble_connection_duration": {
+        "name": "Duração da ligação"
+      },
+      "ble_failure_count": {
+        "name": "Número de falhas"
+      },
+      "ble_last_failure": {
+        "name": "Última falha"
+      }
+    },
+    "binary_sensor": {
+      "button_1": {
+        "name": "Botão 1"
+      },
+      "button_2": {
+        "name": "Botão 2"
+      },
+      "button_3": {
+        "name": "Botão 3"
+      },
+      "button_4": {
+        "name": "Botão 4"
+      },
+      "connected": {
+        "name": "Ligado"
+      },
+      "lid": {
+        "name": "Tampa"
+      },
+      "usb_plugged": {
+        "name": "USB ligado"
+      },
+      "wand_present": {
+        "name": "Varinha"
+      }
+    },
+    "button": {
+      "calibration_button": {
+        "name": "Calibração do botão"
+      },
+      "calibration_imu": {
+        "name": "Calibração IMU"
+      }
+    },
+    "switch": {
+      "connect": {
+        "name": "Ligar"
+      },
+      "spell_tracking": {
+        "name": "Rastreio de feitiços"
+      }
+    },
+    "select": {
+      "casting_led_color": {
+        "name": "Cor do LED de lançamento"
+      }
+    },
+    "text": {
+      "alias": {
+        "name": "Alias"
+      }
+    },
+    "camera": {
+      "spell_canvas": {
+        "name": "Ecrã de feitiços"
+      }
+    }
+  },
+  "services": {
+    "vibrate": {
+      "name": "Vibrar varinha",
+      "description": "Faz a varinha vibrar. Um único comando produz um impulso fixo de cerca de 800 ms, independentemente da duração pedida.",
+      "fields": {
+        "duration": {
+          "name": "Duração",
+          "description": "Duração de vibração pedida, em milissegundos. Comandos muito próximos podem prolongar o impulso do firmware."
+        }
+      }
+    },
+    "set_led": {
+      "name": "Definir LED",
+      "description": "Define a cor de um grupo de LED específico da varinha.",
+      "fields": {
+        "group": {
+          "name": "Grupo de LED",
+          "description": "O grupo de LED a controlar."
+        },
+        "rgb_color": {
+          "name": "Cor RGB",
+          "description": "A cor em formato RGB."
+        },
+        "duration": {
+          "name": "Duração",
+          "description": "Duração da luz em milissegundos. Use 0 para permanente."
+        }
+      }
+    },
+    "send_macro": {
+      "name": "Enviar macro",
+      "description": "Envia uma sequência de comandos de macro para uma varinha ou caixa. Os comandos são executados por ordem e podem alterar LED, aguardar, vibrar e definir ciclos. A caixa tem um grupo de LED (TIP) e não tem motor de vibração.",
+      "fields": {
+        "commands": {
+          "name": "Comandos de macro",
+          "description": "Uma lista de objetos de comando. Chaves suportadas: changeled (group, rgb, duration), clear, delay (delay), buzz (buzz), set_loops (1–255), loop e wait. Grupos de LED: TIP, MID_UPPER, MID_LOWER, POMMEL (ou 0–3). Os canais RGB variam de 0 a 255; duration é em milissegundos."
+        }
+      }
+    },
+    "clear_leds": {
+      "name": "Apagar LED",
+      "description": "Desliga todos os LED da varinha."
+    },
+    "play_spell": {
+      "name": "Reproduzir efeito de feitiço",
+      "description": "Reproduz um efeito de macro de feitiço predefinido.",
+      "fields": {
+        "spell": {
+          "name": "Feitiço",
+          "description": "O efeito de feitiço a reproduzir."
+        }
+      }
+    }
+  },
+  "selector": {
+    "led_group": {
+      "options": {
+        "tip": "Ponta",
+        "pommel": "Pomo",
+        "mid_lower": "Meio inferior",
+        "mid_upper": "Meio superior"
+      }
+    }
+  }
+}

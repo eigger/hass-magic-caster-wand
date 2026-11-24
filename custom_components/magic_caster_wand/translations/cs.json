@@ -1,0 +1,192 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "description": "Vyberte zařízení, které chcete nastavit",
+        "data": {
+          "address": "Zařízení"
+        }
+      },
+      "bluetooth_confirm": {
+        "description": "Chcete nastavit {name}?"
+      }
+    },
+    "abort": {
+      "no_devices_found": "Nebyla nalezena žádná zařízení",
+      "already_in_progress": "Konfigurace již probíhá",
+      "already_configured": "Zařízení je již nakonfigurováno",
+      "not_supported": "Zařízení není podporováno",
+      "reauth_successful": "Opětovné ověření bylo úspěšné",
+      "cannot_connect": "Nepodařilo se připojit",
+      "unknown": "Neočekávaná chyba"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Konfigurace Magic Caster Wand",
+        "description": "Nastavte URL serveru TFLite pro rozpoznávání kouzel a časový limit kouzla.",
+        "data": {
+          "tflite_url": "URL serveru TFLite",
+          "spell_timeout": "Časový limit kouzla (sekundy)"
+        },
+        "data_description": {
+          "spell_timeout": "Doba v sekundách, po které se rozpoznané kouzlo vrátí do stavu čekání. Hodnotou 0 časový limit zakážete."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "spell": {
+        "name": "Kouzlo"
+      },
+      "battery": {
+        "name": "Baterie"
+      },
+      "battery_state": {
+        "name": "Stav baterie"
+      },
+      "spell_mode": {
+        "name": "Režim rozpoznávání kouzel"
+      },
+      "calibration_button": {
+        "name": "Kalibrace tlačítka"
+      },
+      "calibration_imu": {
+        "name": "Kalibrace IMU"
+      },
+      "ble_connection_duration": {
+        "name": "Doba připojení"
+      },
+      "ble_failure_count": {
+        "name": "Počet selhání"
+      },
+      "ble_last_failure": {
+        "name": "Poslední selhání"
+      }
+    },
+    "binary_sensor": {
+      "button_1": {
+        "name": "Tlačítko 1"
+      },
+      "button_2": {
+        "name": "Tlačítko 2"
+      },
+      "button_3": {
+        "name": "Tlačítko 3"
+      },
+      "button_4": {
+        "name": "Tlačítko 4"
+      },
+      "connected": {
+        "name": "Připojeno"
+      },
+      "lid": {
+        "name": "Víko"
+      },
+      "usb_plugged": {
+        "name": "USB připojeno"
+      },
+      "wand_present": {
+        "name": "Hůlka"
+      }
+    },
+    "button": {
+      "calibration_button": {
+        "name": "Kalibrovat tlačítko"
+      },
+      "calibration_imu": {
+        "name": "Kalibrovat IMU"
+      }
+    },
+    "switch": {
+      "connect": {
+        "name": "Připojit"
+      },
+      "spell_tracking": {
+        "name": "Sledování kouzel"
+      }
+    },
+    "select": {
+      "casting_led_color": {
+        "name": "Barva LED při kouzlení"
+      }
+    },
+    "text": {
+      "alias": {
+        "name": "Alias"
+      }
+    },
+    "camera": {
+      "spell_canvas": {
+        "name": "Plátno kouzel"
+      }
+    }
+  },
+  "services": {
+    "vibrate": {
+      "name": "Rozvibrovat hůlku",
+      "description": "Rozvibruje hůlku. Jeden příkaz vyvolá pevný impuls přibližně 800 ms bez ohledu na požadovanou dobu.",
+      "fields": {
+        "duration": {
+          "name": "Doba trvání",
+          "description": "Požadovaná doba vibrace v milisekundách. Příkazy zaslané těsně za sebou mohou impuls firmwaru prodloužit."
+        }
+      }
+    },
+    "set_led": {
+      "name": "Nastavit LED",
+      "description": "Nastaví barvu konkrétní skupiny LED na hůlce.",
+      "fields": {
+        "group": {
+          "name": "Skupina LED",
+          "description": "Ovládaná skupina LED."
+        },
+        "rgb_color": {
+          "name": "Barva RGB",
+          "description": "Barva ve formátu RGB."
+        },
+        "duration": {
+          "name": "Doba trvání",
+          "description": "Doba svícení v milisekundách. Hodnota 0 znamená trvale."
+        }
+      }
+    },
+    "send_macro": {
+      "name": "Odeslat makro",
+      "description": "Odešle posloupnost makropříkazů hůlce nebo krabičce. Příkazy se provádějí postupně a mohou měnit LED, čekat, vibrovat a definovat smyčky. Krabička má jednu skupinu LED (TIP) a nemá vibrační motor.",
+      "fields": {
+        "commands": {
+          "name": "Makropříkazy",
+          "description": "Seznam objektů příkazů. Podporované klíče: changeled (group, rgb, duration), clear, delay (delay), buzz (buzz), set_loops (1–255), loop a wait. Skupiny LED: TIP, MID_UPPER, MID_LOWER, POMMEL (nebo 0–3). Kanály RGB mají rozsah od 0 do 255; duration je v milisekundách."
+        }
+      }
+    },
+    "clear_leds": {
+      "name": "Vypnout LED",
+      "description": "Vypne všechny LED na hůlce."
+    },
+    "play_spell": {
+      "name": "Přehrát efekt kouzla",
+      "description": "Přehraje předdefinovaný makroefekt kouzla.",
+      "fields": {
+        "spell": {
+          "name": "Kouzlo",
+          "description": "Efekt kouzla k přehrání."
+        }
+      }
+    }
+  },
+  "selector": {
+    "led_group": {
+      "options": {
+        "tip": "Špička",
+        "pommel": "Hlavice",
+        "mid_lower": "Střed dole",
+        "mid_upper": "Střed nahoře"
+      }
+    }
+  }
+}

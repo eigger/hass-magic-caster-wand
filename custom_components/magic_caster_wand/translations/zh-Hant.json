@@ -1,0 +1,192 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "description": "選擇要設定的裝置",
+        "data": {
+          "address": "裝置"
+        }
+      },
+      "bluetooth_confirm": {
+        "description": "要設定 {name} 嗎？"
+      }
+    },
+    "abort": {
+      "no_devices_found": "找不到裝置",
+      "already_in_progress": "設定流程已在進行中",
+      "already_configured": "裝置已完成設定",
+      "not_supported": "不支援此裝置",
+      "reauth_successful": "重新驗證成功",
+      "cannot_connect": "連線失敗",
+      "unknown": "未預期的錯誤"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Magic Caster Wand 設定",
+        "description": "設定用於咒語偵測的 TFLite 伺服器 URL 與咒語逾時時間。",
+        "data": {
+          "tflite_url": "TFLite 伺服器 URL",
+          "spell_timeout": "咒語逾時（秒）"
+        },
+        "data_description": {
+          "spell_timeout": "偵測到咒語後重設為等待中的時間（秒）。設為 0 可停用逾時。"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "spell": {
+        "name": "咒語"
+      },
+      "battery": {
+        "name": "電池"
+      },
+      "battery_state": {
+        "name": "電池狀態"
+      },
+      "spell_mode": {
+        "name": "咒語偵測模式"
+      },
+      "calibration_button": {
+        "name": "按鈕校正"
+      },
+      "calibration_imu": {
+        "name": "IMU 校正"
+      },
+      "ble_connection_duration": {
+        "name": "連線時間"
+      },
+      "ble_failure_count": {
+        "name": "失敗次數"
+      },
+      "ble_last_failure": {
+        "name": "上次失敗"
+      }
+    },
+    "binary_sensor": {
+      "button_1": {
+        "name": "按鈕 1"
+      },
+      "button_2": {
+        "name": "按鈕 2"
+      },
+      "button_3": {
+        "name": "按鈕 3"
+      },
+      "button_4": {
+        "name": "按鈕 4"
+      },
+      "connected": {
+        "name": "已連線"
+      },
+      "lid": {
+        "name": "盒蓋"
+      },
+      "usb_plugged": {
+        "name": "USB 已插入"
+      },
+      "wand_present": {
+        "name": "魔杖"
+      }
+    },
+    "button": {
+      "calibration_button": {
+        "name": "按鈕校正"
+      },
+      "calibration_imu": {
+        "name": "IMU 校正"
+      }
+    },
+    "switch": {
+      "connect": {
+        "name": "連線"
+      },
+      "spell_tracking": {
+        "name": "咒語追蹤"
+      }
+    },
+    "select": {
+      "casting_led_color": {
+        "name": "施法 LED 顏色"
+      }
+    },
+    "text": {
+      "alias": {
+        "name": "別名"
+      }
+    },
+    "camera": {
+      "spell_canvas": {
+        "name": "咒語畫布"
+      }
+    }
+  },
+  "services": {
+    "vibrate": {
+      "name": "魔杖震動",
+      "description": "讓魔杖震動。單一指令會產生約 800 ms 的固定脈衝，與要求的持續時間無關。",
+      "fields": {
+        "duration": {
+          "name": "持續時間",
+          "description": "要求的震動持續時間（毫秒）。間隔很短的指令可能會延長韌體脈衝。"
+        }
+      }
+    },
+    "set_led": {
+      "name": "設定 LED",
+      "description": "設定魔杖上指定 LED 群組的顏色。",
+      "fields": {
+        "group": {
+          "name": "LED 群組",
+          "description": "要控制的 LED 群組。"
+        },
+        "rgb_color": {
+          "name": "RGB 顏色",
+          "description": "RGB 格式的顏色。"
+        },
+        "duration": {
+          "name": "持續時間",
+          "description": "亮燈持續時間（毫秒）。0 表示持續亮起。"
+        }
+      }
+    },
+    "send_macro": {
+      "name": "傳送巨集",
+      "description": "傳送一連串巨集指令至魔杖或盒子。指令會依序執行，可變更 LED、等待、震動及定義迴圈。盒子只有一個 LED 群組 (TIP)，且沒有震動馬達。",
+      "fields": {
+        "commands": {
+          "name": "巨集指令",
+          "description": "指令物件清單。支援的鍵：changeled (group, rgb, duration)、clear、delay (delay)、buzz (buzz)、set_loops (1–255)、loop 與 wait。LED 群組：TIP、MID_UPPER、MID_LOWER、POMMEL（或 0–3）。RGB 色頻範圍為 0 到 255；duration 單位為毫秒。"
+        }
+      }
+    },
+    "clear_leds": {
+      "name": "清除 LED",
+      "description": "關閉魔杖上的所有 LED。"
+    },
+    "play_spell": {
+      "name": "播放咒語效果",
+      "description": "播放預先定義的咒語巨集效果。",
+      "fields": {
+        "spell": {
+          "name": "咒語",
+          "description": "要播放的咒語效果。"
+        }
+      }
+    }
+  },
+  "selector": {
+    "led_group": {
+      "options": {
+        "tip": "尖端",
+        "pommel": "握柄底端",
+        "mid_lower": "中下段",
+        "mid_upper": "中上段"
+      }
+    }
+  }
+}

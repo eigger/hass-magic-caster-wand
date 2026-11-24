@@ -1,0 +1,192 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "description": "Scegli un dispositivo da configurare",
+        "data": {
+          "address": "Dispositivo"
+        }
+      },
+      "bluetooth_confirm": {
+        "description": "Vuoi configurare {name}?"
+      }
+    },
+    "abort": {
+      "no_devices_found": "Nessun dispositivo trovato",
+      "already_in_progress": "Il flusso di configurazione è già in corso",
+      "already_configured": "Il dispositivo è già configurato",
+      "not_supported": "Il dispositivo non è supportato",
+      "reauth_successful": "Riautenticazione riuscita",
+      "cannot_connect": "Impossibile connettersi",
+      "unknown": "Errore imprevisto"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configurazione di Magic Caster Wand",
+        "description": "Configura l'URL del server TFLite per il rilevamento degli incantesimi e il timeout degli incantesimi.",
+        "data": {
+          "tflite_url": "URL del server TFLite",
+          "spell_timeout": "Timeout incantesimo (secondi)"
+        },
+        "data_description": {
+          "spell_timeout": "Tempo in secondi prima che un incantesimo rilevato torni in attesa. Imposta 0 per disattivare il timeout."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "spell": {
+        "name": "Incantesimo"
+      },
+      "battery": {
+        "name": "Batteria"
+      },
+      "battery_state": {
+        "name": "Stato batteria"
+      },
+      "spell_mode": {
+        "name": "Modalità di rilevamento incantesimi"
+      },
+      "calibration_button": {
+        "name": "Calibrazione pulsante"
+      },
+      "calibration_imu": {
+        "name": "Calibrazione IMU"
+      },
+      "ble_connection_duration": {
+        "name": "Durata connessione"
+      },
+      "ble_failure_count": {
+        "name": "Numero di errori"
+      },
+      "ble_last_failure": {
+        "name": "Ultimo errore"
+      }
+    },
+    "binary_sensor": {
+      "button_1": {
+        "name": "Pulsante 1"
+      },
+      "button_2": {
+        "name": "Pulsante 2"
+      },
+      "button_3": {
+        "name": "Pulsante 3"
+      },
+      "button_4": {
+        "name": "Pulsante 4"
+      },
+      "connected": {
+        "name": "Connesso"
+      },
+      "lid": {
+        "name": "Coperchio"
+      },
+      "usb_plugged": {
+        "name": "USB collegato"
+      },
+      "wand_present": {
+        "name": "Bacchetta"
+      }
+    },
+    "button": {
+      "calibration_button": {
+        "name": "Calibrazione pulsante"
+      },
+      "calibration_imu": {
+        "name": "Calibrazione IMU"
+      }
+    },
+    "switch": {
+      "connect": {
+        "name": "Connetti"
+      },
+      "spell_tracking": {
+        "name": "Tracciamento incantesimi"
+      }
+    },
+    "select": {
+      "casting_led_color": {
+        "name": "Colore LED di lancio"
+      }
+    },
+    "text": {
+      "alias": {
+        "name": "Alias"
+      }
+    },
+    "camera": {
+      "spell_canvas": {
+        "name": "Tela dell'incantesimo"
+      }
+    }
+  },
+  "services": {
+    "vibrate": {
+      "name": "Fai vibrare la bacchetta",
+      "description": "Fa vibrare la bacchetta. Un singolo comando produce un impulso fisso di circa 800 ms, indipendentemente dalla durata richiesta.",
+      "fields": {
+        "duration": {
+          "name": "Durata",
+          "description": "Durata della vibrazione richiesta in millisecondi. Comandi molto ravvicinati possono prolungare l'impulso del firmware."
+        }
+      }
+    },
+    "set_led": {
+      "name": "Imposta LED",
+      "description": "Imposta il colore di un gruppo LED specifico della bacchetta.",
+      "fields": {
+        "group": {
+          "name": "Gruppo LED",
+          "description": "Il gruppo LED da controllare."
+        },
+        "rgb_color": {
+          "name": "Colore RGB",
+          "description": "Il colore in formato RGB."
+        },
+        "duration": {
+          "name": "Durata",
+          "description": "Durata dell'accensione in millisecondi. Usa 0 per permanente."
+        }
+      }
+    },
+    "send_macro": {
+      "name": "Invia macro",
+      "description": "Invia una sequenza di comandi macro a una bacchetta o a una scatola. I comandi vengono eseguiti in ordine e possono cambiare i LED, attendere, far vibrare e definire cicli. La scatola ha un solo gruppo LED (TIP) e nessun motore di vibrazione.",
+      "fields": {
+        "commands": {
+          "name": "Comandi macro",
+          "description": "Un elenco di oggetti comando. Chiavi supportate: changeled (group, rgb, duration), clear, delay (delay), buzz (buzz), set_loops (1–255), loop e wait. Gruppi LED: TIP, MID_UPPER, MID_LOWER, POMMEL (o 0–3). I canali RGB vanno da 0 a 255; duration è in millisecondi."
+        }
+      }
+    },
+    "clear_leds": {
+      "name": "Spegni LED",
+      "description": "Spegne tutti i LED della bacchetta."
+    },
+    "play_spell": {
+      "name": "Riproduci effetto incantesimo",
+      "description": "Riproduce un effetto macro di incantesimo predefinito.",
+      "fields": {
+        "spell": {
+          "name": "Incantesimo",
+          "description": "L'effetto incantesimo da riprodurre."
+        }
+      }
+    }
+  },
+  "selector": {
+    "led_group": {
+      "options": {
+        "tip": "Punta",
+        "pommel": "Pomello",
+        "mid_lower": "Centro inferiore",
+        "mid_upper": "Centro superiore"
+      }
+    }
+  }
+}
