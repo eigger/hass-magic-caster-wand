@@ -1,0 +1,192 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "description": "Wybierz urządzenie do skonfigurowania",
+        "data": {
+          "address": "Urządzenie"
+        }
+      },
+      "bluetooth_confirm": {
+        "description": "Czy chcesz skonfigurować {name}?"
+      }
+    },
+    "abort": {
+      "no_devices_found": "Nie znaleziono urządzeń",
+      "already_in_progress": "Konfiguracja jest już w toku",
+      "already_configured": "Urządzenie jest już skonfigurowane",
+      "not_supported": "Urządzenie nie jest obsługiwane",
+      "reauth_successful": "Ponowne uwierzytelnienie powiodło się",
+      "cannot_connect": "Nie udało się połączyć",
+      "unknown": "Nieoczekiwany błąd"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Konfiguracja Magic Caster Wand",
+        "description": "Skonfiguruj adres URL serwera TFLite do wykrywania zaklęć oraz limit czasu zaklęcia.",
+        "data": {
+          "tflite_url": "Adres URL serwera TFLite",
+          "spell_timeout": "Limit czasu zaklęcia (sekundy)"
+        },
+        "data_description": {
+          "spell_timeout": "Czas w sekundach, po którym wykryte zaklęcie wraca do stanu oczekiwania. Ustaw 0, aby wyłączyć limit czasu."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "spell": {
+        "name": "Zaklęcie"
+      },
+      "battery": {
+        "name": "Bateria"
+      },
+      "battery_state": {
+        "name": "Stan baterii"
+      },
+      "spell_mode": {
+        "name": "Tryb wykrywania zaklęć"
+      },
+      "calibration_button": {
+        "name": "Kalibracja przycisku"
+      },
+      "calibration_imu": {
+        "name": "Kalibracja IMU"
+      },
+      "ble_connection_duration": {
+        "name": "Czas połączenia"
+      },
+      "ble_failure_count": {
+        "name": "Liczba błędów"
+      },
+      "ble_last_failure": {
+        "name": "Ostatni błąd"
+      }
+    },
+    "binary_sensor": {
+      "button_1": {
+        "name": "Przycisk 1"
+      },
+      "button_2": {
+        "name": "Przycisk 2"
+      },
+      "button_3": {
+        "name": "Przycisk 3"
+      },
+      "button_4": {
+        "name": "Przycisk 4"
+      },
+      "connected": {
+        "name": "Połączono"
+      },
+      "lid": {
+        "name": "Pokrywa"
+      },
+      "usb_plugged": {
+        "name": "USB podłączone"
+      },
+      "wand_present": {
+        "name": "Różdżka"
+      }
+    },
+    "button": {
+      "calibration_button": {
+        "name": "Kalibracja przycisku"
+      },
+      "calibration_imu": {
+        "name": "Kalibracja IMU"
+      }
+    },
+    "switch": {
+      "connect": {
+        "name": "Połącz"
+      },
+      "spell_tracking": {
+        "name": "Śledzenie zaklęć"
+      }
+    },
+    "select": {
+      "casting_led_color": {
+        "name": "Kolor LED podczas rzucania"
+      }
+    },
+    "text": {
+      "alias": {
+        "name": "Alias"
+      }
+    },
+    "camera": {
+      "spell_canvas": {
+        "name": "Płótno zaklęcia"
+      }
+    }
+  },
+  "services": {
+    "vibrate": {
+      "name": "Wibracja różdżki",
+      "description": "Powoduje wibrację różdżki. Pojedyncze polecenie wywołuje stały impuls trwający około 800 ms, niezależnie od żądanego czasu.",
+      "fields": {
+        "duration": {
+          "name": "Czas trwania",
+          "description": "Żądany czas wibracji w milisekundach. Polecenia wysyłane w krótkich odstępach mogą wydłużyć impuls oprogramowania sprzętowego."
+        }
+      }
+    },
+    "set_led": {
+      "name": "Ustaw LED",
+      "description": "Ustaw kolor wybranej grupy LED na różdżce.",
+      "fields": {
+        "group": {
+          "name": "Grupa LED",
+          "description": "Grupa LED do sterowania."
+        },
+        "rgb_color": {
+          "name": "Kolor RGB",
+          "description": "Kolor w formacie RGB."
+        },
+        "duration": {
+          "name": "Czas trwania",
+          "description": "Czas świecenia w milisekundach. Użyj 0 dla świecenia stałego."
+        }
+      }
+    },
+    "send_macro": {
+      "name": "Wyślij makro",
+      "description": "Wyślij sekwencję poleceń makra do różdżki lub pudełka. Polecenia są wykonywane po kolei i mogą zmieniać LED, czekać, wibrować oraz definiować pętle. Pudełko ma jedną grupę LED (TIP) i nie ma silnika wibracji.",
+      "fields": {
+        "commands": {
+          "name": "Polecenia makra",
+          "description": "Lista obiektów poleceń. Obsługiwane klucze: changeled (group, rgb, duration), clear, delay (delay), buzz (buzz), set_loops (1–255), loop oraz wait. Grupy LED: TIP, MID_UPPER, MID_LOWER, POMMEL (lub 0–3). Kanały RGB mają zakres od 0 do 255; duration podaje się w milisekundach."
+        }
+      }
+    },
+    "clear_leds": {
+      "name": "Wyłącz LED",
+      "description": "Wyłącz wszystkie diody LED na różdżce."
+    },
+    "play_spell": {
+      "name": "Odtwórz efekt zaklęcia",
+      "description": "Odtwórz predefiniowany efekt makra zaklęcia.",
+      "fields": {
+        "spell": {
+          "name": "Zaklęcie",
+          "description": "Efekt zaklęcia do odtworzenia."
+        }
+      }
+    }
+  },
+  "selector": {
+    "led_group": {
+      "options": {
+        "tip": "Czubek",
+        "pommel": "Głowica",
+        "mid_lower": "Środek dolny",
+        "mid_upper": "Środek górny"
+      }
+    }
+  }
+}

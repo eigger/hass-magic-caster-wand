@@ -1,0 +1,192 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "description": "Vælg en enhed, der skal konfigureres",
+        "data": {
+          "address": "Enhed"
+        }
+      },
+      "bluetooth_confirm": {
+        "description": "Vil du konfigurere {name}?"
+      }
+    },
+    "abort": {
+      "no_devices_found": "Ingen enheder fundet",
+      "already_in_progress": "Konfigurationsflowet er allerede i gang",
+      "already_configured": "Enheden er allerede konfigureret",
+      "not_supported": "Enheden understøttes ikke",
+      "reauth_successful": "Genautentificering lykkedes",
+      "cannot_connect": "Kunne ikke oprette forbindelse",
+      "unknown": "Uventet fejl"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Konfiguration af Magic Caster Wand",
+        "description": "Konfigurer URL til TFLite-serveren til besværgelsesgenkendelse og timeout for besværgelser.",
+        "data": {
+          "tflite_url": "URL til TFLite-server",
+          "spell_timeout": "Timeout for besværgelse (sekunder)"
+        },
+        "data_description": {
+          "spell_timeout": "Tid i sekunder, før en registreret besværgelse nulstilles til afventer. Angiv 0 for at deaktivere timeout."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "spell": {
+        "name": "Besværgelse"
+      },
+      "battery": {
+        "name": "Batteri"
+      },
+      "battery_state": {
+        "name": "Batteristatus"
+      },
+      "spell_mode": {
+        "name": "Tilstand for besværgelsesgenkendelse"
+      },
+      "calibration_button": {
+        "name": "Knapkalibrering"
+      },
+      "calibration_imu": {
+        "name": "IMU-kalibrering"
+      },
+      "ble_connection_duration": {
+        "name": "Forbindelsesvarighed"
+      },
+      "ble_failure_count": {
+        "name": "Antal fejl"
+      },
+      "ble_last_failure": {
+        "name": "Seneste fejl"
+      }
+    },
+    "binary_sensor": {
+      "button_1": {
+        "name": "Knap 1"
+      },
+      "button_2": {
+        "name": "Knap 2"
+      },
+      "button_3": {
+        "name": "Knap 3"
+      },
+      "button_4": {
+        "name": "Knap 4"
+      },
+      "connected": {
+        "name": "Tilsluttet"
+      },
+      "lid": {
+        "name": "Låg"
+      },
+      "usb_plugged": {
+        "name": "USB tilsluttet"
+      },
+      "wand_present": {
+        "name": "Tryllestav"
+      }
+    },
+    "button": {
+      "calibration_button": {
+        "name": "Kalibrer knap"
+      },
+      "calibration_imu": {
+        "name": "Kalibrer IMU"
+      }
+    },
+    "switch": {
+      "connect": {
+        "name": "Opret forbindelse"
+      },
+      "spell_tracking": {
+        "name": "Sporing af besværgelser"
+      }
+    },
+    "select": {
+      "casting_led_color": {
+        "name": "LED-farve ved besværgelse"
+      }
+    },
+    "text": {
+      "alias": {
+        "name": "Alias"
+      }
+    },
+    "camera": {
+      "spell_canvas": {
+        "name": "Besværgelseslærred"
+      }
+    }
+  },
+  "services": {
+    "vibrate": {
+      "name": "Vibrer tryllestav",
+      "description": "Få tryllestaven til at vibrere. En enkelt kommando giver en fast puls på cirka 800 ms uanset den ønskede varighed.",
+      "fields": {
+        "duration": {
+          "name": "Varighed",
+          "description": "Ønsket vibrationsvarighed i millisekunder. Tætte kommandoer kan forlænge firmwarens puls."
+        }
+      }
+    },
+    "set_led": {
+      "name": "Indstil LED",
+      "description": "Indstil farven på en bestemt LED-gruppe på tryllestaven.",
+      "fields": {
+        "group": {
+          "name": "LED-gruppe",
+          "description": "LED-gruppen, der skal styres."
+        },
+        "rgb_color": {
+          "name": "RGB-farve",
+          "description": "Farven i RGB-format."
+        },
+        "duration": {
+          "name": "Varighed",
+          "description": "Lysets varighed i millisekunder. Brug 0 for permanent."
+        }
+      }
+    },
+    "send_macro": {
+      "name": "Send makro",
+      "description": "Send en sekvens af makrokommandoer til en tryllestav eller æske. Kommandoerne køres i rækkefølge og kan ændre LED'er, vente, vibrere og definere løkker. Æsken har én LED-gruppe (TIP) og ingen vibrationsmotor.",
+      "fields": {
+        "commands": {
+          "name": "Makrokommandoer",
+          "description": "En liste over kommandoobjekter. Understøttede nøgler: changeled (group, rgb, duration), clear, delay (delay), buzz (buzz), set_loops (1–255), loop og wait. LED-grupper: TIP, MID_UPPER, MID_LOWER, POMMEL (eller 0–3). RGB-kanaler går fra 0 til 255; duration er i millisekunder."
+        }
+      }
+    },
+    "clear_leds": {
+      "name": "Ryd LED'er",
+      "description": "Sluk alle LED'er på tryllestaven."
+    },
+    "play_spell": {
+      "name": "Afspil besværgelseseffekt",
+      "description": "Afspil en foruddefineret makroeffekt for besværgelse.",
+      "fields": {
+        "spell": {
+          "name": "Besværgelse",
+          "description": "Besværgelseseffekten, der skal afspilles."
+        }
+      }
+    }
+  },
+  "selector": {
+    "led_group": {
+      "options": {
+        "tip": "Spids",
+        "pommel": "Knop",
+        "mid_lower": "Midt nederst",
+        "mid_upper": "Midt øverst"
+      }
+    }
+  }
+}

@@ -1,0 +1,192 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "description": "Kurulacak bir cihaz seçin",
+        "data": {
+          "address": "Cihaz"
+        }
+      },
+      "bluetooth_confirm": {
+        "description": "{name} cihazını kurmak istiyor musunuz?"
+      }
+    },
+    "abort": {
+      "no_devices_found": "Cihaz bulunamadı",
+      "already_in_progress": "Yapılandırma akışı zaten devam ediyor",
+      "already_configured": "Cihaz zaten yapılandırılmış",
+      "not_supported": "Cihaz desteklenmiyor",
+      "reauth_successful": "Yeniden kimlik doğrulama başarılı",
+      "cannot_connect": "Bağlanma başarısız",
+      "unknown": "Beklenmeyen hata"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Magic Caster Wand Yapılandırması",
+        "description": "Büyü algılama için TFLite sunucu URL'sini ve büyü zaman aşımını yapılandırın.",
+        "data": {
+          "tflite_url": "TFLite Sunucu URL'si",
+          "spell_timeout": "Büyü Zaman Aşımı (saniye)"
+        },
+        "data_description": {
+          "spell_timeout": "Algılanan bir büyünün beklemeye sıfırlanmasına kadar geçen süre (saniye). Zaman aşımını devre dışı bırakmak için 0 girin."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "spell": {
+        "name": "Büyü"
+      },
+      "battery": {
+        "name": "Pil"
+      },
+      "battery_state": {
+        "name": "Pil Durumu"
+      },
+      "spell_mode": {
+        "name": "Büyü Algılama Modu"
+      },
+      "calibration_button": {
+        "name": "Düğme Kalibrasyonu"
+      },
+      "calibration_imu": {
+        "name": "IMU Kalibrasyonu"
+      },
+      "ble_connection_duration": {
+        "name": "Bağlantı Süresi"
+      },
+      "ble_failure_count": {
+        "name": "Hata Sayısı"
+      },
+      "ble_last_failure": {
+        "name": "Son Hata"
+      }
+    },
+    "binary_sensor": {
+      "button_1": {
+        "name": "Düğme 1"
+      },
+      "button_2": {
+        "name": "Düğme 2"
+      },
+      "button_3": {
+        "name": "Düğme 3"
+      },
+      "button_4": {
+        "name": "Düğme 4"
+      },
+      "connected": {
+        "name": "Bağlı"
+      },
+      "lid": {
+        "name": "Kapak"
+      },
+      "usb_plugged": {
+        "name": "USB Takılı"
+      },
+      "wand_present": {
+        "name": "Asa"
+      }
+    },
+    "button": {
+      "calibration_button": {
+        "name": "Düğmeyi Kalibre Et"
+      },
+      "calibration_imu": {
+        "name": "IMU'yu Kalibre Et"
+      }
+    },
+    "switch": {
+      "connect": {
+        "name": "Bağlan"
+      },
+      "spell_tracking": {
+        "name": "Büyü Takibi"
+      }
+    },
+    "select": {
+      "casting_led_color": {
+        "name": "Büyü LED Rengi"
+      }
+    },
+    "text": {
+      "alias": {
+        "name": "Takma Ad"
+      }
+    },
+    "camera": {
+      "spell_canvas": {
+        "name": "Büyü Tuvali"
+      }
+    }
+  },
+  "services": {
+    "vibrate": {
+      "name": "Asayı Titret",
+      "description": "Asayı titretir. Tek bir komut, istenen süreden bağımsız olarak yaklaşık 800 ms'lik sabit bir darbe üretir.",
+      "fields": {
+        "duration": {
+          "name": "Süre",
+          "description": "Milisaniye cinsinden istenen titreşim süresi. Birbirine yakın komutlar bellenim darbesini uzatabilir."
+        }
+      }
+    },
+    "set_led": {
+      "name": "LED Ayarla",
+      "description": "Asadaki belirli bir LED grubunun rengini ayarlar.",
+      "fields": {
+        "group": {
+          "name": "LED Grubu",
+          "description": "Kontrol edilecek LED grubu."
+        },
+        "rgb_color": {
+          "name": "RGB Rengi",
+          "description": "RGB biçiminde renk."
+        },
+        "duration": {
+          "name": "Süre",
+          "description": "Milisaniye cinsinden ışık süresi. Kalıcı için 0 kullanın."
+        }
+      }
+    },
+    "send_macro": {
+      "name": "Makro Gönder",
+      "description": "Asaya veya kutuya bir makro komut dizisi gönderir. Komutlar sırayla çalışır; LED'leri değiştirebilir, bekleyebilir, titreşim verebilir ve döngüler tanımlayabilir. Kutuda tek bir LED grubu (TIP) vardır ve titreşim motoru yoktur.",
+      "fields": {
+        "commands": {
+          "name": "Makro Komutları",
+          "description": "Komut nesnelerinin listesi. Desteklenen anahtarlar: changeled (group, rgb, duration), clear, delay (delay), buzz (buzz), set_loops (1–255), loop ve wait. LED grupları: TIP, MID_UPPER, MID_LOWER, POMMEL (veya 0–3). RGB kanalları 0 ile 255 arasındadır; duration milisaniye cinsindendir."
+        }
+      }
+    },
+    "clear_leds": {
+      "name": "LED'leri Temizle",
+      "description": "Asadaki tüm LED'leri kapatır."
+    },
+    "play_spell": {
+      "name": "Büyü Efektini Oynat",
+      "description": "Önceden tanımlı bir büyü makro efektini oynatır.",
+      "fields": {
+        "spell": {
+          "name": "Büyü",
+          "description": "Oynatılacak büyü efekti."
+        }
+      }
+    }
+  },
+  "selector": {
+    "led_group": {
+      "options": {
+        "tip": "Uç",
+        "pommel": "Kabza ucu",
+        "mid_lower": "Orta Alt",
+        "mid_upper": "Orta Üst"
+      }
+    }
+  }
+}
