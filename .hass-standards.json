@@ -12,8 +12,8 @@
   "validate_workflow": "validate.yml",
   "standards": {
     "kind": "release",
-    "tag": "v1.3.1",
-    "resolved_sha": "2f9d752d43b7f0bd3039ff804b4181ed2964cb16"
+    "tag": "v1.3.3",
+    "resolved_sha": "39463345df66063305065891c32b184c41cfadc4"
   },
   "installation_links": {
     "README.md": "#installation",
